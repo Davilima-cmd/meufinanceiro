@@ -1,0 +1,29 @@
+* text=auto eol=lf
+
+# Explicitly declare text files
+*.md text
+*.txt text
+*.json text
+*.yaml text
+*.yml text
+*.js text
+*.ts text
+*.tsx text
+*.css text
+*.scss text
+*.html text
+*.xml text
+*.svg text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.pdf binary

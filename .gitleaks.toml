@@ -1,0 +1,43 @@
+[allowlist]
+description = "Allowlist for gitleaks"
+paths = [
+  "*.example",
+  "*.md",
+  "docs/**",
+  "**/*.test.ts",
+  "**/*.test.tsx",
+  "**/*.spec.ts",
+  "**/*.spec.tsx",
+]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key pattern"
+regex = '''(?i)(api[_-]?key|apikey)\s*[:=]\s*["'][a-zA-Z0-9_\-]{20,}["']'''
+tags = ["key", "api"]
+entropy = 3.5
+
+[[rules]]
+id = "generic-secret"
+description = "Generic Secret pattern"
+regex = '''(?i)(secret|password|pwd)\s*[:=]\s*["'][^"']{8,}["']'''
+tags = ["secret", "password"]
+entropy = 3.0
+
+[[rules]]
+id = "jwt-token"
+description = "JWT Token pattern"
+regex = '''eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*'''
+tags = ["jwt", "token"]
+
+[[rules]]
+id = "postgres-connection"
+description = "PostgreSQL Connection String"
+regex = '''postgresql://[^:]+:[^@]+@[^/]+/\w+'''
+tags = ["database", "postgres"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key pattern"
+regex = '''-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
+tags = ["key", "private"]
