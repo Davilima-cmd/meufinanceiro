@@ -14,7 +14,7 @@
     "build": "tsc",
     "lint": "eslint -c ../../eslint.config.js src --ext .ts",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'design-tokens tests skipped in Phase 0 - validate via typecheck'",
+    "test": "jest",
     "generate": "echo 'no generate script'"
   },
   "devDependencies": {

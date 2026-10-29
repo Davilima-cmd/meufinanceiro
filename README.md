@@ -121,12 +121,12 @@ meufinanceiro/
 
 Cada app tem seu `.env.example` com variáveis documentadas:
 
-| App | Arquivo | Descrição |
-|-----|---------|-----------|
-| Root | `.env.example` | Variáveis globais (DB, Auth, Open Finance) |
-| API | `apps/api/.env.example` | Configurações do backend |
-| Web | `apps/web/.env.example` | Configurações do frontend (NEXT_PUBLIC_*) |
-| Mobile | `apps/mobile/.env.example` | Configurações do mobile (EXPO_PUBLIC_*) |
+| App    | Arquivo                    | Descrição                                  |
+| ------ | -------------------------- | ------------------------------------------ |
+| Root   | `.env.example`             | Variáveis globais (DB, Auth, Open Finance) |
+| API    | `apps/api/.env.example`    | Configurações do backend                   |
+| Web    | `apps/web/.env.example`    | Configurações do frontend (NEXT_PUBLIC_*)  |
+| Mobile | `apps/mobile/.env.example` | Configurações do mobile (EXPO_PUBLIC_*)    |
 
 **⚠️ Nunca commite arquivos `.env` com valores reais!** Use apenas `.env.example` no Git.
 
