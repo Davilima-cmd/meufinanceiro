@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "24"
-  PNPM_VERSION: "12.3.4"
+  NODE_VERSION: '24'
+  PNPM_VERSION: '12.3.4'
 
 jobs:
   lint-typecheck-test-build:
@@ -33,7 +33,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

@@ -2,18 +2,18 @@
 
 ## Decisões de Stack
 
-| Camada | Tecnologia | Versão | Justificativa |
-|--------|------------|--------|---------------|
-| Runtime | Node.js | 24.x | LTS atual, performance, suporte nativo a fetch/ESM |
-| Package Manager | pnpm | 12.x | Velocidade, disk efficiency, workspaces nativos |
-| Monorepo | Turborepo | 2.x | Cache inteligente, pipeline paralela, adoção crescente |
-| Language | TypeScript | 5.5.x | Type safety, DX, ecossistema maduro |
-| API | NestJS | 11.x | Arquitetura modular, DI, decorators, OpenAPI nativo |
-| Web | Next.js | 15.x | App Router, RSC, performance, SEO |
-| Mobile | Expo | 52.x | SDK gerenciado, OTA updates, ecossistema React Native |
-| Testing | Jest | 29.x | Padrão da indústria, snapshot, coverage |
-| Linting | ESLint | 9.x | Flat config, performance, regras TypeScript |
-| Formatting | Prettier | 3.x | Opinionated, zero config, integração universal |
+| Camada          | Tecnologia | Versão | Justificativa                                          |
+| --------------- | ---------- | ------ | ------------------------------------------------------ |
+| Runtime         | Node.js    | 24.x   | LTS atual, performance, suporte nativo a fetch/ESM     |
+| Package Manager | pnpm       | 12.x   | Velocidade, disk efficiency, workspaces nativos        |
+| Monorepo        | Turborepo  | 2.x    | Cache inteligente, pipeline paralela, adoção crescente |
+| Language        | TypeScript | 5.5.x  | Type safety, DX, ecossistema maduro                    |
+| API             | NestJS     | 11.x   | Arquitetura modular, DI, decorators, OpenAPI nativo    |
+| Web             | Next.js    | 15.x   | App Router, RSC, performance, SEO                      |
+| Mobile          | Expo       | 52.x   | SDK gerenciado, OTA updates, ecossistema React Native  |
+| Testing         | Jest       | 29.x   | Padrão da indústria, snapshot, coverage                |
+| Linting         | ESLint     | 9.x    | Flat config, performance, regras TypeScript            |
+| Formatting      | Prettier   | 3.x    | Opinionated, zero config, integração universal         |
 
 ## Estrutura do Monorepo
 
@@ -47,7 +47,8 @@ meufinanceiro/
 
 ### `.npmrc` - `node-linker=hoisted`
 
-**Motivo:** Expo/Metro não suporta PnP (Plug'n'Play) do pnpm. O hoisted cria `node_modules` plano compatível com bundlers nativos do React Native.
+**Motivo:** Expo/Metro não suporta PnP (Plug'n'Play) do pnpm. O hoisted cria `node_modules` plano
+compatível com bundlers nativos do React Native.
 
 ```ini
 node-linker=hoisted
@@ -58,12 +59,15 @@ auto-install-peers=true
 ### TypeScript Paths
 
 `tsconfig.base.json` define:
+
 ```json
 "paths": {
   "@meufinanceiro/*": ["packages/*/src"]
 }
 ```
-Permite imports limpos durante desenvolvimento (`import { x } from '@meufinanceiro/money'`). No build, cada pacote gera sua própria declaração.
+
+Permite imports limpos durante desenvolvimento (`import { x } from '@meufinanceiro/money'`). No
+build, cada pacote gera sua própria declaração.
 
 ### Turborepo Pipeline
 
@@ -78,6 +82,7 @@ Permite imports limpos durante desenvolvimento (`import { x } from '@meufinancei
   }
 }
 ```
+
 - `dependsOn: ["^build"]` garante ordem topológica (dependências buildam primeiro)
 - `cache: true` para tasks determinísticas (lint, typecheck, test)
 - `persistent: true` para `dev` (servidores long-running)
@@ -93,6 +98,7 @@ Permite imports limpos durante desenvolvimento (`import { x } from '@meufinancei
 5. **BigInt nativo:** Evita `float`/`decimal.js` - performance + zero dependências
 
 **API principal:**
+
 ```typescript
 fromReais('10.50')      // string → Centavos (BigInt)
 formatBRL(centavos)     // Centavos → 'R$ 10,50'
@@ -105,6 +111,7 @@ sum([...])              // Soma array
 Ver [`docs/security.md`](security.md) para detalhes completos.
 
 **Resumo:**
+
 - `.env.example` com valores falsos (nunca `.env` real no Git)
 - Gitleaks na CI + config customizada (`.gitleaks.toml`)
 - Dependabot semanal para npm + GitHub Actions
@@ -113,16 +120,16 @@ Ver [`docs/security.md`](security.md) para detalhes completos.
 
 ## Pendências Conhecidas
 
-| Item | Fase | Descrição |
-|------|------|-----------|
-| Banco de dados / Prisma | 1 | Schema, migrations, seed |
-| Autenticação (JWT, refresh) | 2 | Login, register, middleware |
-| Design System completo | 1 | Componentes, Storybook, tokens reais |
-| Open Finance integration | 3 | mTLS, consentimento, sincronização |
-| Deploy (Vercel/Render) | 4 | Preview deploys, produção |
-| Observabilidade | 4 | Logs estruturados, métricas, tracing |
-| Testes E2E | 2 | Playwright (web), Detox (mobile) |
-| CI: Docker build/test | 4 | Imagens multi-stage, cache layers |
+| Item                        | Fase | Descrição                            |
+| --------------------------- | ---- | ------------------------------------ |
+| Banco de dados / Prisma     | 1    | Schema, migrations, seed             |
+| Autenticação (JWT, refresh) | 2    | Login, register, middleware          |
+| Design System completo      | 1    | Componentes, Storybook, tokens reais |
+| Open Finance integration    | 3    | mTLS, consentimento, sincronização   |
+| Deploy (Vercel/Render)      | 4    | Preview deploys, produção            |
+| Observabilidade             | 4    | Logs estruturados, métricas, tracing |
+| Testes E2E                  | 2    | Playwright (web), Detox (mobile)     |
+| CI: Docker build/test       | 4    | Imagens multi-stage, cache layers    |
 
 ## Versionamento
 
