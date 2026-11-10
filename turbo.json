@@ -3,28 +3,25 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "build/**"],
-      "cache": true
-    },
-    "lint": {
-      "outputs": [],
-      "cache": true
-    },
-    "typecheck": {
-      "outputs": [],
-      "cache": true
-    },
-    "test": {
-      "outputs": ["coverage/**"],
-      "cache": true
+      "outputs": ["dist/**", ".next/**", "out/**"]
     },
     "dev": {
+      "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
-    "generate": {
-      "cache": true
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": []
     }
   },
-  "globalEnv": ["NODE_ENV"]
+  "globalEnv": ["DATABASE_URL", "DATABASE_URL_DIRECT", "JWT_SECRET", "NODE_ENV"]
 }

@@ -1,11 +1,10 @@
 {
-  "extends": "@meufinanceiro/tsconfig/react-native.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-native",
+    "noEmit": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "expo-env.d.ts"],
-  "exclude": ["node_modules"]
+  "include": ["App.tsx", "app.config.ts"]
 }

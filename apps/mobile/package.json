@@ -2,37 +2,23 @@
   "name": "@meufinanceiro/mobile",
   "version": "0.0.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "expo/AppEntry",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "eslint -c ../../eslint.config.js src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit",
-    "test": "echo 'mobile tests skipped in Phase 0 - validate via typecheck'",
-    "generate": "echo 'no generate script'"
+    "dev": "expo start",
+    "build": "expo export --platform android",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "expo": "^52.0.0",
-    "expo-router": "^4.0.0",
-    "react": "^19.0.0",
-    "react-native": "^0.76.0",
-    "react-native-safe-area-context": "^4.12.0",
-    "react-native-screens": "^4.4.0"
+    "@meufinanceiro/design-tokens": "workspace:*",
+    "@meufinanceiro/shared-types": "workspace:*",
+    "expo": "^58.0.23",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-web": "~0.21.4"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.0",
-    "@types/react": "^19.0.0",
-    "@types/react-native": "^0.73.0",
-    "@types/jest": "^29.5.0",
-    "@testing-library/react-native": "^13.0.0",
-    "@testing-library/jest-native": "^5.4.0",
-    "jest": "^29.7.0",
-    "jest-expo": "^52.0.0",
-    "ts-jest": "^29.1.0",
-    "typescript": "^5.5.0",
-    "@meufinanceiro/eslint-config": "workspace:*",
-    "@meufinanceiro/tsconfig": "workspace:*"
+    "@types/react": "^19.2.0"
   }
 }

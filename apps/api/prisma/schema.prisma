@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_DIRECT")
+}
+
+model User {
+  id        String    @id @default(cuid()) @db.VarChar(255)
+  name      String    @db.VarChar(255)
+  email     String    @unique @db.VarChar(255)
+  password  String    @db.VarChar(255)
+  theme     String    @default("system") @db.VarChar(32)
+  currency  String    @default("BRL") @db.VarChar(16)
+  hideValues Boolean  @default(false) @map("hide_values")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  sessions        Session[]
+  partnershipsAsOwner    Partnership[] @relation("PartnershipOwner")
+  partnershipsAsPartner  Partnership[] @relation("PartnershipPartner")
+  accountSharesOwned     AccountShare[] @relation("AccountShareOwner")
+  accountSharesReceived  AccountShare[] @relation("AccountShareSharedWith")
+  financialAccounts   FinancialAccount[]
+  transactions        Transaction[]
+  bankConnections     BankConnection[]
+  consents            Consent[]
+  categories          Category[]
+  budgets             Budget[]
+  financialGoals      FinancialGoal[]
+  syncJobs            SyncJob[]
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid()) @db.VarChar(255)
+  userId    String   @db.VarChar(255)
+  tokenHash String   @db.VarChar(255)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+  @@index([userId])
+}
+
+model Partnership {
+  id        String   @id @default(cuid()) @db.VarChar(255)
+  userId    String   @db.VarChar(255)
+  partnerId String   @db.VarChar(255)
+  status    String   @default("pending") @db.VarChar(32) // pending, accepted, revoked
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User @relation("PartnershipOwner", fields: [userId], references: [id], onDelete: Cascade)
+  partner  User @relation("PartnershipPartner", fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@map("partnerships")
+  @@index([userId])
+  @@index([partnerId])
+  @@unique([userId, partnerId])
+}
+
+model AccountShare {
+  id        String   @id @default(cuid()) @db.VarChar(255)
+  accountId String   @db.VarChar(255)
+  userId    String   @db.VarChar(255) // dono da conta
+  sharedWithId String @db.VarChar(255) // parceiro com acesso
+  level     String   @default("BALANCE_ONLY") @db.VarChar(32) // BALANCE_ONLY | FULL
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  account   FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  owner     User             @relation("AccountShareOwner", fields: [userId], references: [id], onDelete: Cascade)
+  sharedWith User            @relation("AccountShareSharedWith", fields: [sharedWithId], references: [id], onDelete: Cascade)
+
+  @@map("account_shares")
+  @@index([accountId])
+  @@index([sharedWithId])
+  @@unique([accountId, sharedWithId])
+}
+
+model FinancialAccount {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  userId      String   @db.VarChar(255)
+  name        String   @db.VarChar(255)
+  institution String?  @db.VarChar(255)
+  type        String   @default("manual") @db.VarChar(32) // manual, checking, savings, investment
+  currency    String   @default("BRL") @db.VarChar(16)
+  balanceCents Decimal  @default(0) @db.Decimal(20, 0)
+  isActive    Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shares     AccountShare[]
+  connections BankConnection[]
+  transactions Transaction[]
+
+  @@map("financial_accounts")
+  @@index([userId])
+}
+
+model BankConnection {
+  id             String   @id @default(cuid()) @db.VarChar(255)
+  userId         String   @db.VarChar(255)
+  accountId      String   @db.VarChar(255)
+  provider       String   @db.VarChar(128)
+  providerAccountId String @db.VarChar(255)
+  status         String   @default("active") @db.VarChar(32) // active, awaiting_authorization, expired, error, disconnected
+  consentId      String?  @db.VarChar(255)
+  expiresAt      DateTime?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("bank_connections")
+  @@index([userId])
+  @@index([accountId])
+  @@unique([provider, providerAccountId])
+}
+
+model Consent {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  userId      String   @db.VarChar(255)
+  provider    String   @db.VarChar(128)
+  externalId  String   @db.VarChar(255)
+  status      String   @default("active") @db.VarChar(32)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("consents")
+  @@index([userId])
+}
+
+model Transaction {
+  id           String   @id @default(cuid()) @db.VarChar(255)
+  accountId    String   @db.VarChar(255)
+  userId       String   @db.VarChar(255)
+  categoryId   String?
+  description  String   @db.VarChar(255)
+  amountCents  Decimal  @db.Decimal(20, 0) // centavos, negativo para despesa
+  type         String   @db.VarChar(16) // income, expense, transfer
+  origin       String   @default("manual") @db.VarChar(32) // manual, imported
+  providerId   String?  @db.VarChar(255) // id original do provedor (idempotência)
+  date         DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@map("transactions")
+  @@index([userId])
+  @@index([accountId])
+  @@index([date])
+  @@unique([providerId])
+}
+
+model Category {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  userId      String?  // null = categoria inicial compartilhada do sistema
+  name        String   @db.VarChar(128)
+  color       String   @default("#246b61") @db.VarChar(16)
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user       User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets Budget[]
+
+  @@map("categories")
+  @@index([userId])
+}
+
+model Budget {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  userId      String   @db.VarChar(255)
+  categoryId  String   @db.VarChar(255)
+  amountCents Decimal  @db.Decimal(20, 0)
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
+  @@index([userId])
+}
+
+model FinancialGoal {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  userId      String   @db.VarChar(255)
+  name        String   @db.VarChar(255)
+  targetCents Decimal  @db.Decimal(20, 0)
+  currentCents Decimal @default(0) @db.Decimal(20, 0)
+  dueDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("financial_goals")
+  @@index([userId])
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  provider    String   @db.VarChar(128)
+  eventId     String   @unique @db.VarChar(255)
+  payload     Json
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("webhook_events")
+  @@index([processed])
+}
+
+model SyncJob {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  userId      String   @db.VarChar(255)
+  status      String   @default("pending") @db.VarChar(32) // pending, completed, failed
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sync_jobs")
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid()) @db.VarChar(255)
+  userId    String?
+  action    String   @db.VarChar(128)
+  target    String?  @db.VarChar(255)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+  @@index([userId])
+}

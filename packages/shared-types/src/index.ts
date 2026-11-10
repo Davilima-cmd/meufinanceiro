@@ -1,20 +1,7 @@
-/**
- * Shared types for Meu Financeiro
- */
+export const ACCOUNT_SHARE_LEVELS = ['BALANCE_ONLY', 'FULL'] as const;
 
-export type EntityId = string & { readonly __brand: unique symbol };
+export type AccountShareLevel = (typeof ACCOUNT_SHARE_LEVELS)[number];
+export type MoneyCents = bigint;
+export type UtcIsoDate = string;
 
-export function createEntityId(id: string): EntityId {
-  return id as EntityId;
-}
-
-export interface Timestamped {
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export type ISODateString = string & { readonly __brand: unique symbol };
-
-export function toISODateString(date: Date): ISODateString {
-  return date.toISOString() as ISODateString;
-}
+export { formatCents } from './format-money.js';

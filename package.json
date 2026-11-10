@@ -2,38 +2,28 @@
   "name": "meufinanceiro",
   "version": "0.0.0",
   "private": true,
-  "description": "Monorepo para o app Meu Financeiro",
+  "description": "Aplicativo financeiro para casal: web, Android e API",
+  "packageManager": "pnpm@9.0.0",
   "engines": {
-    "node": ">=24"
+    "node": ">=20.9.0"
   },
-  "packageManager": "pnpm@12.3.4",
-  "type": "module",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
-    "prepare": "husky install"
+    "format": "prettier --write \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{ts,tsx,json}\" \"*.{json,mjs,yaml,yml}\" \".github/**/*.yml\" README.md docs/architecture.md docs/security.md",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{ts,tsx,json}\" \"*.{json,mjs,yaml,yml}\" \".github/**/*.yml\" README.md docs/architecture.md docs/security.md"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "eslint": "^9.0.0",
-    "typescript-eslint": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
-    "eslint-plugin-prettier": "^5.0.0",
-    "eslint-plugin-react": "^7.35.0",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "globals": "^15.0.0",
-    "husky": "^9.0.0",
-    "lint-staged": "^15.0.0",
-    "prettier": "^3.0.0",
-    "turbo": "^2.0.0",
-    "typescript": "^5.5.0"
-  },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.10.0",
+    "eslint": "^10.14.0",
+    "prettier": "^3.7.4",
+    "turbo": "^2.5.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.0",
+    "vitest": "^3.2.4"
+  }
 }

@@ -1,12 +1,14 @@
 {
-  "extends": "@meufinanceiro/tsconfig/node.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "target": "ES2021",
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "verbatimModuleSyntax": false,
+    "noEmit": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }

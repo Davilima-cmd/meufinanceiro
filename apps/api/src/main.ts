@@ -1,10 +1,14 @@
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { PrismaService } from './prisma/prisma.service';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-  const port = process.env['PORT'] || 3000;
-  await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+  app.setGlobalPrefix('api');
+  const prisma = app.get(PrismaService);
+  await prisma.enableShutdownHooks(app);
+  await app.listen(Number(process.env.API_PORT ?? 3001));
 }
-bootstrap();
+
+void bootstrap();

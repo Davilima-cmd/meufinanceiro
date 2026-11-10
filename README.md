@@ -1,175 +1,47 @@
 # Meu Financeiro
 
-Monorepo para aplicação de controle financeiro pessoal com integração Open Finance (Brasil).
+Aplicativo financeiro para duas pessoas, com versões web e Android e uma API única. A especificação funcional está em [`docs/especificacao_final.md`](docs/especificacao_final.md).
 
-## Visão Geral
+## Estrutura
 
-Este monorepo contém três aplicações principais:
+- `apps/web`: interface web em Next.js, React e TypeScript.
+- `apps/mobile`: aplicativo Android em React Native e Expo.
+- `apps/api`: API em NestJS.
+- `packages/shared-types`: contratos compartilhados entre as aplicações.
+- `packages/validation`: tipos para resultados de validação de entrada.
+- `packages/design-tokens`: medidas compartilhadas da interface.
 
-- **apps/api** - Backend NestJS (REST API)
-- **apps/web** - Frontend Next.js (App Router)
-- **apps/mobile** - App móvel Expo + React Native
+A base do monorepo usa pnpm workspaces e Turborepo. O banco e a autenticação ainda não foram implementados.
 
-E pacotes compartilhados:
+## Requisitos
 
-- **packages/shared-types** - Tipos TypeScript compartilhados
-- **packages/validation** - Utilitários de validação
-- **packages/design-tokens** - Tokens de design (cores, espaçamento, tipografia)
-- **packages/money** - Utilitários monetários (centavos com BigInt)
-- **packages/eslint-config** - Configuração ESLint compartilhada
-- **packages/tsconfig** - Configurações TypeScript base
+- Node.js 24 (mínimo suportado: 20.9).
+- pnpm 9.0.0 (`corepack enable` pode ativar a versão fixada em `package.json`).
 
-## Pré-requisitos
+## Instalação e desenvolvimento
 
-- **Node.js** >= 24 (ver `.nvmrc`)
-- **pnpm** >= 12 (ver `package.json#packageManager`)
-- **Git**
-
-## Instalação
-
-```bash
-# Clone o repositório
-git clone https://github.com/Davilima-cmd/meufinanceiro.git
-cd meufinanceiro
-
-# Instale dependências
+```sh
 pnpm install
-
-# Configure variáveis de ambiente (copie os .env.example)
-cp .env.example .env
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
-cp apps/mobile/.env.example apps/mobile/.env
-```
-
-## Comandos Disponíveis
-
-### Raiz do Monorepo
-
-```bash
-# Desenvolvimento (roda todos os apps em paralelo)
 pnpm dev
+```
 
-# Build de todos os apps e pacotes
-pnpm build
+A interface web fica em `http://localhost:3000`. A API inicia na porta `3001`, com verificação em `http://localhost:3001/api/health`. O Expo abre o fluxo de desenvolvimento do aplicativo móvel.
 
-# Lint em todo o código
+## Verificações
+
+```sh
 pnpm lint
-
-# Typecheck em todo o código
 pnpm typecheck
-
-# Testes em todo o código
 pnpm test
-
-# Formatação com Prettier
-pnpm format
+pnpm build
 ```
 
-### Apps Individuais
+O workflow do GitHub Actions executa essas verificações em pushes para `main` e pull requests.
 
-```bash
-# API (NestJS)
-pnpm --filter api dev          # Modo desenvolvimento (watch)
-pnpm --filter api start:prod   # Produção
-pnpm --filter api test         # Testes
-pnpm --filter api build        # Build
+## Variáveis locais
 
-# Web (Next.js)
-pnpm --filter web dev          # Modo desenvolvimento
-pnpm --filter web build        # Build de produção
-pnpm --filter web start        # Servidor de produção
-pnpm --filter web test         # Testes
+`.env.example` é um modelo para as próximas fases; atualmente nenhuma aplicação depende de banco ou autenticação e o projeto não carrega automaticamente um arquivo `.env`. A porta da API pode ser definida pela variável `API_PORT`. Arquivos `.env` são ignorados pelo Git. Não use dados bancários reais durante o desenvolvimento; a especificação exige dados fictícios e sandbox.
 
-# Mobile (Expo)
-pnpm --filter mobile start     # Inicia Metro bundler
-pnpm --filter mobile android   # Abre no Android
-pnpm --filter mobile ios       # Abre no iOS
-pnpm --filter mobile web       # Abre no navegador
-pnpm --filter mobile test      # Testes
-```
+## Escopo atual
 
-## Estrutura do Repositório
-
-```
-meufinanceiro/
-├── apps/
-│   ├── api/          # NestJS API
-│   ├── web/          # Next.js App Router
-│   └── mobile/       # Expo + React Native
-├── packages/
-│   ├── shared-types/     # Tipos compartilhados
-│   ├── validation/       # Validação
-│   ├── design-tokens/    # Design tokens
-│   ├── money/            # Utilitários monetários (BigInt)
-│   ├── eslint-config/    # ESLint config
-│   └── tsconfig/         # TypeScript configs
-├── docs/
-│   ├── architecture.md   # Decisões de arquitetura
-│   ├── security.md       # Práticas de segurança
-│   └── especificacao_final.md
-├── .github/
-│   ├── workflows/ci.yml  # CI/CD
-│   └── dependabot.yml    # Dependabot config
-├── .husky/               # Git hooks
-├── turbo.json            # Turborepo config
-├── pnpm-workspace.yaml   # pnpm workspaces
-└── package.json          # Root package.json
-```
-
-## Variáveis de Ambiente
-
-Cada app tem seu `.env.example` com variáveis documentadas:
-
-| App | Arquivo | Descrição |
-|-----|---------|-----------|
-| Root | `.env.example` | Variáveis globais (DB, Auth, Open Finance) |
-| API | `apps/api/.env.example` | Configurações do backend |
-| Web | `apps/web/.env.example` | Configurações do frontend (NEXT_PUBLIC_*) |
-| Mobile | `apps/mobile/.env.example` | Configurações do mobile (EXPO_PUBLIC_*) |
-
-**⚠️ Nunca commite arquivos `.env` com valores reais!** Use apenas `.env.example` no Git.
-
-## Testes
-
-```bash
-# Todos os testes
-pnpm test
-
-# Testes de um pacote específico
-pnpm --filter @meufinanceiro/money test
-pnpm --filter @meufinanceiro/validation test
-
-# Testes de um app específico
-pnpm --filter api test
-pnpm --filter web test
-pnpm --filter mobile test
-```
-
-## Qualidade de Código
-
-- **TypeScript** strict mode em todos os pacotes
-- **ESLint** + **Prettier** com configuração compartilhada
-- **Husky** + **lint-staged** no pre-commit
-- **Conventional Commits** (recomendado)
-
-## CI/CD
-
-O pipeline roda em todo push/PR para `main`:
-
-1. **Install** - `pnpm install` com cache
-2. **Lint** - `pnpm lint`
-3. **Typecheck** - `pnpm typecheck`
-4. **Test** - `pnpm test`
-5. **Build** - `pnpm build`
-6. **Secret Scanning** - Gitleaks
-
-## Documentação
-
-- [Arquitetura](docs/architecture.md) - Decisões técnicas e estrutura
-- [Segurança](docs/security.md) - Práticas e checklist de segurança
-- [Especificação Final](docs/especificacao_final.md) - Requisitos completos
-
-## Licença
-
-Privado - Todos os direitos reservados.
+A Fase 0 estabelece o monorepo, builds, lint, typecheck, testes de exemplo, CI e documentação. Cadastro, movimentações, compartilhamento, banco de dados e integração Open Finance ainda não estão disponíveis.
