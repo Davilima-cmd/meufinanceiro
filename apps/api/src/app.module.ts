@@ -10,6 +10,8 @@ import { BudgetsModule } from './budgets/budgets.module';
 import { FinancialGoalsModule } from './financial-goals/financial-goals.module';
 import { OpenFinanceModule } from './open-finance/open-finance.module';
 import { SyncModule } from './sync/sync.module';
+import { AuditModule } from './audit/audit.module';
+import { MfaModule } from './mfa/mfa.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { SyncModule } from './sync/sync.module';
     FinancialGoalsModule,
     OpenFinanceModule,
     SyncModule,
+    AuditModule,
+    MfaModule,
   ],
   controllers: [HealthController],
 })

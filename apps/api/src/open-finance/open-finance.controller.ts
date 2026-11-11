@@ -12,6 +12,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../sync/sync.service';
+import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -46,6 +47,7 @@ export class OpenFinanceController {
 
   @Post('connections')
   @UseGuards(AuthGuard('jwt'))
+  @AuditLog(AuditAction.ACCOUNT_CONNECT)
   async connect(
     @Req() req: AuthenticatedRequest,
     @Body()
@@ -64,6 +66,7 @@ export class OpenFinanceController {
 
   @Patch('connections/:id/revoke')
   @UseGuards(AuthGuard('jwt'))
+  @AuditLog(AuditAction.ACCOUNT_REVOKE)
   async revoke(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.prisma.bankConnection.update({
       where: { id, userId: req.user.userId },

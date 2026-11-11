@@ -29,6 +29,15 @@ async function main() {
       });
     }
   }
+
+  // Backfill MFA: usuários existentes sem MFA configurada ficam com mfaEnabled = false
+  // (o default da coluna já cobre novas inserções; este passo é explícito para linhas já existentes)
+  await prisma.user.updateMany({
+    where: {
+      NOT: { mfaEnabled: true },
+    },
+    data: { mfaEnabled: false },
+  });
 }
 
 main()

@@ -9,6 +9,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/transaction.dto';
+import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -38,6 +39,7 @@ export class TransactionsController {
   }
 
   @Post()
+  @AuditLog(AuditAction.TRANSACTION_CREATE)
   async create(
     @Req() req: AuthenticatedRequest,
     @Body() dto: CreateTransactionDto,

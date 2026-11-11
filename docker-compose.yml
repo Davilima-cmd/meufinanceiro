@@ -35,6 +35,8 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
       JWT_SECRET: dev-secret-change-me
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      TOTP_ISSUER: ${TOTP_ISSUER:-Meu Financeiro}
       OPEN_FINANCE_SANDBOX_BASE_URL: ${OPEN_FINANCE_SANDBOX_BASE_URL:-https://sandbox.openfinance.example.com}
     healthcheck:
       test:

@@ -19,10 +19,11 @@ Códigos HTTP usados: `200`, `201`, `204`, `400`, `401`, `403`, `404`, `409`, `5
 
 ### Autenticação (público)
 
-| Método | Endpoint         | Descrição             | Corpo da requisição         | Resposta de sucesso                    |
-| ------ | ---------------- | --------------------- | --------------------------- | -------------------------------------- |
-| POST   | `/auth/register` | Cadastra usuário      | `{ email, name, password }` | `200 { user: ApiUser, token: string }` |
-| POST   | `/auth/login`    | Autentica e emite JWT | `{ email, password }`       | `200 { user: ApiUser, token: string }` |
+| Método | Endpoint         | Descrição                                                             | Corpo da requisição         | Resposta de sucesso                    |
+| ------ | ---------------- | --------------------------------------------------------------------- | --------------------------- | -------------------------------------- |
+| POST   | `/auth/register` | Cadastra usuário                                                      | `{ email, name, password }` | `200 { user: ApiUser, token: string }` |
+| POST   | `/auth/login`    | Autentica e emite JWT                                                 | `{ email, password }`       | `200 { user: ApiUser, token: string }` |
+| DELETE | `/auth/account`  | Exclui a conta do usuário logado e todos os dados relacionados (LGPD) | —                           | `204` sem conteúdo                     |
 
 Exemplo de resposta:
 
@@ -66,36 +67,42 @@ Erros: `401` (não autenticado), `400` (body inválido).
 
 ### Transações (exige autenticação JWT)
 
-|| Método | Endpoint | Descrição | Corpo | Resposta |
-|--------|----------|-----------|-----------|-------|----------|
-| GET | `/transactions` | Listar transações do usuário | — | `200 ApiTransaction[]` |
-| POST | `/transactions` | Criar lançamento | `{ accountId, description, amountCents, type, categoryId?, date }` | `201 ApiTransaction` |
+|      | Método          | Endpoint                     | Descrição                                                          | Corpo                  | Resposta |
+| ---- | --------------- | ---------------------------- | ------------------------------------------------------------------ | ---------------------- | -------- |
+| GET  | `/transactions` | Listar transações do usuário | —                                                                  | `200 ApiTransaction[]` |
+| POST | `/transactions` | Criar lançamento             | `{ accountId, description, amountCents, type, categoryId?, date }` | `201 ApiTransaction`   |
 
 Valores em centavos (string), negativos para despesa.
 
 ### Open Finance e sincronização (exige autenticação JWT)
 
-|| Método | Endpoint | Descrição | Resposta |
-|--------|----------|-----------|----------|
-| GET | `/open-finance/connections` | Lista conexões de conta bancária do usuário | `200` |
-| POST | `/open-finance/connections` | Conecta uma conta a um provedor | `201` |
-| PATCH | `/open-finance/connections/:id/revoke` | Revoga (desconecta) uma conexão própria | `200` |
-| GET | `/open-finance/consents` | Lista consentimentos do usuário | `200` |
-| POST | `/open-finance/sync/own` | Dispara a reconciliação sob demanda ("Sincronizar agora") | `200 { syncJob }` ou `429` se exceder o limite de frequência |
+|| Método | Endpoint | Descrição | Resposta | |--------|----------|-----------|----------| | GET |
+`/open-finance/connections` | Lista conexões de conta bancária do usuário | `200` | | POST |
+`/open-finance/connections` | Conecta uma conta a um provedor | `201` | | PATCH |
+`/open-finance/connections/:id/revoke` | Revoga (desconecta) uma conexão própria | `200` | | GET |
+`/open-finance/consents` | Lista consentimentos do usuário | `200` | | POST |
+`/open-finance/sync/own` | Dispara a reconciliação sob demanda ("Sincronizar agora") |
+`200 { syncJob }` ou `429` se exceder o limite de frequência |
 
-**Reconciliação diária:** job que compara o que o provedor informa com o que está salvo e corrige lacunas — cria transações ausentes, atualiza campos do provedor (valor, data, tipo, descrição) e recomputa o saldo da conta. É **idempotente**: usa o identificador original do provedor (`providerId`, único no banco), então reexecutar não duplica lançamentos. O resultado de cada execução é gravado em `sync_jobs` (status, início/término, erro se houver).
+**Reconciliação diária:** job que compara o que o provedor informa com o que está salvo e corrige
+lacunas — cria transações ausentes, atualiza campos do provedor (valor, data, tipo, descrição) e
+recomputa o saldo da conta. É **idempotente**: usa o identificador original do provedor
+(`providerId`, único no banco), então reexecutar não duplica lançamentos. O resultado de cada
+execução é gravado em `sync_jobs` (status, início/término, erro se houver).
 
-**Limite de frequência do botão:** por padrão, um usuário só pode disparar a sincronização manual uma vez a cada 5 minutos (ajustável com `SYNC_RATE_LIMIT_MINUTES`). Jobs com falha não bloqueiam nova tentativa, e a varredura diária automática não está sujeita ao limite.
-
+**Limite de frequência do botão:** por padrão, um usuário só pode disparar a sincronização manual
+uma vez a cada 5 minutos (ajustável com `SYNC_RATE_LIMIT_MINUTES`). Jobs com falha não bloqueiam
+nova tentativa, e a varredura diária automática não está sujeita ao limite.
 
 ### Open Finance / conexões com instituições (exige autenticação JWT)
 
 || Método | Endpoint | Descrição | Corpo | Resposta |
-|--------|----------|-----------|-------|----------|
-| GET | `/open-finance/connections` | Lista conexões do usuário logado | — | `200 ApiBankConnection[]` |
-| POST | `/open-finance/connections` | Conecta instituição (sandbox) | `{ provider, providerAccountId, accountId }` | `201 ApiBankConnection` |
-| PATCH | `/open-finance/connections/:id/revoke` | Revoga (desconecta) uma conexão | — | `200 ApiBankConnection` |
-| POST | `/open-finance/sync` | Dispara job de sincronização/reconciliação | — | `200 { id, status }` |
+|--------|----------|-----------|-------|----------| | GET | `/open-finance/connections` | Lista
+conexões do usuário logado | — | `200 ApiBankConnection[]` | | POST | `/open-finance/connections` |
+Conecta instituição (sandbox) | `{ provider, providerAccountId, accountId }` |
+`201 ApiBankConnection` | | PATCH | `/open-finance/connections/:id/revoke` | Revoga (desconecta) uma
+conexão | — | `200 ApiBankConnection` | | POST | `/open-finance/sync` | Dispara job de
+sincronização/reconciliação | — | `200 { id, status }` |
 
 Status de conexão: `active`, `awaiting_authorization`, `expired`, `error`, `disconnected`.
 
@@ -113,7 +120,8 @@ Exemplo de conexão:
 }
 ```
 
-Tipos compartilhados adicionados em `packages/shared-types/src/index.ts`: `ApiBankConnection`, `ConnectConnectionDto`, `BankConnectionStatus`, `SyncJob`, `TriggerSyncResponse`.
+Tipos compartilhados adicionados em `packages/shared-types/src/index.ts`: `ApiBankConnection`,
+`ConnectConnectionDto`, `BankConnectionStatus`, `SyncJob`, `TriggerSyncResponse`.
 
 ### Saúde
 

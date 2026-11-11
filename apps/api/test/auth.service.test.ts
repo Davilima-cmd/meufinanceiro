@@ -7,10 +7,24 @@ const prismaMock = {
   user: {
     findUnique: vi.fn(),
     create: vi.fn(),
+    delete: vi.fn(),
+  },
+  accountShare: {
+    updateMany: vi.fn(),
+  },
+  auditLog: {
+    create: vi.fn(),
   },
 } as unknown as {
   user: {
     findUnique: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  };
+  accountShare: {
+    updateMany: ReturnType<typeof vi.fn>;
+  };
+  auditLog: {
     create: ReturnType<typeof vi.fn>;
   };
 };
@@ -20,10 +34,7 @@ const jwtMock = {
 } as unknown as { sign: ReturnType<typeof vi.fn> };
 
 function makeService() {
-  return new AuthService(
-    prismaMock as unknown as PrismaService,
-    jwtMock as unknown as JwtService,
-  );
+  return new AuthService(prismaMock as unknown as PrismaService, jwtMock as unknown as JwtService);
 }
 
 describe('AuthService', () => {
@@ -90,7 +101,7 @@ describe('AuthService', () => {
         email: 'davi@example.com',
         name: 'Davi',
         password: 'senha-secreta',
-      }),
+      })
     ).rejects.toThrow('Email já cadastrado');
   });
 
@@ -107,5 +118,42 @@ describe('AuthService', () => {
 
     const wrong = await makeService().validateUser('davi@example.com', 'senha-errada');
     expect(wrong).toBeNull();
+  });
+
+  describe('deleteAccount', () => {
+    it('exclui o usuário, revoga compartilhamentos titularizados e grava auditoria', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'davi@example.com',
+        name: 'Davi',
+      });
+
+      await makeService().deleteAccount('user-1');
+
+      expect(prismaMock.accountShare.updateMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'user-1',
+          action: 'ACCOUNT_DELETED',
+          target: 'user-1',
+          metadata: { deletedAt: expect.any(String) },
+        },
+      });
+      expect(prismaMock.user.delete).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+      });
+    });
+
+    it('lança NotFound quando o usuário não existe', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(makeService().deleteAccount('user-inexistente')).rejects.toThrow(
+        'Usuário não encontrado'
+      );
+      expect(prismaMock.user.delete).not.toHaveBeenCalled();
+    });
   });
 });

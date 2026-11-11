@@ -13,6 +13,8 @@ model User {
   name      String    @db.VarChar(255)
   email     String    @unique @db.VarChar(255)
   password  String    @db.VarChar(255)
+  totpSecret String?   @db.VarChar(255)
+  mfaEnabled Boolean  @default(false)
   theme     String    @default("system") @db.VarChar(32)
   currency  String    @default("BRL") @db.VarChar(16)
   hideValues Boolean  @default(false) @map("hide_values")
@@ -257,4 +259,5 @@ model AuditLog {
 
   @@map("audit_logs")
   @@index([userId])
+  @@index([createdAt])
 }

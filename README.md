@@ -147,6 +147,41 @@ API: http://localhost:3001 (health: /api/health). Web: http://localhost:3000.
 `API_PORT`. Arquivos `.env` são ignorados pelo Git. Não use dados bancários reais durante o
 desenvolvimento; a especificação exige dados fictícios e sandbox.
 
+## LGPD e retenção de dados
+
+- **Nenhum dado bancário real é armazenado:** somente dados fictícios e sandbox são usados em
+  desenvolvimento; credenciais bancárias nunca são solicitadas nem salvas (veja `docs/security.md`).
+- **Retenção:** dados pessoais e financeiros são mantidos apenas enquanto a conta existir e são
+  excluídos em cascade quando a conta é removida; logs de auditoria mantêm o registro da ação com o
+  `userId` anulado, sem dados pessoais.
+- **Direito de exclusão (art. 18 LGPD):** o titular pode excluir a própria conta e todos os dados
+  relacionados a qualquer momento pelo endpoint `DELETE /api/auth/account` (autenticado com JWT). A
+  exclusão revoga os compartilhamentos de contas titularizados, remove compartilhamentos recebidos e
+  exclui sessões, contas, transações, conexões Open Finance, consentimentos e jobs de sincronização.
+- **Compartilhamento revogável:** toda conta é privada até o dono compartilhar; o acesso pode ser
+  revogado a qualquer momento, com efeito imediato, e cada parte mantém apenas os próprios dados.
+
+Detalhes completos: [`docs/security.md`](docs/security.md).
+
+## Segurança (Fase 5)
+
+Controles de segurança e privacidade estão documentados em [`docs/security.md`](docs/security.md).
+Resumo dos principais itens:
+
+- **Auditoria de ações:** `AuditLogInterceptor` (global na API NestJS) grava em `audit_logs` para
+  ações sensíveis: login, cadastro, ativação/desativação de MFA (TOTP), conectar conta, revogar
+  conexão, excluir conta e criar transação. Cada registro armazena `userId`, `action`, `target`,
+  `metadata` (corpo sanitizado; senhas e tokens são mascarados) e `createdAt`.
+- **Criptografia de campos sensíveis:** AES-256-GCM com chave fora do banco, definida pela variável
+  `ENCRYPTION_KEY` (exemplo em `.env.example`; valor real nunca vai para o Git).
+- **MFA (TOTP):** emissor configurado por `TOTP_ISSUER`.
+- **Rate limit de sincronização:** `POST /open-finance/sync` limitado por frequência
+  (`SYNC_RATE_LIMIT_MINUTES`, padrão 5 minutos; `429` com `Retry-After`).
+- **Secret scanning:** Gitleaks (`.gitleaks.toml`) no CI.
+- **Dependabot:** atualização de dependências (npm/pnpm) via GitHub.
+- **Nenhum segredo no Git:** `.env`, `.env.local` e demais `.env.*` (exceto `.env.example`) são
+  ignorados pelo `.gitignore`.
+
 ## Escopo atual
 
 A Fase 0 estabelece o monorepo, builds, lint, typecheck, testes de exemplo, CI e documentação.
