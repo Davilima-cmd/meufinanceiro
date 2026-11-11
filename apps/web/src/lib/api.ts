@@ -12,6 +12,11 @@ import {
   type CreateAccountDto,
   type CreateTransactionDto,
   type LoginDto,
+  type MfaDisableResponse,
+  type MfaEnableRequest,
+  type MfaEnableResponse,
+  type MfaQrCodeResponse,
+  type MfaVerifyRequest,
   type RegisterDto,
   type SyncJob,
   type TriggerSyncResponse,
@@ -32,6 +37,11 @@ export type {
   CreateAccountDto,
   CreateTransactionDto,
   ConnectConnectionDto,
+  MfaDisableResponse,
+  MfaEnableRequest,
+  MfaEnableResponse,
+  MfaQrCodeResponse,
+  MfaVerifyRequest,
   BankConnectionStatus,
   SyncJob,
   TriggerSyncResponse,
@@ -79,6 +89,8 @@ type RequestOptions = {
   method?: string;
   body?: unknown;
   headers?: Record<string, string>;
+  /** Token bearer a ser usado nesta requisição, em vez do armazenado (ex.: token temporário de sessão MFA). */
+  token?: string;
 };
 
 /** Cliente de API com interceptor automático de bearer token. O token é lido do
@@ -110,9 +122,9 @@ class ApiClient {
 
   private async request<T>(
     path: string,
-    { method = 'GET', body, headers = {} }: RequestOptions = {}
+    { method = 'GET', body, headers = {}, token: optToken }: RequestOptions = {}
   ): Promise<T> {
-    const token = this.tokenFromStorage();
+    const token = optToken ?? this.tokenFromStorage();
     const allHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       ...headers,
@@ -238,7 +250,7 @@ class ApiClient {
 
   async updateBudget(
     id: string,
-    dto: { amountCents?: string; periodStart?: string; periodEnd?: string },
+    dto: { amountCents?: string; periodStart?: string; periodEnd?: string }
   ): Promise<ApiBudget> {
     return this.request<ApiBudget>(`/budgets/${id}`, {
       method: 'PATCH',
@@ -270,7 +282,7 @@ class ApiClient {
 
   async updateGoal(
     id: string,
-    dto: { name?: string; targetCents?: string; currentCents?: string; dueDate?: string },
+    dto: { name?: string; targetCents?: string; currentCents?: string; dueDate?: string }
   ): Promise<ApiGoal> {
     return this.request<ApiGoal>(`/financial-goals/${id}`, {
       method: 'PATCH',
@@ -280,6 +292,12 @@ class ApiClient {
 
   async deleteGoal(id: string) {
     return this.request<{ id: string }>(`/financial-goals/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteAccount(): Promise<void> {
+    return this.request<void>('/auth/account', {
       method: 'DELETE',
     });
   }
@@ -309,6 +327,34 @@ class ApiClient {
     return this.request<TriggerSyncResponse>('/open-finance/sync', {
       method: 'POST',
     });
+  }
+
+  /* MFA — autenticação de dois fatores (TOTP) */
+
+  async mfaQrCode(secret: string): Promise<MfaQrCodeResponse> {
+    return this.request<MfaQrCodeResponse>(
+      `/auth/mfa/qr-code?secret=${encodeURIComponent(secret)}`,
+    );
+  }
+
+  async mfaEnable(dto: MfaEnableRequest): Promise<MfaEnableResponse> {
+    return this.request<MfaEnableResponse>('/auth/mfa/enable', {
+      method: 'POST',
+      body: dto,
+    });
+  }
+
+  /** Verifica o código TOTP com o token temporário de sessão MFA (não usa o token JWT armazenado). */
+  async mfaVerify(dto: MfaVerifyRequest, sessionToken: string): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/mfa/verify', {
+      method: 'POST',
+      body: dto,
+      token: sessionToken,
+    });
+  }
+
+  async mfaDisable(): Promise<MfaDisableResponse> {
+    return this.request<MfaDisableResponse>('/auth/mfa/disable', { method: 'POST' });
   }
 }
 

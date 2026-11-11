@@ -11,14 +11,45 @@ export type ApiUser = {
   id: string;
   email: string;
   name: string;
+  mfaEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
 /** Resposta de autenticação (cadastro ou login). */
 export type AuthResponse = {
-  user: ApiUser;
-  token: string;
+  user?: ApiUser;
+  token?: string;
+  /** Quando verdadeiro, o usuário tem MFA obrigatória e deve completar POST /auth/mfa/verify antes de acessar o app. */
+  mfaRequired?: boolean;
+  /** ID do usuário quando MFA é obrigatória (o objeto completo não vem nesta resposta). */
+  userId?: string;
+  /**
+   * JWT temporário (5 min) emitido quando MFA é obrigatória. Serve apenas para
+   * confirmar o código TOTP em POST /auth/mfa/verify. É mantido somente em
+   * memória — nunca é um segredo TOTP e nunca é gravado no localStorage.
+   */
+  tempToken?: string;
+};
+
+/** DTO de ativação do MFA: segredo base32 + código TOTP de confirmação. */
+export type MfaEnableRequest = { secret: string; token: string };
+
+/** Resposta de ativação do MFA. */
+export type MfaEnableResponse = { mfaEnabled: boolean; user: ApiUser };
+
+/** Resposta de desativação do MFA. */
+export type MfaDisableResponse = { mfaEnabled: boolean; user: ApiUser };
+
+/** DTO de verificação de código TOTP (segundo fator no login). */
+export type MfaVerifyRequest = { code: string };
+
+/** Resposta da geração do QR code de configuração do MFA. */
+export type MfaQrCodeResponse = {
+  /** URL otpauth://totp/... a ser lida pelo app autenticador (Google Authenticator etc.). */
+  otpAuthUrl: string;
+  /** Imagem do QR code em data URL, quando gerada pelo servidor. */
+  qrCode?: string;
 };
 
 /** DTO de entrada de cadastro. */

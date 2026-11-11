@@ -2,7 +2,14 @@
 
 import { cornerRadius, spacing, themes } from '@meufinanceiro/design-tokens';
 import { formatCents } from '@meufinanceiro/shared-types';
-import { api, type ApiUser, type ApiAccount, type ApiTransaction, type ApiBankConnection } from '@/lib/api';
+import {
+  api,
+  type ApiUser,
+  type ApiAccount,
+  type ApiTransaction,
+  type ApiBankConnection,
+} from '@/lib/api';
+import { useAuth } from '@/contexts/auth-context';
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useCallback } from 'react';
 
@@ -29,13 +36,7 @@ function HiddenAmount({ cents, hidden }: { cents: string; hidden: boolean }) {
   return <>{hidden ? '••••••' : formatCents(BigInt(cents))}</>;
 }
 
-function TransactionRow({
-  transaction,
-  hidden,
-}: {
-  transaction: ApiTransaction;
-  hidden: boolean;
-}) {
+function TransactionRow({ transaction, hidden }: { transaction: ApiTransaction; hidden: boolean }) {
   const isIncome = BigInt(transaction.amountCents) > 0n;
 
   return (
@@ -67,6 +68,7 @@ export function FinanceApp({ user }: { user: ApiUser }) {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState('');
+  const [disablingMfa, setDisablingMfa] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newTxDescription, setNewTxDescription] = useState('');
   const [newTxAmount, setNewTxAmount] = useState('');
@@ -89,22 +91,38 @@ export function FinanceApp({ user }: { user: ApiUser }) {
     }
   }, []);
 
+  const { mfaDisable } = useAuth();
+
+  const handleDisableMfa = useCallback(async () => {
+    if (!window.confirm('Tem certeza que deseja desativar a verificação em duas etapas?')) return;
+    setDisablingMfa(true);
+    setError(null);
+    try {
+      await mfaDisable();
+      setNotice('Verificação em duas etapas desativada');
+      window.setTimeout(() => setNotice(''), 2500);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Erro ao desativar a verificação em duas etapas'
+      );
+    } finally {
+      setDisablingMfa(false);
+    }
+  }, [mfaDisable]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const balanceCents = accounts.reduce(
-    (acc, a) => acc + BigInt(a.balanceCents),
-    0n,
-  );
+  const balanceCents = accounts.reduce((acc, a) => acc + BigInt(a.balanceCents), 0n);
 
   const expenseCents = transactions.reduce(
     (acc, t) => (BigInt(t.amountCents) < 0n ? acc + BigInt(t.amountCents) : acc),
-    0n,
+    0n
   );
   const incomeCents = transactions.reduce(
     (acc, t) => (BigInt(t.amountCents) > 0n ? acc + BigInt(t.amountCents) : acc),
-    0n,
+    0n
   );
 
   async function handleCreateAccount(e: React.FormEvent) {
@@ -140,7 +158,7 @@ export function FinanceApp({ user }: { user: ApiUser }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar lançamento');
     }
-  };
+  }
 
   async function handleSync() {
     setError(null);
@@ -186,7 +204,9 @@ export function FinanceApp({ user }: { user: ApiUser }) {
       <div className="app-shell">
         <aside className="sidebar">
           <div className="brand-lockup">
-            <span aria-hidden="true" className="brand-mark">mf</span>
+            <span aria-hidden="true" className="brand-mark">
+              mf
+            </span>
             <span>meu financeiro</span>
           </div>
           <nav aria-label="Navegação principal" className="sidebar-nav">
@@ -231,7 +251,10 @@ export function FinanceApp({ user }: { user: ApiUser }) {
               {screen === 'home' ? 'Visão geral' : screen.charAt(0).toUpperCase() + screen.slice(1)}
             </span>
             <div className="topbar-actions">
-              <span className="demo-indicator"><span />Conectado à API</span>
+              <span className="demo-indicator">
+                <span />
+                Conectado à API
+              </span>
               <button
                 aria-label={hidden ? 'Mostrar valores' : 'Ocultar valores'}
                 className="icon-button"
@@ -467,11 +490,35 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                     <span>ID</span>
                     <span>{user.id}</span>
                   </li>
+                  <li className="profile-row">
+                    <span>Verificação em duas etapas</span>
+                    <span>{user.mfaEnabled ? 'Ativado' : 'Desativado'}</span>
+                  </li>
                 </ul>
+                <div className="profile-actions">
+                  {user.mfaEnabled ? (
+                    <button
+                      onClick={handleDisableMfa}
+                      className="button button-primary"
+                      disabled={disablingMfa}
+                      type="button"
+                    >
+                      {disablingMfa ? 'Desativando…' : 'Desativar verificação em duas etapas'}
+                    </button>
+                  ) : (
+                    <a href="/auth/mfa-enable" className="button button-primary">
+                      Ativar verificação em duas etapas
+                    </a>
+                  )}
+                </div>
               </section>
             )}
 
-            {notice ? <div className="toast" role="status">{notice}</div> : null}
+            {notice ? (
+              <div className="toast" role="status">
+                {notice}
+              </div>
+            ) : null}
           </main>
         </div>
       </div>
