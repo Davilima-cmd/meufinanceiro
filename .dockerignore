@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+.next/
+.expo/
+.turbo/
+.git/
+.env
+.env.local
+*.log
+android/
+ios/
+coverage/

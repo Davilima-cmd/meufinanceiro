@@ -2,21 +2,66 @@ version: "3.8"
 
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: meufinanceiro-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: caju13032306-
-      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meufinanceiro
     ports:
       - "5432:5432"
     volumes:
       - meufinanceiro_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d meufinanceiro"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: meufinanceiro-api
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      API_PORT: 3001
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
+      JWT_SECRET: dev-secret-change-me
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: meufinanceiro-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      WEB_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_BASE: http://localhost:3001/api
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
 volumes:
   meufinanceiro_pgdata:

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateTransactionDto } from './dto/transaction.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -39,14 +40,7 @@ export class TransactionsController {
   @Post()
   async create(
     @Req() req: AuthenticatedRequest,
-    @Body() dto: {
-      accountId: string;
-      description: string;
-      amountCents: string;
-      type: string;
-      categoryId?: string;
-      date: string;
-    },
+    @Body() dto: CreateTransactionDto,
   ) {
     const transaction = await this.prisma.transaction.create({
       data: {

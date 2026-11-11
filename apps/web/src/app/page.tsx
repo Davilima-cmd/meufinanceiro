@@ -49,6 +49,15 @@ export default function HomePage() {
           <button className="nav-item" onClick={() => router.push('/profile')}>
             <span>Perfil</span>
           </button>
+          <button className="nav-item" onClick={() => router.push('/categories')}>
+            <span>Categorias</span>
+          </button>
+          <button className="nav-item" onClick={() => router.push('/budgets')}>
+            <span>Orçamentos</span>
+          </button>
+          <button className="nav-item" onClick={() => router.push('/goals')}>
+            <span>Metas</span>
+          </button>
         </nav>
         <button className="nav-item logout" onClick={logout}>
           <span>Sair</span>
