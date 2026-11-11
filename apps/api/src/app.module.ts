@@ -3,12 +3,16 @@ import { ConfigModule } from '@nestjs/config';
 import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { AccountsModule } from './accounts/accounts.module';
+import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../../.env', '.env'] }),
     PrismaModule,
     AuthModule,
+    AccountsModule,
+    TransactionsModule,
   ],
   controllers: [HealthController],
 })

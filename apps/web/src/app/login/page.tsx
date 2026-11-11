@@ -1,0 +1,94 @@
+'use client';
+
+import { useState } from 'react';
+import { useAuth } from '@/contexts/auth-context';
+import Link from 'next/link';
+
+export default function LoginPage() {
+  const { login, register, isLoading } = useAuth();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      if (mode === 'login') {
+        await login(email, password);
+      } else {
+        await register(email, name, password);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1>{mode === 'login' ? 'Entrar' : 'Criar conta'}</h1>
+        {error && <p className="error">{error}</p>}
+        <form onSubmit={handleSubmit}>
+          <label>
+            E-mail
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          {mode === 'register' && (
+            <label>
+              Nome
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+          )}
+          <label>
+            Senha
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <button type="submit" disabled={submitting}>
+            {submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+          </button>
+        </form>
+        <p>
+          {mode === 'login'
+            ? 'Não tem uma conta? '
+            : 'Já tem uma conta? '}
+          <button
+            type="button"
+            onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+            className="link-button"
+          >
+            {mode === 'login' ? 'Cadastre-se' : 'Faça login'}
+          </button>
+        </p>
+        <p className="note">
+          Dados de exemplo · protótipo local · não use dados bancários reais
+        </p>
+        <Link href="/" className="back-link">
+          ← Voltar
+        </Link>
+      </div>
+    </div>
+  );
+}

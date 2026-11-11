@@ -7,7 +7,11 @@
     "noEmit": true,
     "plugins": [{ "name": "next" }],
     "incremental": true,
-    "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo"
+    "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"]

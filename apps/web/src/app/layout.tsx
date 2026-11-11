@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './finance.css';
+import { AuthProvider } from '../contexts/auth-context';
 
 export const metadata: Metadata = {
   title: 'Meu Financeiro',
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

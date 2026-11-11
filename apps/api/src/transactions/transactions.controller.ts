@@ -1,0 +1,74 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { PrismaService } from '../prisma/prisma.service';
+
+interface AuthenticatedRequest extends Request {
+  user: { userId: string };
+}
+
+@Controller('transactions')
+@UseGuards(AuthGuard('jwt'))
+export class TransactionsController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @Get()
+  async list(@Req() req: AuthenticatedRequest) {
+    const transactions = await this.prisma.transaction.findMany({
+      where: { userId: req.user.userId },
+      orderBy: { date: 'desc' },
+      include: {
+        account: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    return transactions.map((tx) => ({
+      ...tx,
+      amountCents: tx.amountCents.toString(),
+    }));
+  }
+
+  @Post()
+  async create(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: {
+      accountId: string;
+      description: string;
+      amountCents: string;
+      type: string;
+      categoryId?: string;
+      date: string;
+    },
+  ) {
+    const transaction = await this.prisma.transaction.create({
+      data: {
+        accountId: dto.accountId,
+        userId: req.user.userId,
+        description: dto.description,
+        amountCents: String(dto.amountCents),
+        type: dto.type,
+        categoryId: dto.categoryId ?? null,
+        origin: 'manual',
+        date: new Date(dto.date),
+      },
+      include: {
+        account: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    return {
+      ...transaction,
+      amountCents: transaction.amountCents.toString(),
+    };
+  }
+}
