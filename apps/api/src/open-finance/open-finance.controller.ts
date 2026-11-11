@@ -11,6 +11,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SyncService } from '../sync/sync.service';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -18,7 +19,10 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('open-finance')
 export class OpenFinanceController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly syncService: SyncService,
+  ) {}
 
   @Get('connections')
   @UseGuards(AuthGuard('jwt'))
@@ -78,9 +82,17 @@ export class OpenFinanceController {
 
   @Post('sync')
   @UseGuards(AuthGuard('jwt'))
-  async triggerSync(@Req() req: AuthenticatedRequest) {
-    return this.prisma.syncJob.create({
-      data: { userId: req.user.userId, status: 'pending' },
+  async syncNow(@Req() req: AuthenticatedRequest) {
+    return this.syncService.reconcileUser(req.user.userId, {
+      trigger: 'manual',
+    });
+  }
+
+  @Post('reconcile')
+  @UseGuards(AuthGuard('jwt'))
+  async reconcile(@Req() req: AuthenticatedRequest) {
+    return this.syncService.reconcileUser(req.user.userId, {
+      trigger: 'manual',
     });
   }
 

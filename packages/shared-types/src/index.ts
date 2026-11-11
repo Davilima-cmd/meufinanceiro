@@ -125,6 +125,47 @@ export type ApiErrorBody = {
   statusCode: number;
 };
 
+/** Status de uma conexão Open Finance (banco de dados: active, awaiting_authorization, expired, error, disconnected). */
+export type BankConnectionStatus =
+  | 'active'
+  | 'awaiting_authorization'
+  | 'expired'
+  | 'error'
+  | 'disconnected';
+
+/** Conexão de Open Finance retornada pela API. */
+export type ApiBankConnection = {
+  id: string;
+  provider: string;
+  providerAccountId: string;
+  status: BankConnectionStatus;
+  consentId: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  account: { id: string; name: string };
+};
+
+/** DTO de entrada para conectar uma instituição via sandbox. */
+export type ConnectConnectionDto = {
+  provider: string;
+  providerAccountId: string;
+  accountId: string;
+};
+
+/** Job de sincronização/reconciliação retornado por POST /open-finance/sync. */
+export type SyncJob = {
+  id: string;
+  status: 'pending' | 'completed' | 'failed';
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+  createdAt: string;
+};
+
+/** Resposta de disparo de sincronização. */
+export type TriggerSyncResponse = { id: string; status: string };
+
 /** Chaves de armazenamento local usadas pelo cliente da API e pelo contexto de auth. */
 export const LOCAL_STORAGE_KEYS = {
   token: 'mf_token',

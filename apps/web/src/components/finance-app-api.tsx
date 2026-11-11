@@ -2,12 +2,28 @@
 
 import { cornerRadius, spacing, themes } from '@meufinanceiro/design-tokens';
 import { formatCents } from '@meufinanceiro/shared-types';
-import type { ApiUser, ApiAccount, ApiTransaction } from '@/lib/api';
-import { api } from '@/lib/api';
+import { api, type ApiUser, type ApiAccount, type ApiTransaction, type ApiBankConnection } from '@/lib/api';
 import type { CSSProperties } from 'react';
 import { useState, useEffect, useCallback } from 'react';
 
 type Screen = 'home' | 'transactions' | 'accounts' | 'profile';
+
+function connectionLabel(status: string): string {
+  switch (status) {
+    case 'active':
+      return 'Ativa';
+    case 'awaiting_authorization':
+      return 'Aguardando autorização';
+    case 'expired':
+      return 'Expirada';
+    case 'error':
+      return 'Com erro';
+    case 'disconnected':
+      return 'Desconectada';
+    default:
+      return status;
+  }
+}
 
 function HiddenAmount({ cents, hidden }: { cents: string; hidden: boolean }) {
   return <>{hidden ? '••••••' : formatCents(BigInt(cents))}</>;
@@ -46,8 +62,11 @@ export function FinanceApp({ user }: { user: ApiUser }) {
   const [hidden, setHidden] = useState(false);
   const [accounts, setAccounts] = useState<ApiAccount[]>([]);
   const [transactions, setTransactions] = useState<ApiTransaction[]>([]);
+  const [connections, setConnections] = useState<ApiBankConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [notice, setNotice] = useState('');
   const [newAccountName, setNewAccountName] = useState('');
   const [newTxDescription, setNewTxDescription] = useState('');
   const [newTxAmount, setNewTxAmount] = useState('');
@@ -55,9 +74,14 @@ export function FinanceApp({ user }: { user: ApiUser }) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [accs, txs] = await Promise.all([api.getAccounts(), api.getTransactions()]);
+      const [accs, txs, conns] = await Promise.all([
+        api.getAccounts(),
+        api.getTransactions(),
+        api.getConnections().catch(() => [] as ApiBankConnection[]),
+      ]);
       setAccounts(accs);
       setTransactions(txs);
+      setConnections(conns);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados');
     } finally {
@@ -115,6 +139,21 @@ export function FinanceApp({ user }: { user: ApiUser }) {
       setNewTxAmount('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar lançamento');
+    }
+  };
+
+  async function handleSync() {
+    setError(null);
+    setSyncing(true);
+    try {
+      await api.triggerSync();
+      await loadData();
+      setNotice('Sincronização concluída');
+      window.setTimeout(() => setNotice(''), 2500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao sincronizar');
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -213,6 +252,14 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                     <h1>Visão geral</h1>
                     <p className="page-description">Dados sincronizados com a API.</p>
                   </div>
+                  <button
+                    className="button button-primary"
+                    disabled={syncing}
+                    onClick={handleSync}
+                    type="button"
+                  >
+                    {syncing ? 'Sincronizando…' : 'Sincronizar agora'}
+                  </button>
                 </div>
                 <section className="summary-layout">
                   <article className="balance-panel">
@@ -343,24 +390,45 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                     <p className="eyebrow">Contas e carteiras</p>
                     <h2>Contas</h2>
                   </div>
+                  <button
+                    className="button button-primary"
+                    disabled={syncing}
+                    onClick={handleSync}
+                    type="button"
+                  >
+                    {syncing ? 'Sincronizando…' : 'Sincronizar agora'}
+                  </button>
                 </div>
                 <ul className="account-list">
-                  {accounts.map((acct) => (
-                    <li key={acct.id} className="account-card">
-                      <span className="account-mark" aria-hidden="true">
-                        {acct.name.slice(0, 1)}
-                      </span>
-                      <div className="account-main">
-                        <span className="account-name">{acct.name}</span>
-                        <span className="account-detail">
-                          {acct.institution || 'Sem instituição'} · {acct.type}
+                  {accounts.map((acct) => {
+                    const connection = connections.find((c) => c.account.id === acct.id);
+                    return (
+                      <li key={acct.id} className="account-card" style={{ gap: 12 }}>
+                        <span className="account-mark" aria-hidden="true">
+                          {acct.name.slice(0, 1)}
                         </span>
-                      </div>
-                      <strong className="account-balance">
-                        <HiddenAmount cents={acct.balanceCents} hidden={hidden} />
-                      </strong>
-                    </li>
-                  ))}
+                        <div className="account-main">
+                          <span className="account-name">{acct.name}</span>
+                          <span className="account-detail">
+                            {acct.institution || 'Sem instituição'} · {acct.type}
+                          </span>
+                          {connection && (
+                            <span className="account-detail">
+                              {connectionLabel(connection.status)} · última sincronização:{' '}
+                              {new Date(connection.updatedAt).toLocaleString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          )}
+                        </div>
+                        <strong className="account-balance">
+                          <HiddenAmount cents={acct.balanceCents} hidden={hidden} />
+                        </strong>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <form onSubmit={handleCreateAccount} className="create-account-form">
                   <input
@@ -402,6 +470,8 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                 </ul>
               </section>
             )}
+
+            {notice ? <div className="toast" role="status">{notice}</div> : null}
           </main>
         </div>
       </div>

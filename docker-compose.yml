@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 
 services:
   db:
@@ -9,11 +9,11 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: meufinanceiro
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - meufinanceiro_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d meufinanceiro"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d meufinanceiro']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,15 +28,22 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "3001:3001"
+      - '3001:3001'
     environment:
       NODE_ENV: development
       API_PORT: 3001
       DATABASE_URL: ${DATABASE_URL}
       DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
       JWT_SECRET: dev-secret-change-me
+      OPEN_FINANCE_SANDBOX_BASE_URL: ${OPEN_FINANCE_SANDBOX_BASE_URL:-https://sandbox.openfinance.example.com}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -51,13 +58,19 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       NODE_ENV: development
       WEB_ORIGIN: http://localhost:3000
       NEXT_PUBLIC_API_BASE: http://localhost:3001/api
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

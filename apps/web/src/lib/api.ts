@@ -1,5 +1,6 @@
 import {
   type ApiAccount,
+  type ApiBankConnection,
   type ApiBudget,
   type ApiCategory,
   type ApiErrorBody,
@@ -7,10 +8,13 @@ import {
   type ApiTransaction,
   type ApiUser,
   type AuthResponse,
+  type ConnectConnectionDto,
   type CreateAccountDto,
   type CreateTransactionDto,
   type LoginDto,
   type RegisterDto,
+  type SyncJob,
+  type TriggerSyncResponse,
   LOCAL_STORAGE_KEYS,
 } from '@meufinanceiro/shared-types';
 
@@ -21,11 +25,16 @@ export type {
   ApiCategory,
   ApiBudget,
   ApiGoal,
+  ApiBankConnection,
   AuthResponse,
   RegisterDto,
   LoginDto,
   CreateAccountDto,
   CreateTransactionDto,
+  ConnectConnectionDto,
+  BankConnectionStatus,
+  SyncJob,
+  TriggerSyncResponse,
   ApiErrorBody,
 } from '@meufinanceiro/shared-types';
 export { LOCAL_STORAGE_KEYS } from '@meufinanceiro/shared-types';
@@ -272,6 +281,33 @@ class ApiClient {
   async deleteGoal(id: string) {
     return this.request<{ id: string }>(`/financial-goals/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  /* Open Finance — conexões com instituições (sandbox) */
+
+  async getConnections(): Promise<ApiBankConnection[]> {
+    return this.request<ApiBankConnection[]>('/open-finance/connections');
+  }
+
+  async connectConnection(dto: ConnectConnectionDto): Promise<ApiBankConnection> {
+    return this.request<ApiBankConnection>('/open-finance/connections', {
+      method: 'POST',
+      body: dto,
+    });
+  }
+
+  async revokeConnection(id: string): Promise<ApiBankConnection> {
+    return this.request<ApiBankConnection>(`/open-finance/connections/${id}/revoke`, {
+      method: 'PATCH',
+    });
+  }
+
+  /* Reconciliação — dispara sincronização de transações das conexões */
+
+  async triggerSync(): Promise<TriggerSyncResponse> {
+    return this.request<TriggerSyncResponse>('/open-finance/sync', {
+      method: 'POST',
     });
   }
 }

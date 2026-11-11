@@ -9,6 +9,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { FinancialGoalsModule } from './financial-goals/financial-goals.module';
 import { OpenFinanceModule } from './open-finance/open-finance.module';
+import { SyncModule } from './sync/sync.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { OpenFinanceModule } from './open-finance/open-finance.module';
     BudgetsModule,
     FinancialGoalsModule,
     OpenFinanceModule,
+    SyncModule,
   ],
   controllers: [HealthController],
 })

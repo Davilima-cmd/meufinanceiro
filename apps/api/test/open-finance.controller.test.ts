@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OpenFinanceController } from '../src/open-finance/open-finance.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { SyncService } from '../src/sync/sync.service';
+import { HttpException, HttpStatus } from '@nestjs/common';
 
 const prismaMock = {
   bankConnection: {
@@ -28,11 +30,18 @@ const prismaMock = {
   webhookEvent: { create: ReturnType<typeof vi.fn> };
 };
 
+const syncServiceMock = {
+  reconcileUser: vi.fn(),
+} as unknown as { reconcileUser: ReturnType<typeof vi.fn> };
+
 function makeController() {
-  return new OpenFinanceController(prismaMock as unknown as PrismaService);
+  return new OpenFinanceController(
+    prismaMock as unknown as PrismaService,
+    syncServiceMock as unknown as SyncService
+  );
 }
 
-const req = (userId = 'user-1') => ({ user: { userId } } as any);
+const req = (userId = 'user-1') => ({ user: { userId } }) as any;
 
 describe('OpenFinanceController', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -83,12 +92,23 @@ describe('OpenFinanceController', () => {
     });
   });
 
-  it('cria job de sincronização', async () => {
-    prismaMock.syncJob.create.mockResolvedValue({ id: 'sj-1', status: 'pending' });
-    const result = await makeController().triggerSync(req());
-    expect(result).toEqual({ id: 'sj-1', status: 'pending' });
-    expect(prismaMock.syncJob.create).toHaveBeenCalledWith({
-      data: { userId: 'user-1', status: 'pending' },
+  it('dispara a reconciliação sob demanda (botão Sincronizar agora)', async () => {
+    syncServiceMock.reconcileUser.mockResolvedValue({ id: 'sj-1', status: 'completed' });
+    const result = await makeController().syncNow(req());
+    expect(result).toEqual({ id: 'sj-1', status: 'completed' });
+    expect(syncServiceMock.reconcileUser).toHaveBeenCalledWith('user-1', {
+      trigger: 'manual',
+    });
+  });
+
+  it('propaga o erro de limite de frequência do botão (429)', async () => {
+    const error = new HttpException(
+      { message: 'limite de frequência', retryAfter: 120 },
+      HttpStatus.TOO_MANY_REQUESTS
+    );
+    syncServiceMock.reconcileUser.mockRejectedValue(error);
+    await expect(makeController().syncNow(req())).rejects.toMatchObject({
+      status: HttpStatus.TOO_MANY_REQUESTS,
     });
   });
 
