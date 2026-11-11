@@ -6,8 +6,6 @@ import { PrismaService } from './prisma/prisma.service';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
-  const prisma = app.get(PrismaService);
-  await prisma.enableShutdownHooks(app);
   await app.listen(Number(process.env.API_PORT ?? 3001));
 }
 
