@@ -19,6 +19,17 @@ E pacotes compartilhados:
 - **packages/eslint-config** - Configuração ESLint compartilhada
 - **packages/tsconfig** - Configurações TypeScript base
 
+## Estado do produto
+
+O projeto está no protótipo navegável da **Fase 1**. Web e Android apresentam um dashboard e seções
+de movimentações, contas, análises e perfil usando somente dados fictícios. Pesquisa, filtro,
+alternância entre visões demonstrativas e ocultação de valores funcionam localmente na interface.
+
+Esse protótipo não autentica usuários, não salva dados e não se conecta a uma API ou instituição
+financeira. O saldo compartilhado e a indicação `BALANCE_ONLY` são exemplos visuais, não controles
+de autorização. CRUD financeiro, persistência, autenticação e compartilhamento seguros dependem da
+Fase 2 e ainda não estão implementados.
+
 ## Pré-requisitos
 
 - **Node.js** >= 24 (ver `.nvmrc`)

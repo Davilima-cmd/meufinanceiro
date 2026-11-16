@@ -15,6 +15,18 @@
 | Linting         | ESLint     | 9.x    | Flat config, performance, regras TypeScript            |
 | Formatting      | Prettier   | 3.x    | Opinionated, zero config, integração universal         |
 
+## Estado de implementação
+
+O incremento demonstrativo atual corresponde à **Fase 1** da especificação: web responsiva e
+navegação por abas no Android, com resumo, movimentações, contas, análises e preferências locais. As
+telas usam apenas fixtures fictícias; busca, filtro, alternância de visão e ocultação de valores não
+persistem e não fazem chamadas à API.
+
+A API continua limitada aos endpoints de exemplo e health check. Persistência, autenticação,
+autorização centralizada, compartilhamento real e CRUD ainda precisam ser implementados na Fase 2. O
+estado visual `BALANCE_ONLY` no protótipo não é controle de acesso e não deve ser interpretado como
+proteção de dados.
+
 ## Estrutura do Monorepo
 
 ```

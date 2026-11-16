@@ -87,3 +87,10 @@ Configurado em `.github/dependabot.yml` para:
 Envie relatórios para: **security@meufinanceiro.com** (ou abra issue privada no GitHub)
 
 Tempo de resposta alvo: 48h para triagem inicial.
+
+## Limite atual do protótipo
+
+As telas da Fase 1 exibem exclusivamente dados fictícios locais. Alternar entre visões ou mostrar
+`BALANCE_ONLY` nessas telas não aplica autorização: não há autenticação, API financeira nem
+compartilhamento implementados ainda. Não conecte dados reais nem use o protótipo como sistema de
+controle de acesso; esses controles dependem do backend e dos testes de isolamento da Fase 2.
