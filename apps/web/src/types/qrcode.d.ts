@@ -5,7 +5,7 @@ declare module 'qrcode' {
       width?: number;
       margin?: number;
       color?: { dark?: string; light?: string };
-    },
+    }
   ): Promise<string>;
 
   export function toString(
@@ -15,6 +15,6 @@ declare module 'qrcode' {
       width?: number;
       margin?: number;
       color?: { dark?: string; light?: string };
-    },
+    }
   ): Promise<string>;
 }

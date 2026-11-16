@@ -13,10 +13,13 @@ const prismaMock = {
   syncJob: {
     create: vi.fn(),
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     update: vi.fn(),
   },
   transaction: {
-    upsert: vi.fn(),
+    findMany: vi.fn(),
+    createMany: vi.fn(),
+    update: vi.fn(),
     aggregate: vi.fn(),
   },
   financialAccount: {
@@ -30,10 +33,13 @@ const prismaMock = {
   syncJob: {
     create: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
   transaction: {
-    upsert: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+    createMany: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
   };
   financialAccount: { update: ReturnType<typeof vi.fn> };
@@ -90,6 +96,10 @@ describe('SyncService', () => {
     });
     prismaMock.syncJob.update.mockResolvedValue({ id: 'sj-1', status: 'completed' });
     adapterMock.fetchTransactions.mockResolvedValue(providerTransactions);
+    // Por padrão, nenhum lançamento existe ainda (primeira sincronização).
+    prismaMock.transaction.findMany.mockResolvedValue([]);
+    prismaMock.transaction.createMany.mockResolvedValue({ count: 0 });
+    prismaMock.transaction.update.mockResolvedValue({});
     prismaMock.transaction.aggregate.mockResolvedValue({
       _sum: { amountCents: '281255' },
     });
@@ -107,26 +117,27 @@ describe('SyncService', () => {
     expect(prismaMock.syncJob.create).toHaveBeenCalledWith({
       data: { userId: 'user-1', status: 'pending' },
     });
-    expect(prismaMock.transaction.upsert).toHaveBeenCalledTimes(2);
-    expect(prismaMock.transaction.upsert).toHaveBeenNthCalledWith(1, {
-      where: { providerId: 'prov_pa-1_1001' },
-      update: {
-        description: 'Pagamento recebido (sandbox)',
-        amountCents: '350000',
-        type: 'income',
-        date: providerTransactions[0].date,
-      },
-      create: {
-        accountId: 'acct-1',
-        userId: 'user-1',
-        providerId: 'prov_pa-1_1001',
-        description: 'Pagamento recebido (sandbox)',
-        amountCents: '350000',
-        type: 'income',
-        origin: 'imported',
-        date: providerTransactions[0].date,
-      },
+    // Busca existentes em uma única consulta + criação em lote (sem N+1 de upsert).
+    expect(prismaMock.transaction.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.transaction.createMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.transaction.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          providerId: 'prov_pa-1_1001',
+          userId: 'user-1',
+          accountId: 'acct-1',
+          origin: 'imported',
+        }),
+        expect.objectContaining({
+          providerId: 'prov_pa-1_1002',
+          userId: 'user-1',
+          accountId: 'acct-1',
+          origin: 'imported',
+        }),
+      ]),
+      skipDuplicates: true,
     });
+    expect(prismaMock.transaction.update).not.toHaveBeenCalled();
     // Saldo da conta recomputado a partir dos lançamentos.
     expect(prismaMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acct-1' },
@@ -143,17 +154,25 @@ describe('SyncService', () => {
     });
   });
 
-  it('é idempotente: reexecutar usa upsert pelo providerId do provedor', async () => {
+  it('é idempotente: reexecutar cria apenas na primeira vez e atualiza na segunda', async () => {
+    // Primeira execução: nada existente.
+    prismaMock.transaction.findMany.mockResolvedValueOnce([]);
+    // Segunda execução: os dois lançamentos já existem.
+    prismaMock.transaction.findMany.mockResolvedValueOnce([
+      { providerId: 'prov_pa-1_1001' },
+      { providerId: 'prov_pa-1_1002' },
+    ]);
+
     await makeService().reconcileUser('user-1', { trigger: 'manual' });
     await makeService().reconcileUser('user-1', { trigger: 'manual' });
 
-    expect(prismaMock.transaction.upsert).toHaveBeenCalledTimes(4);
-    // Duas execuções, cada uma tenta criar/atualizar os mesmos IDs do provedor.
+    expect(prismaMock.transaction.createMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.transaction.update).toHaveBeenCalledTimes(2);
     expect(
-      prismaMock.transaction.upsert.mock.calls.filter(
+      prismaMock.transaction.update.mock.calls.filter(
         (call) => call[0].where.providerId === 'prov_pa-1_1001'
       )
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it('marca o job como falho quando o provedor indisponível', async () => {
@@ -228,9 +247,11 @@ describe('SyncService', () => {
     const recentFinished = new Date(NOW.getTime() - 2 * 60 * 60 * 1000);
 
     prismaMock.user.findMany.mockResolvedValue([{ id: 'user-1' }, { id: 'user-2' }]);
-    prismaMock.syncJob.findFirst
-      .mockResolvedValueOnce({ finishedAt: oldFinished }) // user-1: devedor
-      .mockResolvedValueOnce({ finishedAt: recentFinished }); // user-2: em dia
+    // Último job de cada usuário em uma única consulta (sem N+1 de findFirst).
+    prismaMock.syncJob.findMany.mockResolvedValue([
+      { userId: 'user-1', finishedAt: oldFinished }, // user-1: devedor
+      { userId: 'user-2', finishedAt: recentFinished }, // user-2: em dia
+    ]);
 
     await makeService().runDailyReconciliation();
 
@@ -238,11 +259,13 @@ describe('SyncService', () => {
     expect(prismaMock.syncJob.create).toHaveBeenCalledWith({
       data: { userId: 'user-1', status: 'pending' },
     });
+    expect(prismaMock.syncJob.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.syncJob.findFirst).not.toHaveBeenCalled();
   });
 
   it('runDailyReconciliation executa quando nunca houve sincronização', async () => {
     prismaMock.user.findMany.mockResolvedValue([{ id: 'user-1' }]);
-    prismaMock.syncJob.findFirst.mockResolvedValue(null);
+    prismaMock.syncJob.findMany.mockResolvedValue([]);
 
     await makeService().runDailyReconciliation();
 

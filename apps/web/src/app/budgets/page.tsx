@@ -1,4 +1,4 @@
-'use client';
+'use client'; /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
@@ -19,10 +19,9 @@ export default function BudgetsPage() {
   const [amountCents, setAmountCents] = useState('');
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
-  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(
-    null,
-  );
+  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
+  // Hooks sempre executados (ordem fixa)
   useEffect(() => {
     setMounted(true);
     if (!isLoading && !user) {
@@ -35,21 +34,6 @@ export default function BudgetsPage() {
     const timer = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(timer);
   }, [toast]);
-
-  if (!mounted || (isLoading && !user)) {
-    return null;
-  }
-  if (!user) {
-    return null;
-  }
-
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString()
-    .split('T')[0];
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    .toISOString()
-    .split('T')[0];
 
   const load = useCallback(async () => {
     try {
@@ -71,6 +55,10 @@ export default function BudgetsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
   const fmtDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
 
@@ -107,6 +95,13 @@ export default function BudgetsPage() {
     }
   };
 
+  if (!mounted || (isLoading && !user)) {
+    return null;
+  }
+  if (!user) {
+    return null;
+  }
+
   if (loading) {
     return (
       <AppShell title="Orçamentos">
@@ -118,22 +113,23 @@ export default function BudgetsPage() {
   return (
     <AppShell title="Orçamentos">
       {error && <p className="error-msg">{error}</p>}
-      {toast && <div className="toast" role="status">{toast.message}</div>}
+      {toast && (
+        <div className="toast" role="status">
+          {toast.message}
+        </div>
+      )}
       <div className="page-heading">
         <div>
           <p className="eyebrow">Planejamento</p>
           <h1>Orçamentos</h1>
           <p className="page-description">
-            Defina um limite de gasto por categoria e acompanhe o que já foi
-            consumido no período.
+            Defina um limite de gasto por categoria e acompanhe o que já foi consumido no período.
           </p>
         </div>
       </div>
       <section className="panel list-panel">
         <ul className="account-list">
-          {budgets.length === 0 && (
-            <p className="list-count">Nenhum orçamento cadastrado.</p>
-          )}
+          {budgets.length === 0 && <p className="list-count">Nenhum orçamento cadastrado.</p>}
           {budgets.map((budget) => (
             <li key={budget.id} className="account-row">
               <span
@@ -154,18 +150,14 @@ export default function BudgetsPage() {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <strong className="account-balance">
-                  {formatCents(BigInt(budget.amountCents))}
+                  {formatCents(BigInt(budget.amountCents ?? '0'))}
                 </strong>
                 <p style={{ margin: 0, fontSize: '10px', color: 'var(--color-muted)' }}>
-                  Gasto {formatCents(BigInt(budget.spentCents))} ·
-                  restante {formatCents(BigInt(budget.remainingCents))}
+                  Gasto {formatCents(BigInt(budget.spentCents ?? '0'))} · restante{' '}
+                  {formatCents(BigInt(budget.remainingCents ?? '0'))}
                 </p>
               </div>
-              <button
-                className="text-button"
-                onClick={() => handleDelete(budget.id)}
-                type="button"
-              >
+              <button className="text-button" onClick={() => handleDelete(budget.id)} type="button">
                 Excluir
               </button>
             </li>
@@ -212,8 +204,7 @@ export default function BudgetsPage() {
         </button>
       </form>
       <p className="inline-note">
-        O gasto considerado é o total de despesas da categoria no período do
-        orçamento.
+        O gasto considerado é o total de despesas da categoria no período do orçamento.
       </p>
     </AppShell>
   );

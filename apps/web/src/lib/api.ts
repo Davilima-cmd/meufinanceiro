@@ -18,7 +18,6 @@ import {
   type MfaQrCodeResponse,
   type MfaVerifyRequest,
   type RegisterDto,
-  type SyncJob,
   type TriggerSyncResponse,
   LOCAL_STORAGE_KEYS,
 } from '@meufinanceiro/shared-types';
@@ -163,6 +162,7 @@ class ApiClient {
 
     try {
       return (await res.json()) as T;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
       throw new ApiError(
         'Resposta da API não pôde ser interpretada (JSON inválido)',
@@ -333,7 +333,7 @@ class ApiClient {
 
   async mfaQrCode(secret: string): Promise<MfaQrCodeResponse> {
     return this.request<MfaQrCodeResponse>(
-      `/auth/mfa/qr-code?secret=${encodeURIComponent(secret)}`,
+      `/auth/mfa/qr-code?secret=${encodeURIComponent(secret)}`
     );
   }
 

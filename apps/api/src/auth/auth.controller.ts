@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -35,7 +36,7 @@ export class AuthController {
   async login(@Body() dto: LoginDto) {
     const user = await this.authService.validateUser(dto.email, dto.password);
     if (!user) {
-      throw new Error('Credenciais inválidas');
+      throw new UnauthorizedException('Credenciais inválidas');
     }
 
     // MFA obrigatória: não libera o JWT completo sem um token TOTP válido.

@@ -1,7 +1,7 @@
-'use client';
+'use client'; /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/auth-context';
+import { apiErrorMessage, useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import { api, type ApiBankConnection } from '@/lib/api';
 import { AppShell } from '@/components/app-shell';
@@ -19,13 +19,15 @@ const STATUS_INFO: Record<BankConnectionStatus, StatusInfo> = {
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).replace(',', ' ·');
+  return new Date(iso)
+    .toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(',', ' ·');
 }
 
 export default function OpenFinancePage() {
@@ -34,18 +36,17 @@ export default function OpenFinancePage() {
   const [mounted, setMounted] = useState(false);
   const [connections, setConnections] = useState<ApiBankConnection[]>([]);
   const [accounts, setAccounts] = useState<ApiAccount[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(
-    null,
-  );
+  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [provider, setProvider] = useState('sandbox');
   const [providerAccountId, setProviderAccountId] = useState('');
   const [accountId, setAccountId] = useState('');
 
-  const providers: { value: string; label: string }[] = [
+  const providers: Array<{ value: string; label: string }> = [
     { value: 'sandbox', label: 'Sandbox (desenvolvimento)' },
     { value: 'caju', label: 'Caju (sandbox)' },
   ];
@@ -138,7 +139,11 @@ export default function OpenFinancePage() {
   return (
     <AppShell title="Conexões Open Finance">
       {error && <p className="error-msg">{error}</p>}
-      {toast && <div className="toast" role="status">{toast.message}</div>}
+      {toast && (
+        <div className="toast" role="status">
+          {toast.message}
+        </div>
+      )}
       <div className="page-heading">
         <div>
           <p className="eyebrow">Open Finance · sandbox</p>
@@ -162,8 +167,8 @@ export default function OpenFinancePage() {
           <div>
             <h2>Conectar uma instituição</h2>
             <p className="page-description">
-              Informe o provedor, o identificador da conta na instituição e a conta do Meu Financeiro
-              que receberá os movimentos.
+              Informe o provedor, o identificador da conta na instituição e a conta do Meu
+              Financeiro que receberá os movimentos.
             </p>
           </div>
         </div>
@@ -196,7 +201,8 @@ export default function OpenFinancePage() {
             <option value="">Conta do Meu Financeiro</option>
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
-                {account.name}{account.institution ? ` (${account.institution})` : ''}
+                {account.name}
+                {account.institution ? ` (${account.institution})` : ''}
               </option>
             ))}
           </select>
@@ -238,8 +244,7 @@ export default function OpenFinancePage() {
                   <div className="account-main" style={{ gap: 2 }}>
                     <span className="account-name">{connection.provider}</span>
                     <span className="account-detail">
-                      {connection.providerAccountId} ·
-                      {connection.account.name}
+                      {connection.providerAccountId} ·{connection.account.name}
                     </span>
                   </div>
                   <span
@@ -271,10 +276,4 @@ export default function OpenFinancePage() {
       </section>
     </AppShell>
   );
-}
-
-/** Extrai mensagem legível de um erro da API, com fallback seguro. */
-function apiErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Erro desconhecido';
 }

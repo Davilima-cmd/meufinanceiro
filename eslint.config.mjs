@@ -6,5 +6,5 @@ export default tseslint.config(
     ignores: ['**/.next/**', '**/.expo/**', '**/dist/**', '**/node_modules/**', '**/coverage/**'],
   },
   eslint.configs.recommended,
-  ...tseslint.configs.recommended,
+  ...tseslint.configs.recommended
 );

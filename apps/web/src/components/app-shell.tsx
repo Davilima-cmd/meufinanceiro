@@ -41,7 +41,9 @@ export function AppShell({ title, children }: AppShellProps) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-lockup">
-          <span aria-hidden="true" className="brand-mark">mf</span>
+          <span aria-hidden="true" className="brand-mark">
+            mf
+          </span>
           <span>meu financeiro</span>
         </div>
         <nav aria-label="Navegação principal" className="sidebar-nav">
@@ -74,7 +76,8 @@ export function AppShell({ title, children }: AppShellProps) {
           <span className="topbar-title">{title}</span>
           <div className="topbar-actions">
             <span className="demo-indicator">
-              <span />Conectado à API
+              <span />
+              Conectado à API
             </span>
             <button
               aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}

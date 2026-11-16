@@ -22,7 +22,7 @@ function makeController() {
   return new FinancialGoalsController(prismaMock as unknown as PrismaService);
 }
 
-const req = (userId = 'user-1') => ({ user: { userId } } as any);
+const req = (userId = 'user-1') => ({ user: { userId } }) as any;
 
 describe('FinancialGoalsController', () => {
   beforeEach(() => vi.clearAllMocks());

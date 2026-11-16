@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -31,47 +21,72 @@ export class BudgetsController {
       },
       orderBy: { createdAt: 'desc' },
     });
+    if (budgets.length === 0) return [];
 
-    return Promise.all(
-      budgets.map(async (budget) => {
-        const spent = await this.prisma.transaction.aggregate({
-          where: {
-            userId,
-            categoryId: budget.categoryId,
-            type: 'expense',
-            date: { gte: budget.periodStart, lte: budget.periodEnd },
-          },
-          _sum: { amountCents: true },
-        });
-        const spentCents = spent._sum.amountCents
-          ? spent._sum.amountCents.toString()
-          : '0';
-        const remaining = Number(budget.amountCents) - Number(spentCents);
-        return {
-          id: budget.id,
-          categoryId: budget.categoryId,
-          amountCents: budget.amountCents.toString(),
-          periodStart: budget.periodStart,
-          periodEnd: budget.periodEnd,
-          createdAt: budget.createdAt,
-          updatedAt: budget.updatedAt,
-          spentCents,
-          remainingCents: remaining.toString(),
-          category: budget.category,
-        };
-      }),
-    );
+    // Gasto por categoria em uma única consulta, abrangendo o intervalo de
+    // todos os orçamentos. Evita o N+1 de um `aggregate` por orçamento.
+    const minStart = new Date(Math.min(...budgets.map((b) => b.periodStart.getTime())));
+    const maxEnd = new Date(Math.max(...budgets.map((b) => b.periodEnd.getTime())));
+
+    const expenses = await this.prisma.transaction.findMany({
+      select: { categoryId: true, amountCents: true, date: true },
+      where: {
+        userId,
+        type: 'expense',
+        date: { gte: minStart, lte: maxEnd },
+      },
+    });
+
+    // Agrupa despesas por categoria para leitura em memoria.
+    const spentByCategory = new Map<string, Array<{ amountCents: number; date: Date }>>();
+    for (const expense of expenses) {
+      if (!expense.categoryId) continue; // sem categoria: nao afeta nenhum orcamento
+      const bucket = spentByCategory.get(expense.categoryId) ?? [];
+      bucket.push({
+        amountCents: Number(String(expense.amountCents)),
+        date: expense.date,
+      });
+      spentByCategory.set(expense.categoryId, bucket);
+    }
+
+    return budgets.map((budget) => {
+      // As despesas são gravadas com `amountCents` NEGATIVO (o sinal carrega
+      // o tipo: negativo = despesa, positivo = receita). Para o gasto do
+      // orçamento usamos o valor absoluto — sem isso, `spentCents` saía
+      // negativo e `remainingCents` ficava acima do limite.
+      const spentCents = (spentByCategory.get(budget.categoryId) ?? [])
+        .filter(
+          (e) =>
+            e.date.getTime() >= budget.periodStart.getTime() &&
+            e.date.getTime() <= budget.periodEnd.getTime()
+        )
+        .reduce((sum, e) => sum + Math.abs(e.amountCents), 0);
+      const remaining = Number(budget.amountCents) - spentCents;
+      return {
+        id: budget.id,
+        categoryId: budget.categoryId,
+        amountCents: budget.amountCents.toString(),
+        periodStart: budget.periodStart,
+        periodEnd: budget.periodEnd,
+        createdAt: budget.createdAt,
+        updatedAt: budget.updatedAt,
+        spentCents: spentCents.toString(),
+        remainingCents: remaining.toString(),
+        category: budget.category,
+      };
+    });
   }
 
   @Post()
   async create(
     @Req() req: AuthenticatedRequest,
-    @Body() dto: {
+    @Body()
+    dto: {
       categoryId: string;
       amountCents: string;
       periodStart: string;
       periodEnd: string;
-    },
+    }
   ) {
     const budget = await this.prisma.budget.create({
       data: {
@@ -95,11 +110,12 @@ export class BudgetsController {
   async update(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() dto: {
+    @Body()
+    dto: {
       amountCents?: string;
       periodStart?: string;
       periodEnd?: string;
-    },
+    }
   ) {
     const budget = await this.prisma.budget.update({
       where: { id, userId: req.user.userId },

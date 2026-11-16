@@ -10,7 +10,7 @@ const prismaMock = {
     delete: vi.fn(),
   },
   transaction: {
-    aggregate: vi.fn(),
+    findMany: vi.fn(),
   },
 } as unknown as {
   budget: {
@@ -20,7 +20,7 @@ const prismaMock = {
     delete: ReturnType<typeof vi.fn>;
   };
   transaction: {
-    aggregate: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
   };
 };
 
@@ -28,7 +28,7 @@ function makeController() {
   return new BudgetsController(prismaMock as unknown as PrismaService);
 }
 
-const req = (userId = 'user-1') => ({ user: { userId } } as any);
+const req = (userId = 'user-1') => ({ user: { userId } }) as any;
 
 describe('BudgetsController', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -46,9 +46,13 @@ describe('BudgetsController', () => {
       category: { id: 'cat-1', name: 'Lazer', color: '#246b61' },
     };
     prismaMock.budget.findMany.mockResolvedValue([budget]);
-    prismaMock.transaction.aggregate.mockResolvedValue({
-      _sum: { amountCents: { toString: () => '3000' } as any },
-    });
+    prismaMock.transaction.findMany.mockResolvedValue([
+      {
+        categoryId: 'cat-1',
+        amountCents: { toString: () => '3000' } as any,
+        date: new Date('2026-01-15'),
+      },
+    ]);
 
     const result = await makeController().list(req());
 
@@ -57,14 +61,13 @@ describe('BudgetsController', () => {
       include: { category: { select: { id: true, name: true, color: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    expect(prismaMock.transaction.aggregate).toHaveBeenCalledWith({
+    expect(prismaMock.transaction.findMany).toHaveBeenCalledWith({
+      select: { categoryId: true, amountCents: true, date: true },
       where: {
         userId: 'user-1',
-        categoryId: 'cat-1',
         type: 'expense',
         date: { gte: budget.periodStart, lte: budget.periodEnd },
       },
-      _sum: { amountCents: true },
     });
     expect(result[0].spentCents).toBe('3000');
     expect(result[0].remainingCents).toBe('7000');

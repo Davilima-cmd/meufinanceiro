@@ -16,7 +16,7 @@ const SENSITIVE_FIELDS: Record<string, string[]> = {
 export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor(private readonly encryption: EncryptionService) {
     super();
-    ;(this as any).$use(this.encryptDecryptMiddleware.bind(this));
+    (this as any).$use(this.encryptDecryptMiddleware.bind(this));
   }
 
   async onModuleInit(): Promise<void> {
@@ -43,9 +43,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       // Leitura: decifra os campos sensíveis ao retornar para a aplicação.
       if (
         sensitiveFields.length > 0 &&
-        (action === 'findUnique' ||
-          action === 'findFirst' ||
-          action === 'findMany')
+        (action === 'findUnique' || action === 'findFirst' || action === 'findMany')
       ) {
         if (Array.isArray(result)) {
           result.forEach((item) => this.decryptSensitiveFields(model, item));
@@ -80,10 +78,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
     for (const target of targets) {
       for (const field of fields) {
         const value = target[field];
-        if (
-          typeof value === 'string' &&
-          !this.encryption.isEncrypted(value)
-        ) {
+        if (typeof value === 'string' && !this.encryption.isEncrypted(value)) {
           target[field] = this.encryption.encrypt(value);
         }
       }

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { useAuth } from '@/contexts/auth-context';
+import { useState, type FormEvent } from 'react';
+import { useAuth, apiErrorMessage } from '@/contexts/auth-context';
 import Link from 'next/link';
 
 export default function LoginPage() {
-  const { login, register, isLoading } = useAuth();
+  const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setSubmitting(true);
@@ -24,7 +24,7 @@ export default function LoginPage() {
         await register(email, name, password);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      setError(apiErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -34,12 +34,18 @@ export default function LoginPage() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>{mode === 'login' ? 'Entrar' : 'Criar conta'}</h1>
+        <p className="page-description">
+          {mode === 'login'
+            ? 'Acesse sua conta para continuar.'
+            : 'Crie sua conta para começar a organizar suas finanças.'}
+        </p>
         {error && <p className="error">{error}</p>}
         <form onSubmit={handleSubmit}>
           <label>
             E-mail
             <input
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -50,6 +56,7 @@ export default function LoginPage() {
               Nome
               <input
                 type="text"
+                autoComplete="name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -60,20 +67,19 @@ export default function LoginPage() {
             Senha
             <input
               type="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               required
-              minLength={6}
+              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
           <button type="submit" disabled={submitting}>
-            {submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+            {submitting ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
           </button>
         </form>
         <p>
-          {mode === 'login'
-            ? 'Não tem uma conta? '
-            : 'Já tem uma conta? '}
+          {mode === 'login' ? 'Não tem uma conta? ' : 'Já tem uma conta? '}
           <button
             type="button"
             onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
@@ -82,9 +88,7 @@ export default function LoginPage() {
             {mode === 'login' ? 'Cadastre-se' : 'Faça login'}
           </button>
         </p>
-        <p className="note">
-          Dados de exemplo · protótipo local · não use dados bancários reais
-        </p>
+        <p className="note">Dados de exemplo · protótipo local · não use dados bancários reais</p>
         <Link href="/" className="back-link">
           ← Voltar
         </Link>

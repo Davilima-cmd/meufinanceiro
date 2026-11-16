@@ -8,7 +8,8 @@ qualquer dado bancário real; a Fase 0 não conecta banco nem autentica usuário
 - Não usar dados bancários reais. Usar dados fictícios e sandbox.
 - Nunca pedir ou guardar senha bancária.
 - Nunca colocar credenciais, tokens ou chaves no Git, logs, testes ou documentação.
-- Guardar valores locais em `.env`, ignorado pelo Git. `.env.example` contém apenas campos vazios.
+- Guardar valores locais em `.env` (e `.env.local`), ignorados pelo Git. `.env.example` contém
+  apenas placeholders/exemplos — nenhum valor real.
 - Tokens de provedores Open Finance devem ficar no backend quando essa integração for criada.
 - Não confiar em `userId` enviado pelo cliente; a identidade deverá vir da sessão validada no
   servidor.
@@ -33,6 +34,22 @@ qualquer dado bancário real; a Fase 0 não conecta banco nem autentica usuário
 - Dependabot para atualização de dependências (ecossistema npm/pnpm via GitHub).
 - Nenhum segredo no Git: `.env`, `.env.local` e quaisquer arquivos `.env.*` (exceto `.env.example`)
   são ignorados pelo `.gitignore` na raiz do repositório.
+
+## Revisão de segurança — resultado da auditoria
+
+| Controle                                               | Status        | Evidência                                                                                                                                       |
+| ------------------------------------------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nenhum segredo no Git (`.env`, `.env.local`, `.env.*`) | ✅ Verificado | `.gitignore` ignora `.env` e `.env.*`; apenas `.env.example` (placeholders) é rastreado; `git check-ignore` confirma                            |
+| Sem segredos reais no histórico                        | ✅ Verificado | `git log -S` para `senha123`, `ENCRYPTION_KEY=`, `JWT_SECRET=` retornam apenas placeholders (`dev-secret-change-me`, `SENHA`, exemplo de chave) |
+| Hash de senhas com Argon2id                            | ✅ Verificado | `apps/api/src/auth/auth.service.ts` (`argon2.hash`/`argon2.verify`, padrão Argon2id); `argon2@0.45.2`                                           |
+| Criptografia AES-256-GCM (campos sensíveis)            | ✅ Verificado | `apps/api/src/encryption/encryption.service.ts` (`createCipheriv('aes-256-gcm')`); chave validadora de 32 bytes via `ENCRYPTION_KEY`            |
+| MFA (TOTP) ativo                                       | ✅ Verificado | `apps/api/src/mfa/mfa.service.ts`; segredo TOTP cifrado com AES-256-GCM em `User.totpSecret`                                                    |
+| Rate limit de sincronização (429)                      | ✅ Verificado | `apps/api/src/sync/sync.service.ts` (`enforceRateLimit` → `429` com `Retry-After`); `SYNC_RATE_LIMIT_MINUTES`                                   |
+| Secret scanning (Gitleaks)                             | ✅ Verificado | `.gitleaks.toml` configurado e executado no CI (`.github/workflows/ci.yml`)                                                                     |
+| Testes de segurança                                    | ✅ Passam     | `apps/api`: 56 testes (encryption, mfa, sync, auth) verdes; `typecheck` e `build` do api verdes                                                 |
+
+Observações: `dev-secret-change-me`, `SENHA` e `exemplo_de_chave...` são placeholders de
+desenvolvimento, não segredos reais. Nunca substituí-los por valores reais no Git.
 
 ## Controles previstos, ainda pendentes
 

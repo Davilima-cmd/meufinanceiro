@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1
+# Imagem de produção da API NestJS.
+#
+# Build:  docker build -f apps/api/Dockerfile.prod -t meufinanceiro-api .
+# Run:    docker run -p 3001:3001 --env-file .env.production meufinanceiro-api
+
+FROM node:22-alpine AS base
+RUN apk add --no-cache libc6-compat openssl
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+
+# ---------- dependências ----------
+FROM base AS deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY apps/mobile/package.json apps/mobile/
+COPY packages/design-tokens/package.json packages/design-tokens/
+COPY packages/money/package.json packages/money/
+COPY packages/shared-types/package.json packages/shared-types/
+COPY packages/tsconfig/package.json packages/tsconfig/
+COPY packages/validation/package.json packages/validation/
+COPY packages/eslint-config/package.json packages/eslint-config/
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+# ---------- build ----------
+FROM deps AS build
+WORKDIR /app
+COPY . .
+RUN pnpm --filter @meufinanceiro/api... build
+RUN pnpm --filter @meufinanceiro/api exec prisma generate
+
+# ---------- runtime ----------
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Prisma precisa do schema e das migrations para `migrate deploy`.
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/api/prisma ./apps/api/prisma
+COPY --from=build /app/apps/api/package.json ./apps/api/
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages ./packages
+COPY --from=build /app/package.json ./package.json
+
+RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
+USER app
+
+EXPOSE 3001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.API_PORT||3001)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "apps/api/dist/main.js"]

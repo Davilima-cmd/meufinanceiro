@@ -1,5 +1,5 @@
 export type ValidationIssue = {
-  path: readonly (string | number)[];
+  path: ReadonlyArray<string | number>;
   message: string;
 };
 

@@ -23,5 +23,18 @@
       "outputs": []
     }
   },
-  "globalEnv": ["DATABASE_URL", "DATABASE_URL_DIRECT", "JWT_SECRET", "NODE_ENV"]
+  "globalEnv": [
+    "DATABASE_URL",
+    "DATABASE_URL_DIRECT",
+    "JWT_SECRET",
+    "JWT_EXPIRES_IN",
+    "ENCRYPTION_KEY",
+    "TOTP_ISSUER",
+    "OPEN_FINANCE_SANDBOX_BASE_URL",
+    "OPEN_FINANCE_WEBHOOK_SECRET",
+    "WEB_ORIGIN",
+    "API_PORT",
+    "NEXT_PUBLIC_API_BASE",
+    "NODE_ENV"
+  ]
 }

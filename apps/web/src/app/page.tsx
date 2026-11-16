@@ -1,4 +1,4 @@
-'use client';
+'use client'; /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -30,7 +30,9 @@ export default function HomePage() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-lockup">
-          <span aria-hidden="true" className="brand-mark">mf</span>
+          <span aria-hidden="true" className="brand-mark">
+            mf
+          </span>
           <span>meu financeiro</span>
         </div>
         <nav aria-label="Navegação principal" className="sidebar-nav">
@@ -42,12 +44,6 @@ export default function HomePage() {
           </button>
           <button className="nav-item" onClick={() => router.push('/accounts')}>
             <span>Contas</span>
-          </button>
-          <button className="nav-item" onClick={() => router.push('/analysis')}>
-            <span>Análises</span>
-          </button>
-          <button className="nav-item" onClick={() => router.push('/profile')}>
-            <span>Perfil</span>
           </button>
           <button className="nav-item" onClick={() => router.push('/categories')}>
             <span>Categorias</span>

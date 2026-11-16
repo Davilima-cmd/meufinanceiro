@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SyncService } from './sync.service';
 import { BankProviderAdapter, SandboxBankProviderAdapter } from './provider.adapter';
@@ -13,22 +13,24 @@ import { BankProviderAdapter, SandboxBankProviderAdapter } from './provider.adap
  */
 @Module({
   imports: [PrismaModule],
-  providers: [
-    SyncService,
-    { provide: BankProviderAdapter, useClass: SandboxBankProviderAdapter },
-  ],
+  providers: [SyncService, { provide: BankProviderAdapter, useClass: SandboxBankProviderAdapter }],
   exports: [SyncService],
 })
-export class SyncModule implements OnModuleInit {
+export class SyncModule implements OnModuleInit, OnModuleDestroy {
+  private timer?: NodeJS.Timeout;
+
   constructor(private readonly syncService: SyncService) {}
 
   onModuleInit(): void {
     if (process.env.NODE_ENV === 'test') return;
 
     // Verifica a cada hora se algum usuário está devedor de reconciliação diária.
-    setInterval(
-      () => void this.syncService.runDailyReconciliation(),
-      60 * 60 * 1000,
-    );
+    // unref() permite que o processo encerre normalmente mesmo com o timer ativo.
+    this.timer = setInterval(() => void this.syncService.runDailyReconciliation(), 60 * 60 * 1000);
+    this.timer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
   }
 }

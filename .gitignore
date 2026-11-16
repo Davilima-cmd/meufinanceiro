@@ -25,3 +25,14 @@ android/
 ios/
 *.keystore
 *.jks
+
+# Backups de banco (contem dados de producao)
+backups/
+*.sql
+*.sql.gz
+
+# Ambiente de producao local
+.env.production
+
+# Vercel
+.vercel

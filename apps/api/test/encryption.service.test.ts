@@ -17,9 +17,9 @@ describe('EncryptionService (AES-256-GCM)', () => {
   });
 
   it('should encrypt and decrypt roundtrip', () => {
-   const svc = makeService();
-   const plain = 'provider-account-123';
-   const encrypted = svc.encrypt(plain) as string;
+    const svc = makeService();
+    const plain = 'provider-account-123';
+    const encrypted = svc.encrypt(plain) as string;
     expect(encrypted).not.toBe(plain);
     expect(encrypted.startsWith('enc:')).toBe(true);
     expect(svc.decrypt(encrypted)).toBe(plain);
@@ -49,13 +49,13 @@ describe('EncryptionService (AES-256-GCM)', () => {
   });
 
   it('should throw when ENCRYPTION_KEY is missing', () => {
-    const config = { get: () => undefined    } as any;
+    const config = { get: () => undefined } as any;
     const svc = new EncryptionService(config);
     expect(() => svc.onModuleInit()).toThrow(/ENCRYPTION_KEY não definida/);
   });
 
   it('should throw when ENCRYPTION_KEY is not 32 bytes', () => {
-    const config = { get: () => Buffer.from('curta').toString('base64')    } as any;
+    const config = { get: () => Buffer.from('curta').toString('base64') } as any;
     const svc = new EncryptionService(config);
     expect(() => svc.onModuleInit()).toThrow(/32 bytes/);
   });

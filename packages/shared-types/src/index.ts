@@ -158,11 +158,7 @@ export type ApiErrorBody = {
 
 /** Status de uma conexão Open Finance (banco de dados: active, awaiting_authorization, expired, error, disconnected). */
 export type BankConnectionStatus =
-  | 'active'
-  | 'awaiting_authorization'
-  | 'expired'
-  | 'error'
-  | 'disconnected';
+  'active' | 'awaiting_authorization' | 'expired' | 'error' | 'disconnected';
 
 /** Conexão de Open Finance retornada pela API. */
 export type ApiBankConnection = {

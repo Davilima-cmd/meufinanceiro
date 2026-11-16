@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto } from './dto/account.dto';
@@ -44,10 +37,7 @@ export class AccountsController {
   }
 
   @Post()
-  async create(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: CreateAccountDto,
-  ) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateAccountDto) {
     const account = await this.prisma.financialAccount.create({
       data: {
         name: dto.name,

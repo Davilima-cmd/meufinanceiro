@@ -6,7 +6,9 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { LocalStrategy } from './local.strategy';
 import { JwtStrategy } from './jwt.strategy';
+import { MfaSessionStrategy } from './mfa-session.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
+import { resolveJwtSecret } from './jwt-secret';
 
 @Module({
   imports: [
@@ -16,13 +18,16 @@ import { PrismaModule } from '../prisma/prisma.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (config: ConfigService) => ({
-        secret: config.get('JWT_SECRET') || 'dev-secret-change-me',
-        signOptions: { expiresIn: '7d' },
+        secret: resolveJwtSecret(config.get<string>('JWT_SECRET')),
+        signOptions: {
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
+            '1h') as `${number}${'s' | 'm' | 'h' | 'd' | 'w' | 'y'}`,
+        },
       }),
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [AuthService, LocalStrategy, JwtStrategy, MfaSessionStrategy],
   controllers: [AuthController],
   exports: [AuthService],
 })

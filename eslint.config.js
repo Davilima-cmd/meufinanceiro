@@ -5,7 +5,18 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'build/', '.turbo/', 'node_modules/', '*.config.*', 'coverage/', '**/*.d.ts'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/build/**',
+      '**/.turbo/**',
+      '**/.next/**',
+      '**/.expo/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/*.d.ts',
+    ],
+  },
   {
     files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
     languageOptions: {

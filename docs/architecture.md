@@ -13,7 +13,8 @@ packages/
   design-tokens/ medidas básicas da interface
 ```
 
-As aplicações web e mobile ainda não consomem a API. O único endpoint disponível é `GET /api/health`, usado para confirmar que a API iniciou.
+As aplicações web e mobile ainda não consomem a API. O único endpoint disponível é
+`GET /api/health`, usado para confirmar que a API iniciou.
 
 ## Arquitetura prevista pela especificação
 
@@ -24,11 +25,13 @@ As aplicações web e mobile ainda não consomem a API. O único endpoint dispon
 - Eventos de webhook e reconciliação armazenados/processados no PostgreSQL, sem Redis ou BullMQ.
 - Android distribuído como APK privado via EAS Build.
 
-Esses serviços e fluxos são decisões documentadas, não integrações já implantadas. A implementação deve respeitar as fases em `docs/especificacao_final.md`.
+Esses serviços e fluxos são decisões documentadas, não integrações já implantadas. A implementação
+deve respeitar as fases em `docs/especificacao_final.md`.
 
 ## Contratos compartilhados
 
-- `packages/shared-types/src/index.ts`: níveis de compartilhamento `BALANCE_ONLY` e `FULL`, valor monetário em centavos (`bigint`) e data ISO UTC.
+- `packages/shared-types/src/index.ts`: níveis de compartilhamento `BALANCE_ONLY` e `FULL`, valor
+  monetário em centavos (`bigint`) e data ISO UTC.
 - `packages/validation/src/index.ts`: formato discriminado para resultado e problemas de validação.
 - `packages/design-tokens/src/index.ts`: escala de espaçamento e raios de borda.
 

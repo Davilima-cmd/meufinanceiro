@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import * as speakeasy from 'speakeasy';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../encryption/encryption.service';
@@ -17,7 +13,7 @@ import { EncryptionService } from '../encryption/encryption.service';
 export class MfaService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly encryption: EncryptionService,
+    private readonly encryption: EncryptionService
   ) {}
 
   /** Gera um segredo base32 e a URL otpauth (Google Authenticator etc.). */

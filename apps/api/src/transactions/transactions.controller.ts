@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/transaction.dto';
@@ -40,13 +33,20 @@ export class TransactionsController {
 
   @Post()
   @AuditLog(AuditAction.TRANSACTION_CREATE)
-  async create(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: CreateTransactionDto,
-  ) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateTransactionDto) {
+    // A conta de destino precisa pertencer ao usuário autenticado: sem esta
+    // checagem, um usuário poderia lançar transações na conta de outro.
+    const account = await this.prisma.financialAccount.findFirst({
+      where: { id: dto.accountId, userId: req.user.userId },
+      select: { id: true },
+    });
+    if (!account) {
+      throw new NotFoundException('Conta não encontrada');
+    }
+
     const transaction = await this.prisma.transaction.create({
       data: {
-        accountId: dto.accountId,
+        accountId: account.id,
         userId: req.user.userId,
         description: dto.description,
         amountCents: String(dto.amountCents),

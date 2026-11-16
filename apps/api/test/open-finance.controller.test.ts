@@ -5,6 +5,9 @@ import { SyncService } from '../src/sync/sync.service';
 import { HttpException, HttpStatus } from '@nestjs/common';
 
 const prismaMock = {
+  financialAccount: {
+    findFirst: vi.fn(),
+  },
   bankConnection: {
     findMany: vi.fn(),
     create: vi.fn(),
@@ -20,6 +23,9 @@ const prismaMock = {
     create: vi.fn().mockResolvedValue({}),
   },
 } as unknown as {
+  financialAccount: {
+    findFirst: ReturnType<typeof vi.fn>;
+  };
   bankConnection: {
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
@@ -57,11 +63,16 @@ describe('OpenFinanceController', () => {
   });
 
   it('conecta provedor vinculado ao usuário', async () => {
+    prismaMock.financialAccount.findFirst.mockResolvedValue({ id: 'acct-1' });
     prismaMock.bankConnection.create.mockResolvedValue({ id: 'bc-1' });
     await makeController().connect(req(), {
       provider: 'caju',
       providerAccountId: 'acc-123',
       accountId: 'acct-1',
+    });
+    expect(prismaMock.financialAccount.findFirst).toHaveBeenCalledWith({
+      where: { id: 'acct-1', userId: 'user-1' },
+      select: { id: true },
     });
     expect(prismaMock.bankConnection.create).toHaveBeenCalledWith({
       data: {

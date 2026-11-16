@@ -1,4 +1,8 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+
+/** Limite superior: argon2 processa o input inteiro, senhas gigantes viram DoS. */
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 128;
 
 export class RegisterDto {
   @IsEmail()
@@ -8,7 +12,8 @@ export class RegisterDto {
   name: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(PASSWORD_MIN_LENGTH)
+  @MaxLength(PASSWORD_MAX_LENGTH)
   password: string;
 }
 

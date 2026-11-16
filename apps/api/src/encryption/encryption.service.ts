@@ -1,10 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-} from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 /**
  * Criptografia simétrica AES-256-GCM para campos sensíveis do banco.
@@ -26,13 +22,13 @@ export class EncryptionService implements OnModuleInit {
     const raw = this.config.get<string>('ENCRYPTION_KEY');
     if (!raw) {
       throw new Error(
-        'ENCRYPTION_KEY não definida. Adicione uma chave base64 de 32 bytes ao .env (veja .env.example).',
+        'ENCRYPTION_KEY não definida. Adicione uma chave base64 de 32 bytes ao .env (veja .env.example).'
       );
     }
     this.key = Buffer.from(raw, 'base64');
     if (this.key.length !== 32) {
       throw new Error(
-        `ENCRYPTION_KEY deve ter 32 bytes (256 bits) quando decodificada do base64. Atual: ${this.key.length} bytes.`,
+        `ENCRYPTION_KEY deve ter 32 bytes (256 bits) quando decodificada do base64. Atual: ${this.key.length} bytes.`
       );
     }
   }
@@ -45,10 +41,7 @@ export class EncryptionService implements OnModuleInit {
     const text = String(plaintext);
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.key, iv);
-    const ciphertext = Buffer.concat([
-      cipher.update(text, 'utf8'),
-      cipher.final(),
-    ]);
+    const ciphertext = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
     return `enc:${Buffer.concat([iv, tag, ciphertext]).toString('base64')}`;
   }
@@ -69,9 +62,7 @@ export class EncryptionService implements OnModuleInit {
     const encrypted = buf.subarray(28);
     const decipher = createDecipheriv('aes-256-gcm', this.key, iv);
     decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString(
-      'utf8',
-    );
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
   }
 
   /** Indica se um valor já está no formato criptografado. */

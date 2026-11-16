@@ -86,7 +86,7 @@ const accounts = [
   { name: 'Reserva manual', kind: 'Carteira manual', cents: 237560n, share: 'Privada' },
 ];
 
-const navigation: { id: Screen; label: string }[] = [
+const navigation: Array<{ id: Screen; label: string }> = [
   { id: 'home', label: 'Início' },
   { id: 'transactions', label: 'Movimentos' },
   { id: 'accounts', label: 'Contas' },

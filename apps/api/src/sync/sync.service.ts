@@ -1,9 +1,4 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BankProviderAdapter, ProviderTransaction } from './provider.adapter';
 
@@ -33,7 +28,7 @@ export class SyncService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly adapter: BankProviderAdapter,
+    private readonly adapter: BankProviderAdapter
   ) {}
 
   private rateLimitMinutes(): number {
@@ -45,10 +40,7 @@ export class SyncService {
    * Executa a reconciliação para um usuário. `trigger` distingue o botão
    * sob demanda (sujeito a limite de frequência) da varredura diária.
    */
-  async reconcileUser(
-    userId: string,
-    options: { trigger: 'manual' | 'daily' },
-  ) {
+  async reconcileUser(userId: string, options: { trigger: 'manual' | 'daily' }) {
     if (options.trigger === 'manual') {
       await this.enforceRateLimit(userId);
     }
@@ -72,8 +64,7 @@ export class SyncService {
         data: {
           status: 'failed',
           finishedAt,
-          error:
-            error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error.message : String(error),
         },
       });
     }
@@ -86,22 +77,33 @@ export class SyncService {
 
     let transactionsSynced = 0;
     for (const connection of connections) {
-      const providerTransactions: ProviderTransaction[] =
-        await this.adapter.fetchTransactions({
-          provider: connection.provider,
-          providerAccountId: connection.providerAccountId,
-        });
+      const providerTransactions: ProviderTransaction[] = await this.adapter.fetchTransactions({
+        provider: connection.provider,
+        providerAccountId: connection.providerAccountId,
+      });
 
-      for (const tx of providerTransactions) {
-        await this.prisma.transaction.upsert({
-          where: { providerId: tx.providerId },
-          update: {
-            description: tx.description,
-            amountCents: String(tx.amountCents),
-            type: tx.type,
-            date: tx.date,
-          },
-          create: {
+      if (providerTransactions.length === 0) continue;
+
+      const providerIds = providerTransactions.map((tx) => tx.providerId);
+
+      // Uma única consulta: quais lançamentos deste usuário já existem?
+      // Evita um `upsert` por transação (N+1) dentro do loop de conexões.
+      const existing = await this.prisma.transaction.findMany({
+        where: {
+          providerId: { in: providerIds },
+          userId,
+        },
+        select: { providerId: true },
+      });
+      const existingProviderIds = new Set(existing.map((tx) => tx.providerId));
+
+      const toCreate = providerTransactions.filter((tx) => !existingProviderIds.has(tx.providerId));
+      const toUpdate = providerTransactions.filter((tx) => existingProviderIds.has(tx.providerId));
+
+      // Inserção em lote dos lançamentos novos.
+      if (toCreate.length > 0) {
+        await this.prisma.transaction.createMany({
+          data: toCreate.map((tx) => ({
             accountId: connection.accountId,
             userId,
             providerId: tx.providerId,
@@ -109,6 +111,21 @@ export class SyncService {
             amountCents: String(tx.amountCents),
             type: tx.type,
             origin: 'imported',
+            date: tx.date,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      transactionsSynced += toCreate.length;
+
+      // Atualização apenas dos lançamentos que já existem.
+      for (const tx of toUpdate) {
+        await this.prisma.transaction.update({
+          where: { providerId: tx.providerId },
+          data: {
+            description: tx.description,
+            amountCents: String(tx.amountCents),
+            type: tx.type,
             date: tx.date,
           },
         });
@@ -141,15 +158,14 @@ export class SyncService {
 
     if (last && last.status !== 'failed' && last.createdAt >= windowStart) {
       const retryAfter = Math.ceil(
-        (last.createdAt.getTime() + windowMinutes * 60 * 1000 - Date.now()) /
-          1000,
+        (last.createdAt.getTime() + windowMinutes * 60 * 1000 - Date.now()) / 1000
       );
       throw new HttpException(
         {
           message: `Sincronização muito frequente. Tente novamente em ${retryAfter}s.`,
           retryAfter: Math.max(retryAfter, 1),
         },
-        HttpStatus.TOO_MANY_REQUESTS,
+        HttpStatus.TOO_MANY_REQUESTS
       );
     }
   }
@@ -157,28 +173,37 @@ export class SyncService {
   /**
    * Varredura diária: executa a reconciliação para usuários cuja última
    * sincronização foi concluída há mais de 24h (ou nunca foi executada).
+   *
+   * Busca o último job de todos os usuários em uma única consulta, evitando
+   * o N+1 de um `findFirst` por usuário dentro do loop.
    */
   async runDailyReconciliation(): Promise<void> {
     const users = await this.prisma.user.findMany({
       where: { bankConnections: { some: { status: 'active' } } },
     });
+    if (users.length === 0) return;
 
     const cutoff = new Date(Date.now() - DAILY_HOURS * 60 * 60 * 1000);
 
+    const jobs = await this.prisma.syncJob.findMany({
+      where: { userId: { in: users.map((user) => user.id) } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const lastByUser = new Map<string, (typeof jobs)[number]>();
+    for (const job of jobs) {
+      if (!lastByUser.has(job.userId)) {
+        lastByUser.set(job.userId, job);
+      }
+    }
+
     for (const user of users) {
-      const last = await this.prisma.syncJob.findFirst({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'desc' },
-      });
+      const last = lastByUser.get(user.id);
       if (last?.finishedAt && last.finishedAt >= cutoff) continue;
 
       try {
         await this.reconcileUser(user.id, { trigger: 'daily' });
       } catch (error) {
-        this.logger.error(
-          `Reconciliação diária falhou para o usuário ${user.id}`,
-          error,
-        );
+        this.logger.error(`Reconciliação diária falhou para o usuário ${user.id}`, error);
       }
     }
   }

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Inject, Post, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Post,
+  BadRequestException,
+  UseGuards,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../sync/sync.service';
@@ -15,7 +24,16 @@ function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
+/**
+ * Endpoints do provedor de sandbox do Open Finance.
+ *
+ * Exigem autenticação como qualquer outra rota: sem a guard, qualquer
+ * cliente criaria consentimento para um `userId` arbitrário e injetaria
+ * transações. Em produção o controller nem é registrado (ver
+ * `open-finance.module.ts`) — o sandbox é exclusivo de desenvolvimento.
+ */
 @Controller('open-finance')
+@UseGuards(AuthGuard('jwt'))
 export class SandboxController {
   constructor(
     private readonly prisma: PrismaService,

@@ -11,7 +11,14 @@ export class AuthService {
   ) {}
 
   async hashPassword(password: string): Promise<string> {
-    return argon2.hash(password);
+    // argon2id com 64 MiB de memoria: custo alto o suficiente contra
+    // forca bruta sem estourar o memoria do plano gratuito da Azure.
+    return argon2.hash(password, {
+      type: argon2.argon2id,
+      memoryCost: 65536,
+      timeCost: 3,
+      parallelism: 1,
+    });
   }
 
   async comparePassword(password: string, hash: string): Promise<boolean> {
@@ -23,11 +30,11 @@ export class AuthService {
   }
 
   generateToken(userId: string): string {
-    return this.jwt.sign({ sub: userId });
+    return this.jwt.sign({ sub: userId, scope: 'full' });
   }
 
   generateTempToken(userId: string): string {
-    return this.jwt.sign({ sub: userId }, { expiresIn: '5m' });
+    return this.jwt.sign({ sub: userId, scope: 'mfa_pending' }, { expiresIn: '5m' });
   }
 
   async register(dto: { email: string; name: string; password: string }) {

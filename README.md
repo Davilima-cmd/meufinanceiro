@@ -41,7 +41,7 @@ pnpm build
 
 O workflow do GitHub Actions executa essas verificações em pushes para `main` e pull requests.
 
-## Docker Compose (PostgreSQL + API + Web)
+## Docker Compose (PostgreSQL + API + Web) — implantação e operações
 
 Sobe todo o ecossistema em containers: PostgreSQL 18 (`db`), API NestJS (`api`, porta 3001) e
 Next.js (`web`, porta 3000), com health checks e ordem de inicialização (`db` → `api` → `web`).
@@ -54,9 +54,52 @@ Next.js (`web`, porta 3000), com health checks e ordem de inicialização (`db` 
 ### Primeiro uso
 
 ```sh
-cp .env.example .env   # ajuste DB_PASSWORD se desejar
+cp .env.example .env   # edite os valores abaixo antes de subir
 pnpm docker-up         # builda as imagens e sobe os serviços em segundo plano
 ```
+
+### Variáveis obrigatórias do `.env`
+
+Configure pelo menos estas variáveis (valores de exemplo impedem o deploy):
+
+| Variável               | Exemplo                                                  | Observação                                    |
+| ---------------------- | -------------------------------------------------------- | --------------------------------------------- |
+| `DATABASE_URL`         | `postgres://postgres:senha@localhost:5432/meufinanceiro` | URL de conexão do Prisma (aplicação)          |
+| `DATABASE_URL_DIRECT`  | `postgres://postgres:senha@localhost:5432/meufinanceiro` | URL direta (usada pelas migrations)           |
+| `JWT_SECRET`           | `openssl rand -base64 32`                                | Segredo para assinar tokens JWT               |
+| `ENCRYPTION_KEY`       | `openssl rand -hex 32`                                   | Chave AES-256-GCM para campos sensíveis       |
+| `TOTP_ISSUER`          | `Meu Financeiro`                                         | Emissor exibido nos apps autenticadores (MFA) |
+| `NODE_ENV`             | `development`                                            | `development` ou `production`                 |
+| `API_PORT`             | `3001`                                                   | Porta da API no container/host                |
+| `WEB_ORIGIN`           | `http://localhost:3000`                                  | Origem da web para CORS                       |
+| `NEXT_PUBLIC_API_BASE` | `http://localhost:3001/api`                              | Base da API exposta ao navegador              |
+
+Gere os segredos com:
+
+```sh
+openssl rand -base64 32   # JWT_SECRET
+openssl rand -hex 32      # ENCRYPTION_KEY
+```
+
+### Script de deploy
+
+`scripts/deploy.sh` (ou `scripts/deploy.ps1` no PowerShell) automatiza todo o fluxo:
+
+```sh
+./scripts/deploy.sh        # Git Bash / WSL / Linux
+.\scripts\deploy.ps1       # PowerShell (Windows)
+```
+
+O script: valida o `.env`, builda as imagens, sobe os serviços, aguarda os health checks de `db`,
+`api` e `web`, e roda `docker compose exec api pnpm prisma migrate deploy`.
+
+### Health checks
+
+- API: `GET http://localhost:3001/api/health` → responde `{ status: 'ok', db: 'ok' }` quando a API e
+  o banco estão disponíveis (503 se o banco estiver indisponível).
+- Web: `GET http://localhost:3000/` → responde quando o Next.js está servindo.
+- Os health checks também são usados pelo Docker Compose (`db` → `api` → `web`) e pelo script de
+  deploy antes de aplicar as migrations.
 
 ### Serviços e URLs
 
@@ -64,12 +107,16 @@ pnpm docker-up         # builda as imagens e sobe os serviços em segundo plano
 - API: http://localhost:3001 — health check em http://localhost:3001/api/health
 - PostgreSQL: localhost:5432 (usuário `postgres`, banco `meufinanceiro`)
 
-### Comandos
+### Comandos de operações
 
 ```sh
-pnpm docker-logs   # acompanha logs de todos os serviços
-pnpm docker-down   # para e remove containers e redes
-pnpm docker-clean  # para, remove containers e o volume de dados do banco (apaga os dados)
+pnpm docker-up                    # builda as imagens e sobe os serviços em segundo plano
+pnpm docker-logs                  # acompanha logs de todos os serviços
+pnpm docker-logs -f api           # logs apenas da API
+docker compose exec api pnpm prisma migrate deploy   # aplica migrations pendentes
+docker compose exec api pnpm prisma generate         # regenera o cliente Prisma
+pnpm docker-down                  # para e remove containers e redes
+pnpm docker-clean                 # para, remove containers e o volume de dados do banco (apaga os dados)
 ```
 
 ### Banco de dados
@@ -85,6 +132,19 @@ Se precisar regenerar o cliente Prisma:
 ```sh
 docker compose exec api pnpm prisma generate
 ```
+
+### Sem Docker (execução local)
+
+O PostgreSQL 18 está instalado localmente na máquina. Crie o banco `meufinanceiro`, copie
+`.env.example` para `.env`, então:
+
+```sh
+pnpm install
+npx prisma migrate dev
+pnpm dev
+```
+
+A web fica em http://localhost:3000 e a API em http://localhost:3001.
 
 ### Sem Docker (execução local)
 

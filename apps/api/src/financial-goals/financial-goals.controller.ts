@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -32,21 +22,20 @@ export class FinancialGoalsController {
       targetCents: goal.targetCents.toString(),
       currentCents: goal.currentCents.toString(),
       progress:
-        Number(goal.targetCents) > 0
-          ? Number(goal.currentCents) / Number(goal.targetCents)
-          : 0,
+        Number(goal.targetCents) > 0 ? Number(goal.currentCents) / Number(goal.targetCents) : 0,
     }));
   }
 
   @Post()
   async create(
     @Req() req: AuthenticatedRequest,
-    @Body() dto: {
+    @Body()
+    dto: {
       name: string;
       targetCents: string;
       currentCents?: string;
       dueDate?: string;
-    },
+    }
   ) {
     const goal = await this.prisma.financialGoal.create({
       data: {
@@ -68,12 +57,13 @@ export class FinancialGoalsController {
   async update(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() dto: {
+    @Body()
+    dto: {
       name?: string;
       targetCents?: string;
       currentCents?: string;
       dueDate?: string;
-    },
+    }
   ) {
     const goal = await this.prisma.financialGoal.update({
       where: { id, userId: req.user.userId },

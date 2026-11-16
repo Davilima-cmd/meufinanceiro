@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -33,10 +23,7 @@ export class CategoriesController {
   }
 
   @Post()
-  async create(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: { name: string; color?: string },
-  ) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: { name: string; color?: string }) {
     const category = await this.prisma.category.create({
       data: {
         name: dto.name,
@@ -52,7 +39,7 @@ export class CategoriesController {
   async update(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() dto: { name?: string; color?: string },
+    @Body() dto: { name?: string; color?: string }
   ) {
     const category = await this.prisma.category.update({
       where: { id, userId: req.user.userId },

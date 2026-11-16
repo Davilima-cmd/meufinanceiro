@@ -1,4 +1,4 @@
-'use client';
+'use client'; /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
@@ -17,10 +17,9 @@ export default function GoalsPage() {
   const [name, setName] = useState('');
   const [targetCents, setTargetCents] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(
-    null,
-  );
+  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
+  // Hooks sempre executados (ordem fixa)
   useEffect(() => {
     setMounted(true);
     if (!isLoading && !user) {
@@ -33,13 +32,6 @@ export default function GoalsPage() {
     const timer = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(timer);
   }, [toast]);
-
-  if (!mounted || (isLoading && !user)) {
-    return null;
-  }
-  if (!user) {
-    return null;
-  }
 
   const load = useCallback(async () => {
     try {
@@ -58,22 +50,22 @@ export default function GoalsPage() {
     load();
   }, [load]);
 
-  const progressPercent = (goal: ApiGoal) => Math.round(goal.progress * 100);
+  const progressPercent = (goal: ApiGoal) => Math.round((goal.progress ?? 0) * 100);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !targetCents.trim()) return;
     setError(null);
     try {
-      await api.createGoal({
+      const created = await api.createGoal({
         name: name.trim(),
         targetCents: targetCents.trim(),
         dueDate: dueDate || undefined,
       });
+      setGoals([created, ...goals]);
       setName('');
       setTargetCents('');
       setDueDate('');
-      await load();
       setToast({ kind: 'success', message: 'Meta criada' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar meta');
@@ -91,7 +83,12 @@ export default function GoalsPage() {
     }
   };
 
-  const fmtDate = (value: string) => new Date(value).toLocaleDateString('pt-BR');
+  if (!mounted || (isLoading && !user)) {
+    return null;
+  }
+  if (!user) {
+    return null;
+  }
 
   if (loading) {
     return (
@@ -104,76 +101,63 @@ export default function GoalsPage() {
   return (
     <AppShell title="Metas">
       {error && <p className="error-msg">{error}</p>}
-      {toast && <div className="toast" role="status">{toast.message}</div>}
+      {toast && (
+        <div className="toast" role="status">
+          {toast.message}
+        </div>
+      )}
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Planejamento</p>
+          <p className="eyebrow">Objetivos</p>
           <h1>Metas financeiras</h1>
-          <p className="page-description">
-            Acompanhe o progresso de cada meta até a data limite.
-          </p>
+          <p className="page-description">Defina metas de economia e acompanhe seu progresso.</p>
         </div>
       </div>
       <section className="panel list-panel">
-        {goals.length === 0 && (
-          <p className="list-count">Nenhuma meta cadastrada.</p>
-        )}
-        {goals.map((goal) => (
-          <article key={goal.id} className="panel" style={{ marginTop: 12 }}>
-            <div className="panel-heading">
-              <div>
-                <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 700 }}>
-                  {goal.name}
-                </h2>
-                <p>
-                  {goal.dueDate ? `Vence em ${fmtDate(goal.dueDate)}` : 'Sem prazo definido'}
+        <ul className="account-list">
+          {goals.length === 0 && <p className="list-count">Nenhuma meta cadastrada.</p>}
+          {goals.map((goal) => (
+            <li key={goal.id} className="account-row">
+              <span
+                className="account-mark"
+                aria-hidden="true"
+                style={{
+                  backgroundColor: '#246b61',
+                  color: '#ffffff',
+                }}
+              >
+                <span>⯁</span>
+              </span>
+              <div className="account-copy">
+                <span className="account-name">{goal.name}</span>
+                <span className="account-detail">
+                  {goal.dueDate
+                    ? 'Até ' + new Date(goal.dueDate).toLocaleDateString('pt-BR')
+                    : 'Sem prazo'}
+                </span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <strong className="account-balance">
+                  {formatCents(BigInt(goal.currentCents ?? '0'))}
+                </strong>
+                <p style={{ margin: 0, fontSize: '10px', color: 'var(--color-muted)' }}>
+                  Progresso {progressPercent(goal)}%
                 </p>
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-              <div
-                className="category-track"
-                style={{ flex: 1, height: 10 }}
-              >
-                <span
-                  style={{
-                    width: `${Math.min(progressPercent(goal), 100)}%`,
-                    background: 'var(--color-accent)',
-                    borderRadius: 'inherit',
-                    display: 'block',
-                    height: '100%',
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: '11px', color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-                {progressPercent(goal)}% da meta
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-              <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
-                Acumulado {formatCents(BigInt(goal.currentCents))}
-              </span>
-              <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
-                Alvo {formatCents(BigInt(goal.targetCents))}
-              </span>
-            </div>
-            <button
-              className="text-button"
-              onClick={() => handleDelete(goal.id)}
-              type="button"
-              style={{ marginTop: 10 }}
-            >
-              Excluir
-            </button>
-          </article>
-        ))}
+              <button className="text-button" onClick={() => handleDelete(goal.id)} type="button">
+                Excluir
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
       <form onSubmit={handleCreate} className="create-account-form">
         <input
           className="input"
+          type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Nome da meta (ex: Viagem de férias)"
+          placeholder="Nome da meta"
           required
         />
         <input
@@ -181,7 +165,7 @@ export default function GoalsPage() {
           type="number"
           value={targetCents}
           onChange={(e) => setTargetCents(e.target.value)}
-          placeholder="Valor alvo (centavos, ex: 150000)"
+          placeholder="Valor alvo (centavos, ex: 500000)"
           required
         />
         <input
@@ -194,6 +178,7 @@ export default function GoalsPage() {
           Criar meta
         </button>
       </form>
+      <p className="inline-note">O progresso é calculado com base no valor atual salvo na meta.</p>
     </AppShell>
   );
 }

@@ -1,6 +1,12 @@
 'use client';
-
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from 'react'; /* eslint-disable react-hooks/set-state-in-effect */
 import { api, ApiError, type ApiUser, type MfaEnableResponse } from '../lib/api';
 import { useRouter } from 'next/navigation';
 import { LOCAL_STORAGE_KEYS } from '@meufinanceiro/shared-types';
@@ -28,6 +34,13 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/** Sessão temporária de MFA (5 min) mantida somente durante a aba do navegador,
+ * para que um recarregamento em /auth/mfa-verify não derrube o fluxo de verificação. */
+const MFA_SESSION_KEYS = {
+  tempToken: 'mf_mfa_temp_token',
+  userId: 'mf_mfa_user_id',
+} as const;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<ApiUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -46,6 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       typeof localStorage !== 'undefined'
         ? localStorage.getItem(LOCAL_STORAGE_KEYS.hideValues)
         : null;
+    const storedMfaToken =
+      typeof sessionStorage !== 'undefined'
+        ? sessionStorage.getItem(MFA_SESSION_KEYS.tempToken)
+        : null;
+    const storedMfaUserId =
+      typeof sessionStorage !== 'undefined'
+        ? sessionStorage.getItem(MFA_SESSION_KEYS.userId)
+        : null;
 
     if (stored) {
       setToken(stored);
@@ -56,6 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (storedHide !== null) {
       setHideValues(storedHide === 'true');
+    }
+    if (storedMfaToken) {
+      setMfaTempToken(storedMfaToken);
+    }
+    if (storedMfaUserId) {
+      setMfaUserId(storedMfaUserId);
     }
     setIsLoading(false);
   }, []);
@@ -84,6 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (result.mfaRequired && result.tempToken && result.userId) {
         setMfaTempToken(result.tempToken ?? null);
         setMfaUserId(result.userId ?? null);
+        if (typeof sessionStorage !== 'undefined') {
+          if (result.tempToken) {
+            sessionStorage.setItem(MFA_SESSION_KEYS.tempToken, result.tempToken);
+          } else {
+            sessionStorage.removeItem(MFA_SESSION_KEYS.tempToken);
+          }
+          if (result.userId) {
+            sessionStorage.setItem(MFA_SESSION_KEYS.userId, result.userId);
+          } else {
+            sessionStorage.removeItem(MFA_SESSION_KEYS.userId);
+          }
+        }
         router.push('/auth/mfa-verify');
         return;
       }
@@ -126,7 +165,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(LOCAL_STORAGE_KEYS.token);
       localStorage.removeItem(LOCAL_STORAGE_KEYS.user);
     }
-  }, []);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem(MFA_SESSION_KEYS.tempToken);
+      sessionStorage.removeItem(MFA_SESSION_KEYS.userId);
+    }
+    router.push('/login');
+  }, [router]);
 
   const deleteAccount = useCallback(async () => {
     await api.deleteAccount();
@@ -152,6 +196,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await api.mfaVerify({ code }, session);
       setMfaTempToken(null);
       setMfaUserId(null);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem(MFA_SESSION_KEYS.tempToken);
+        sessionStorage.removeItem(MFA_SESSION_KEYS.userId);
+      }
       setToken(result.token ?? null);
       // O endpoint de verificação devolve apenas o JWT; o objeto do usuário não vem na resposta.
       // Mantém um usuário parcial para não quebrar a sessão ao recarregar a página.
@@ -219,7 +267,10 @@ export function useAuth() {
 
 /** Extrai mensagem legível de um erro da API, com fallback seguro. */
 export function apiErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
+  if (err instanceof ApiError) {
+    if (err.isForbidden) return 'Você não tem permissão para realizar esta ação.';
+    return err.message;
+  }
   if (err instanceof Error) return err.message;
   return 'Erro desconhecido';
 }

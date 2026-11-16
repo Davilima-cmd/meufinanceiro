@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { HealthController } from './health.controller';
+import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { AccountsModule } from './accounts/accounts.module';
@@ -17,6 +17,7 @@ import { MfaModule } from './mfa/mfa.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../../.env', '.env'] }),
     PrismaModule,
+    HealthModule,
     AuthModule,
     AccountsModule,
     TransactionsModule,
@@ -28,6 +29,5 @@ import { MfaModule } from './mfa/mfa.module';
     AuditModule,
     MfaModule,
   ],
-  controllers: [HealthController],
 })
 export class AppModule {}

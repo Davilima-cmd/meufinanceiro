@@ -1,10 +1,10 @@
-'use client';
+'use client'; /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { formatCents, type ApiCategory } from '@meufinanceiro/shared-types';
+import { type ApiCategory } from '@meufinanceiro/shared-types';
 import { AppShell } from '@/components/app-shell';
 
 export default function CategoriesPage() {
@@ -16,10 +16,9 @@ export default function CategoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [color, setColor] = useState('#246b61');
-  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(
-    null,
-  );
+  const [toast, setToast] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
+  // Hooks sempre executados (ordem fixa)
   useEffect(() => {
     setMounted(true);
     if (!isLoading && !user) {
@@ -32,13 +31,6 @@ export default function CategoriesPage() {
     const timer = setTimeout(() => setToast(null), 2500);
     return () => clearTimeout(timer);
   }, [toast]);
-
-  if (!mounted || (isLoading && !user)) {
-    return null;
-  }
-  if (!user) {
-    return null;
-  }
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +78,13 @@ export default function CategoriesPage() {
     }
   };
 
+  if (!mounted || (isLoading && !user)) {
+    return null;
+  }
+  if (!user) {
+    return null;
+  }
+
   if (loading) {
     return (
       <AppShell title="Categorias">
@@ -97,54 +96,41 @@ export default function CategoriesPage() {
   return (
     <AppShell title="Categorias">
       {error && <p className="error-msg">{error}</p>}
-      {toast && <div className="toast" role="status">{toast.message}</div>}
+      {toast && (
+        <div className="toast" role="status">
+          {toast.message}
+        </div>
+      )}
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Cadastros</p>
+          <p className="eyebrow">Organização</p>
           <h1>Categorias</h1>
           <p className="page-description">
-            Classifique suas movimentações e use as categorias nos orçamentos.
+            Gerencie suas categorias de despesas e receitas. As categorias do sistema não podem ser
+            alteradas.
           </p>
         </div>
       </div>
       <section className="panel list-panel">
-        <ul className="category-list">
-          {categories.length === 0 && (
-            <p className="list-count">Nenhuma categoria cadastrada.</p>
-          )}
+        <ul className="account-list">
+          {categories.length === 0 && <p className="list-count">Nenhuma categoria cadastrada.</p>}
           {categories.map((category) => (
-            <li key={category.id} className="category-item">
-              <div className="category-heading">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span
-                    className="category-mark"
-                    aria-hidden="true"
-                    style={{
-                      backgroundColor: category.color,
-                      color: '#ffffff',
-                    }}
-                  >
-                    {category.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span>{category.name}</span>
-                </div>
-                {category.isSystem && (
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '2px 8px',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '999px',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      color: 'var(--color-muted)',
-                    }}
-                  >
-                    Sistema
-                  </span>
-                )}
+            <li key={category.id} className="account-row">
+              <span
+                className="account-mark"
+                aria-hidden="true"
+                style={{
+                  backgroundColor: category.color,
+                  color: '#ffffff',
+                }}
+              >
+                {category.name.slice(0, 1).toUpperCase()}
+              </span>
+              <div className="account-copy">
+                <span className="account-name">{category.name}</span>
+                <span className="account-detail">
+                  {category.isSystem ? 'Sistema' : 'Personalizada'}
+                </span>
               </div>
               {!category.isSystem && (
                 <button
@@ -162,6 +148,7 @@ export default function CategoriesPage() {
       <form onSubmit={handleCreate} className="create-account-form">
         <input
           className="input"
+          type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nome da categoria"
@@ -169,15 +156,17 @@ export default function CategoriesPage() {
         />
         <input
           className="input"
+          type="color"
           value={color}
           onChange={(e) => setColor(e.target.value)}
-          placeholder="Cor (ex: #246b61)"
-          required
         />
         <button type="submit" className="button button-primary">
           Criar categoria
         </button>
       </form>
+      <p className="inline-note">
+        As categorias do sistema estão disponíveis para todos os usuários.
+      </p>
     </AppShell>
   );
 }

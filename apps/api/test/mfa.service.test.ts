@@ -74,17 +74,17 @@ describe('MfaService', () => {
   it('enableMFA should throw BadRequestException when the token is invalid', async () => {
     const svc = makeService();
     prismaMock.user.findUnique.mockResolvedValue({ id: 'u-1' });
-    await expect(
-      svc.enableMFA('u-1', '000000', 'SECRETBASE32===='),
-    ).rejects.toThrow(BadRequestException);
+    await expect(svc.enableMFA('u-1', '000000', 'SECRETBASE32====')).rejects.toThrow(
+      BadRequestException
+    );
   });
 
   it('enableMFA should throw NotFoundException when the user does not exist', async () => {
     const svc = makeService();
     prismaMock.user.findUnique.mockResolvedValue(null);
-    await expect(
-      svc.enableMFA('u-1', '000000', 'SECRETBASE32===='),
-    ).rejects.toThrow(NotFoundException);
+    await expect(svc.enableMFA('u-1', '000000', 'SECRETBASE32====')).rejects.toThrow(
+      NotFoundException
+    );
   });
 
   it('disableMFA should remove the secret and disable MFA', async () => {

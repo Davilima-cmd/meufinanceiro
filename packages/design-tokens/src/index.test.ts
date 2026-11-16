@@ -1,4 +1,14 @@
-import { colors, spacing, borderRadius, typography, shadows, breakpoints, getColors, tokens, type ColorScheme } from './index';
+import {
+  colors,
+  spacing,
+  borderRadius,
+  typography,
+  shadows,
+  breakpoints,
+  getColors,
+  tokens,
+  type ColorScheme,
+} from './index';
 
 describe('design-tokens', () => {
   describe('colors', () => {

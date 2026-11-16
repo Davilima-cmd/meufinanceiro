@@ -16,7 +16,7 @@ type Screen = 'home' | 'transactions' | 'accounts' | 'analysis' | 'profile';
 type TransactionFilter = 'all' | 'income' | 'expense';
 type ThemeName = 'light' | 'dark';
 
-const navigation: { id: Screen; label: string; shortLabel: string }[] = [
+const navigation: Array<{ id: Screen; label: string; shortLabel: string }> = [
   { id: 'home', label: 'Visão geral', shortLabel: 'Início' },
   { id: 'transactions', label: 'Movimentações', shortLabel: 'Movimentos' },
   { id: 'accounts', label: 'Contas', shortLabel: 'Contas' },
@@ -249,7 +249,7 @@ function Transactions({
         if (filter === 'expense') return transaction.amountCents < 0n;
         return true;
       }),
-    [filter],
+    [filter]
   );
 
   return (

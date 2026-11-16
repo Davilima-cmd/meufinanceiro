@@ -1,4 +1,4 @@
-'use client';
+'use client'; /* eslint-disable react-hooks/set-state-in-effect */
 
 import { cornerRadius, spacing, themes } from '@meufinanceiro/design-tokens';
 import { formatCents } from '@meufinanceiro/shared-types';
@@ -10,9 +10,8 @@ import {
   type ApiBankConnection,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/auth-context';
-import type { CSSProperties } from 'react';
 import { useState, useEffect, useCallback } from 'react';
-
+import { useRouter } from 'next/navigation';
 type Screen = 'home' | 'transactions' | 'accounts' | 'profile';
 
 function connectionLabel(status: string): string {
@@ -33,7 +32,7 @@ function connectionLabel(status: string): string {
 }
 
 function HiddenAmount({ cents, hidden }: { cents: string; hidden: boolean }) {
-  return <>{hidden ? '••••••' : formatCents(BigInt(cents))}</>;
+  return <>{hidden ? '••••••' : formatCents(BigInt(cents ?? '0'))}</>;
 }
 
 function TransactionRow({ transaction, hidden }: { transaction: ApiTransaction; hidden: boolean }) {
@@ -72,6 +71,7 @@ export function FinanceApp({ user }: { user: ApiUser }) {
   const [newAccountName, setNewAccountName] = useState('');
   const [newTxDescription, setNewTxDescription] = useState('');
   const [newTxAmount, setNewTxAmount] = useState('');
+  const router = useRouter();
 
   const loadData = useCallback(async () => {
     try {
@@ -114,14 +114,14 @@ export function FinanceApp({ user }: { user: ApiUser }) {
     loadData();
   }, [loadData]);
 
-  const balanceCents = accounts.reduce((acc, a) => acc + BigInt(a.balanceCents), 0n);
+  const balanceCents = accounts.reduce((acc, a) => acc + BigInt(a.balanceCents ?? '0'), 0n);
 
   const expenseCents = transactions.reduce(
-    (acc, t) => (BigInt(t.amountCents) < 0n ? acc + BigInt(t.amountCents) : acc),
+    (acc, t) => (BigInt(t.amountCents ?? '0') < 0n ? acc + BigInt(t.amountCents ?? '0') : acc),
     0n
   );
   const incomeCents = transactions.reduce(
-    (acc, t) => (BigInt(t.amountCents) > 0n ? acc + BigInt(t.amountCents) : acc),
+    (acc, t) => (BigInt(t.amountCents ?? '0') > 0n ? acc + BigInt(t.amountCents ?? '0') : acc),
     0n
   );
 
@@ -143,7 +143,11 @@ export function FinanceApp({ user }: { user: ApiUser }) {
 
   async function handleCreateTransaction(e: React.FormEvent) {
     e.preventDefault();
-    if (!newTxDescription.trim() || !newTxAmount.trim() || accounts.length === 0) return;
+    if (!newTxDescription.trim() || !newTxAmount.trim()) return;
+    if (accounts.length === 0) {
+      setError('Cadastre uma conta antes de lançar uma movimentação.');
+      return;
+    }
     try {
       const created = await api.createTransaction({
         accountId: accounts[0].id,
@@ -319,9 +323,15 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                       </div>
                     </div>
                     <ul className="transactions-list">
-                      {transactions.slice(0, 5).map((tx) => (
-                        <TransactionRow hidden={hidden} key={tx.id} transaction={tx} />
-                      ))}
+                      {transactions.slice(0, 5).length === 0 ? (
+                        <p className="list-count">Sem movimentações recentes.</p>
+                      ) : (
+                        transactions
+                          .slice(0, 5)
+                          .map((tx) => (
+                            <TransactionRow hidden={hidden} key={tx.id} transaction={tx} />
+                          ))
+                      )}
                     </ul>
                     <button className="text-button" onClick={() => setScreen('transactions')}>
                       Ver todas
@@ -336,22 +346,26 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                       </div>
                     </div>
                     <ul className="account-list">
-                      {accounts.map((acct) => (
-                        <li key={acct.id} className="account-row">
-                          <span className="account-mark" aria-hidden="true">
-                            {acct.name.slice(0, 1)}
-                          </span>
-                          <span className="account-copy">
-                            <span className="account-name">{acct.name}</span>
-                            <span className="account-detail">
-                              {acct.institution || 'Sem instituição'}
+                      {accounts.length === 0 ? (
+                        <p className="list-count">Nenhuma conta cadastrada.</p>
+                      ) : (
+                        accounts.map((acct) => (
+                          <li key={acct.id} className="account-row">
+                            <span className="account-mark" aria-hidden="true">
+                              {acct.name.slice(0, 1)}
                             </span>
-                          </span>
-                          <strong className="account-balance">
-                            <HiddenAmount cents={acct.balanceCents} hidden={hidden} />
-                          </strong>
-                        </li>
-                      ))}
+                            <span className="account-copy">
+                              <span className="account-name">{acct.name}</span>
+                              <span className="account-detail">
+                                {acct.institution || 'Sem instituição'}
+                              </span>
+                            </span>
+                            <strong className="account-balance">
+                              <HiddenAmount cents={acct.balanceCents} hidden={hidden} />
+                            </strong>
+                          </li>
+                        ))
+                      )}
                     </ul>
                     <form onSubmit={handleCreateAccount} className="create-account-form">
                       <input
@@ -399,9 +413,13 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                   </form>
                 </div>
                 <ul className="transactions-list">
-                  {transactions.map((tx) => (
-                    <TransactionRow hidden={hidden} key={tx.id} transaction={tx} />
-                  ))}
+                  {transactions.length === 0 ? (
+                    <p className="list-count">Nenhuma movimentação lançada ainda.</p>
+                  ) : (
+                    transactions.map((tx) => (
+                      <TransactionRow hidden={hidden} key={tx.id} transaction={tx} />
+                    ))
+                  )}
                 </ul>
               </section>
             )}
@@ -423,35 +441,39 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                   </button>
                 </div>
                 <ul className="account-list">
-                  {accounts.map((acct) => {
-                    const connection = connections.find((c) => c.account.id === acct.id);
-                    return (
-                      <li key={acct.id} className="account-card" style={{ gap: 12 }}>
-                        <span className="account-mark" aria-hidden="true">
-                          {acct.name.slice(0, 1)}
-                        </span>
-                        <div className="account-main">
-                          <span className="account-name">{acct.name}</span>
-                          <span className="account-detail">
-                            {acct.institution || 'Sem instituição'} · {acct.type}
+                  {accounts.length === 0 ? (
+                    <p className="list-count">Nenhuma conta cadastrada.</p>
+                  ) : (
+                    accounts.map((acct) => {
+                      const connection = connections.find((c) => c.account.id === acct.id);
+                      return (
+                        <li key={acct.id} className="account-card" style={{ gap: 12 }}>
+                          <span className="account-mark" aria-hidden="true">
+                            {acct.name.slice(0, 1)}
                           </span>
-                          {connection && (
+                          <div className="account-main">
+                            <span className="account-name">{acct.name}</span>
                             <span className="account-detail">
-                              {connectionLabel(connection.status)} · última sincronização:{' '}
-                              {new Date(connection.updatedAt).toLocaleString('pt-BR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                              })}
+                              {acct.institution || 'Sem instituição'} · {acct.type}
                             </span>
-                          )}
-                        </div>
-                        <strong className="account-balance">
-                          <HiddenAmount cents={acct.balanceCents} hidden={hidden} />
-                        </strong>
-                      </li>
-                    );
-                  })}
+                            {connection && (
+                              <span className="account-detail">
+                                {connectionLabel(connection.status)} · última sincronização:{' '}
+                                {new Date(connection.updatedAt).toLocaleString('pt-BR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          <strong className="account-balance">
+                            <HiddenAmount cents={acct.balanceCents} hidden={hidden} />
+                          </strong>
+                        </li>
+                      );
+                    })
+                  )}
                 </ul>
                 <form onSubmit={handleCreateAccount} className="create-account-form">
                   <input
@@ -506,9 +528,13 @@ export function FinanceApp({ user }: { user: ApiUser }) {
                       {disablingMfa ? 'Desativando…' : 'Desativar verificação em duas etapas'}
                     </button>
                   ) : (
-                    <a href="/auth/mfa-enable" className="button button-primary">
+                    <button
+                      className="button button-primary"
+                      onClick={() => router.push('/auth/mfa-enable')}
+                      type="button"
+                    >
                       Ativar verificação em duas etapas
-                    </a>
+                    </button>
                   )}
                 </div>
               </section>
