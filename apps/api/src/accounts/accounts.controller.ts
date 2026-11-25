@@ -68,7 +68,7 @@ export class AccountsController {
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateAccountDto) {
     const initial = BigInt(dto.balanceCents ?? '0');
 
-    const account: AccountRow = await this.prisma.$transaction(async (tx: PrismaService) => {
+    const account: AccountRow = await this.prisma.$transaction(async (tx) => {
       const created: AccountRow = await tx.financialAccount.create({
         data: {
           name: dto.name,

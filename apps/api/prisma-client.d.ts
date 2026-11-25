@@ -13,6 +13,17 @@ declare module '@prisma/client' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export class PrismaClient {
     constructor(options?: any);
+    /**
+     * Dentro de `$transaction` o cliente não expõe `$transaction`/`$connect`.
+     * A assinatura explícita aqui evita `implicit any` nos callbacks quando o
+     * cliente real não está gerado; com o cliente gerado, o TypeScript usa os
+     * tipos do próprio Prisma e ignora este shim.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    $transaction<T>(fn: (tx: any) => Promise<T>, options?: any): Promise<T>;
+    $connect(): Promise<void>;
+    $disconnect(): Promise<void>;
+    $use(middleware: unknown): void;
     [key: string]: any;
   }
 }

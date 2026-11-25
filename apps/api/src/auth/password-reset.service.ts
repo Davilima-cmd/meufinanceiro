@@ -68,7 +68,7 @@ export class PasswordResetService {
 
     const password = await this.auth.hashPassword(newPassword);
 
-    await this.prisma.$transaction(async (tx: PrismaService) => {
+    await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: record.userId }, data: { password } });
       await tx.passwordReset.update({ where: { id: record.id }, data: { usedAt: new Date() } });
       // Todas as outras sessões abertas deixam de valer após a troca de senha.

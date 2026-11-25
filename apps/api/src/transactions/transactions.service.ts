@@ -5,14 +5,6 @@ import { centsToString, type DecimalLike } from '../common/money';
 import type { CreateTransactionDto } from './dto/transaction.dto';
 
 /**
- * Tipagem mínima do cliente dentro de `$transaction`. O cliente gerado pelo
- * Prisma substitui este tipo quando `prisma generate` roda; enquanto isso o shim
- * de `prisma-client.d.ts` deixa tudo como `any`, e o TypeScript exigiria
- * anotação explícita nos callbacks.
- */
-type TxClient = PrismaService;
-
-/**
  * Regras financeiras dos lançamentos, centralizadas no backend (a web e o app
  * mobile apenas refletem o resultado).
  *
@@ -69,7 +61,7 @@ export class TransactionsService {
       if (!category) throw new NotFoundException('Categoria não encontrada');
     }
 
-    return this.prisma.$transaction(async (tx: TxClient) => {
+    return this.prisma.$transaction(async (tx) => {
       const created = await tx.transaction.create({
         data: {
           accountId: account.id,
@@ -108,7 +100,7 @@ export class TransactionsService {
         })
       : [{ id: target.id, accountId: target.accountId, amountCents: target.amountCents }];
 
-    return this.prisma.$transaction(async (tx: TxClient) => {
+    return this.prisma.$transaction(async (tx) => {
       for (const row of siblings as Array<{ accountId: string; amountCents: DecimalLike }>) {
         await tx.financialAccount.update({
           where: { id: row.accountId },
@@ -152,7 +144,7 @@ export class TransactionsService {
 
     const inverse = -BigInt(target.amountCents.toString());
 
-    return this.prisma.$transaction(async (tx: TxClient) => {
+    return this.prisma.$transaction(async (tx) => {
       const created = await tx.transaction.create({
         data: {
           accountId: target.accountId,
@@ -195,7 +187,7 @@ export class TransactionsService {
     const transferId = randomUUID();
     const when = new Date(dto.date);
 
-    return this.prisma.$transaction(async (tx: TxClient) => {
+    return this.prisma.$transaction(async (tx) => {
       const [debit, credit] = await Promise.all([
         tx.transaction.create({
           data: {
