@@ -263,11 +263,16 @@ Resumo dos principais itens:
   internas), saída `.next` e install `pnpm install --frozen-lockfile`. Não há `vercel.json`: as
   configurações ficam nas definições do projeto e os cabeçalhos de segurança em
   `apps/web/next.config.ts`. O app sobe mesmo sem a API — a tela de login oferece o modo
-  demonstração.
-- **Banco no Supabase** (PostgreSQL, região `sa-east-1`): use a URL direta para migrations
+  demonstração. Se o projeto estiver com _Deployment Protection → Vercel Authentication_ ligado,
+  toda visita cai no login da Vercel; desligue em **Settings → Deployment Protection** para o painel
+  ficar público (ou use um domínio próprio, que a proteção não cobre).
+- **Banco no Supabase** (PostgreSQL 17, região `sa-east-1`): use a URL direta para migrations
   (`DATABASE_URL_DIRECT`) e a URL do pooler para a aplicação (`DATABASE_URL`), com
   `?pgbouncer=true&connection_limit=1`. O Supabase é usado **apenas** como Postgres: autenticação e
-  autorização continuam no NestJS.
+  autorização continuam no NestJS. O schema `public` já está no formato esperado pelo Prisma
+  (camelCase + `hide_values`), com as duas migrations aplicadas e registradas em
+  `_prisma_migrations`, além das 8 categorias de sistema do `prisma/seed.ts`. Para conferir:
+  `psql "$DATABASE_URL_DIRECT" -c '\dt'`.
 - **API** (Render ou qualquer host Node): variáveis de `.env.example`,
   `pnpm --filter @meufinanceiro/api build`, `prisma generate` + `prisma migrate deploy` no deploy e
   `node dist/main.js` para iniciar. No plano gratuito do Render o serviço hiberna por inatividade —
