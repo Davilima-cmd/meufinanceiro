@@ -258,10 +258,12 @@ Resumo dos principais itens:
 
 ## Implantação (Vercel + Supabase)
 
-- **Web na Vercel**: projeto `meufinanceiro` com build
-  `pnpm turbo run build --filter=@meufinanceiro/web`, saída `apps/web/.next` e install
-  `pnpm install --frozen-lockfile` (igual a `vercel.json`). O app sobe mesmo sem a API — a tela de
-  login oferece o modo demonstração.
+- **Web na Vercel**: projeto `meufinanceiro` com _Root Directory_ `apps/web`, build
+  `pnpm turbo run build --filter=@meufinanceiro/web...` (o `...` compila antes as dependências
+  internas), saída `.next` e install `pnpm install --frozen-lockfile`. Não há `vercel.json`: as
+  configurações ficam nas definições do projeto e os cabeçalhos de segurança em
+  `apps/web/next.config.ts`. O app sobe mesmo sem a API — a tela de login oferece o modo
+  demonstração.
 - **Banco no Supabase** (PostgreSQL, região `sa-east-1`): use a URL direta para migrations
   (`DATABASE_URL_DIRECT`) e a URL do pooler para a aplicação (`DATABASE_URL`), com
   `?pgbouncer=true&connection_limit=1`. O Supabase é usado **apenas** como Postgres: autenticação e
