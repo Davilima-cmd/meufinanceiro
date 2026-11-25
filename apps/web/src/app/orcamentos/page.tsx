@@ -87,7 +87,7 @@ export default function BudgetsPage() {
       title: 'Limite salvo',
       description: `${formatBRL(cents)} por mês em ${formatMonth(monthKey)}. Acompanhe o consumo no cartão acima.`,
       tone: 'success',
-      confirmLabel: 'Fechar',
+      confirmLabel: 'Entendi',
     });
   }
 
