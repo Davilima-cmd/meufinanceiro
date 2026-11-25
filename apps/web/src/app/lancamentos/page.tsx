@@ -324,7 +324,8 @@ export default function TransactionsPage() {
                                     'O valor deixa de entrar no saldo da conta e nos totais do mês.',
                                   confirmLabel: 'Excluir lançamento',
                                 });
-                                if (confirmed) deleteTransaction(transaction.id);
+                                if (!confirmed) return;
+                                void deleteTransaction(transaction.id);
                               }}
                               type="button"
                             >

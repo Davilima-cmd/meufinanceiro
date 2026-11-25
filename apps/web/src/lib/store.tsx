@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { buildDemoSnapshot, DEMO_USER } from './demo-data';
 import { fetchApiSnapshot } from './api-snapshot';
+import { api } from './api';
 import type {
   ShareLevel,
   FinanceAccount,
@@ -43,17 +44,33 @@ type FinanceContextValue = {
   signOut: () => void;
   resetDemo: () => void;
   refresh: () => Promise<void>;
-  addTransaction: (input: NewTransaction) => void;
-  deleteTransaction: (id: string) => void;
-  addAccount: (input: NewAccount) => void;
-  deleteAccount: (id: string) => void;
-  addCategory: (input: { name: string; color: string; kind: FinanceCategory['kind'] }) => void;
-  deleteCategory: (id: string) => void;
-  setBudget: (input: { categoryId: string; amountCents: string; monthKey: string }) => void;
-  deleteBudget: (id: string) => void;
-  addGoal: (input: { name: string; targetCents: string; dueDate: string | null }) => void;
-  contributeGoal: (id: string, amountCents: string) => void;
-  deleteGoal: (id: string) => void;
+  /**
+   * Mutações devolvem o erro quando a API rejeita a operação. No modo
+   * demonstração resolvem com `null` (tudo é local).
+   */
+  addTransaction: (input: NewTransaction) => Promise<string | null>;
+  deleteTransaction: (id: string) => Promise<string | null>;
+  addAccount: (input: NewAccount) => Promise<string | null>;
+  deleteAccount: (id: string) => Promise<string | null>;
+  addCategory: (input: {
+    name: string;
+    color: string;
+    kind: FinanceCategory['kind'];
+  }) => Promise<string | null>;
+  deleteCategory: (id: string) => Promise<string | null>;
+  setBudget: (input: {
+    categoryId: string;
+    amountCents: string;
+    monthKey: string;
+  }) => Promise<string | null>;
+  deleteBudget: (id: string) => Promise<string | null>;
+  addGoal: (input: {
+    name: string;
+    targetCents: string;
+    dueDate: string | null;
+  }) => Promise<string | null>;
+  contributeGoal: (id: string, amountCents: string) => Promise<string | null>;
+  deleteGoal: (id: string) => Promise<string | null>;
   setHideValues: (value: boolean) => void;
   toggleTheme: () => void;
   setShareLevel: (accountId: string, level: ShareLevel) => void;
@@ -79,6 +96,12 @@ function saveStored(key: string, value: unknown) {
   } catch {
     // Armazenamento indisponível (modo privado / cota cheia): segue em memória.
   }
+}
+
+/** Mensagem curta e legível para erros vindos da API ou da rede. */
+function errorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return 'Não foi possível concluir a operação.';
 }
 
 function createId(prefix: string): string {
@@ -189,203 +212,305 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     saveStored(DEMO_SNAPSHOT_KEY, fresh);
   }, []);
 
-  const addTransaction = useCallback(
-    (input: NewTransaction) => {
-      updateSnapshot((current) => {
-        const transaction: FinanceTransaction = {
-          id: createId('tx'),
-          accountId: input.accountId,
-          categoryId: input.categoryId,
-          description: input.description.trim() || 'Lançamento',
-          amountCents: input.amountCents,
-          type: input.type,
-          origin: 'manual',
-          date: input.date || todayISO(),
-          createdAt: new Date().toISOString(),
-        };
-        const delta = BigInt(transaction.amountCents);
-        const accounts: FinanceAccount[] = current.accounts.map((account) =>
-          account.id === input.accountId
-            ? { ...account, balanceCents: (BigInt(account.balanceCents) + delta).toString() }
-            : account
-        );
-        return { ...current, accounts, transactions: [transaction, ...current.transactions] };
-      });
+  /** Roda a mutação local (demo) ou a remota (API) e devolve erro legível. */
+  const mutate = useCallback(
+    async (
+      localUpdater: (current: FinanceSnapshot) => FinanceSnapshot,
+      remote?: () => Promise<unknown>
+    ): Promise<string | null> => {
+      if (sessionRef.current?.mode !== 'api') {
+        updateSnapshot(localUpdater);
+        return null;
+      }
+      if (!remote) {
+        return 'Esta operação ainda não está disponível quando você usa a API.';
+      }
+      try {
+        await remote();
+        const remoteSnapshot = await fetchApiSnapshot();
+        setSnapshot(remoteSnapshot);
+        setSyncError(null);
+        return null;
+      } catch (error) {
+        const message = errorMessage(error);
+        setSyncError(message);
+        return message;
+      }
     },
     [updateSnapshot]
+  );
+
+  const addTransaction = useCallback(
+    (input: NewTransaction) =>
+      mutate(
+        (current) => {
+          const transaction: FinanceTransaction = {
+            id: createId('tx'),
+            accountId: input.accountId,
+            categoryId: input.categoryId,
+            description: input.description.trim() || 'Lançamento',
+            amountCents: input.amountCents,
+            type: input.type,
+            origin: 'manual',
+            date: input.date || todayISO(),
+            createdAt: new Date().toISOString(),
+          };
+          const delta = BigInt(transaction.amountCents);
+          const targetAccountId =
+            input.type === 'transfer' && input.transferAccountId ? input.transferAccountId : null;
+          // Transferência move o dinheiro sem entrar em receita/despesa.
+          const accounts: FinanceAccount[] = current.accounts.map((account) => {
+            if (targetAccountId && account.id === input.accountId) {
+              return {
+                ...account,
+                balanceCents: (BigInt(account.balanceCents) - delta).toString(),
+              };
+            }
+            if (targetAccountId && account.id === targetAccountId) {
+              return {
+                ...account,
+                balanceCents: (BigInt(account.balanceCents) + delta).toString(),
+              };
+            }
+            if (!targetAccountId && account.id === input.accountId) {
+              return {
+                ...account,
+                balanceCents: (BigInt(account.balanceCents) + delta).toString(),
+              };
+            }
+            return account;
+          });
+          return { ...current, accounts, transactions: [transaction, ...current.transactions] };
+        },
+        () =>
+          api.createTransaction({
+            accountId: input.accountId,
+            description: input.description.trim() || 'Lançamento',
+            amountCents: input.amountCents,
+            type: input.type,
+            categoryId: input.categoryId ?? undefined,
+            transferAccountId: input.transferAccountId ?? undefined,
+            date: input.date || todayISO(),
+          })
+      ),
+    [mutate]
   );
 
   const deleteTransaction = useCallback(
-    (id: string) => {
-      updateSnapshot((current) => {
-        const target = current.transactions.find((transaction) => transaction.id === id);
-        if (!target) return current;
-        const delta = -BigInt(target.amountCents);
-        return {
-          ...current,
-          accounts: current.accounts.map((account) =>
-            account.id === target.accountId
-              ? { ...account, balanceCents: (BigInt(account.balanceCents) + delta).toString() }
-              : account
-          ),
-          transactions: current.transactions.filter((transaction) => transaction.id !== id),
-        };
-      });
-    },
-    [updateSnapshot]
+    (id: string) =>
+      mutate(
+        (current) => {
+          const target = current.transactions.find((transaction) => transaction.id === id);
+          if (!target) return current;
+          const delta = -BigInt(target.amountCents);
+          return {
+            ...current,
+            accounts: current.accounts.map((account) =>
+              account.id === target.accountId
+                ? { ...account, balanceCents: (BigInt(account.balanceCents) + delta).toString() }
+                : account
+            ),
+            transactions: current.transactions.filter((transaction) => transaction.id !== id),
+          };
+        },
+        () => api.deleteTransaction(id)
+      ),
+    [mutate]
   );
 
   const addAccount = useCallback(
-    (input: NewAccount) => {
-      updateSnapshot((current) => {
-        const owner = sessionRef.current?.user ?? DEMO_USER;
-        const account: FinanceAccount = {
-          id: createId('acc'),
-          name: input.name.trim(),
-          institution: input.institution?.trim() || null,
-          type: input.type,
-          currency: 'BRL',
-          balanceCents: '0',
-          shareLevel: input.shareLevel,
-          ownerId: owner.id,
-          ownerName: owner.name,
-          color: '#7c5cff',
-          isActive: true,
-        };
-        return { ...current, accounts: [...current.accounts, account] };
-      });
-    },
-    [updateSnapshot]
+    (input: NewAccount) =>
+      mutate(
+        (current) => {
+          const owner = sessionRef.current?.user ?? DEMO_USER;
+          const account: FinanceAccount = {
+            id: createId('acc'),
+            name: input.name.trim(),
+            institution: input.institution?.trim() || null,
+            type: input.type,
+            currency: 'BRL',
+            balanceCents: '0',
+            shareLevel: input.shareLevel,
+            ownerId: owner.id,
+            ownerName: owner.name,
+            color: '#7c5cff',
+            isActive: true,
+          };
+          return { ...current, accounts: [...current.accounts, account] };
+        },
+        () =>
+          api.createAccount({
+            name: input.name.trim(),
+            institution: input.institution?.trim() || undefined,
+            type: input.type,
+          })
+      ),
+    [mutate]
   );
 
   const deleteAccount = useCallback(
-    (id: string) => {
-      updateSnapshot((current) => ({
-        ...current,
-        accounts: current.accounts.filter((account) => account.id !== id),
-        transactions: current.transactions.filter((transaction) => transaction.accountId !== id),
-      }));
-    },
-    [updateSnapshot]
+    (id: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          accounts: current.accounts.filter((account) => account.id !== id),
+          transactions: current.transactions.filter((transaction) => transaction.accountId !== id),
+        }),
+        () => api.removeAccount(id)
+      ),
+    [mutate]
   );
 
   const addCategory = useCallback(
-    (input: { name: string; color: string; kind: FinanceCategory['kind'] }) => {
-      updateSnapshot((current) => ({
-        ...current,
-        categories: [
-          ...current.categories,
-          {
-            id: createId('cat'),
-            name: input.name.trim(),
-            color: input.color,
-            isSystem: false,
-            kind: input.kind,
-          },
-        ],
-      }));
-    },
-    [updateSnapshot]
+    (input: { name: string; color: string; kind: FinanceCategory['kind'] }) =>
+      mutate(
+        (current) => ({
+          ...current,
+          categories: [
+            ...current.categories,
+            {
+              id: createId('cat'),
+              name: input.name.trim(),
+              color: input.color,
+              isSystem: false,
+              kind: input.kind,
+            },
+          ],
+        }),
+        () => api.createCategory({ name: input.name.trim(), color: input.color })
+      ),
+    [mutate]
   );
 
   const deleteCategory = useCallback(
-    (id: string) => {
-      updateSnapshot((current) => ({
-        ...current,
-        categories: current.categories.filter((category) => category.id !== id),
-        transactions: current.transactions.map((transaction) =>
-          transaction.categoryId === id ? { ...transaction, categoryId: null } : transaction
-        ),
-        budgets: current.budgets.filter((budget) => budget.categoryId !== id),
-      }));
-    },
-    [updateSnapshot]
+    (id: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          categories: current.categories.filter((category) => category.id !== id),
+          transactions: current.transactions.map((transaction) =>
+            transaction.categoryId === id ? { ...transaction, categoryId: null } : transaction
+          ),
+          budgets: current.budgets.filter((budget) => budget.categoryId !== id),
+        }),
+        () => api.deleteCategory(id)
+      ),
+    [mutate]
   );
 
   const setBudget = useCallback(
     (input: { categoryId: string; amountCents: string; monthKey: string }) => {
-      updateSnapshot((current) => {
-        const { start, end } = monthBounds(input.monthKey);
-        const existing = current.budgets.find(
+      const { start, end } = monthBounds(input.monthKey);
+      const existing =
+        snapshot.budgets.find(
           (budget) => budget.categoryId === input.categoryId && budget.periodStart === start
-        );
-        if (existing) {
+        ) ?? null;
+      return mutate(
+        (current) => {
+          const local = current.budgets.find(
+            (budget) => budget.categoryId === input.categoryId && budget.periodStart === start
+          );
+          if (local) {
+            return {
+              ...current,
+              budgets: current.budgets.map((budget) =>
+                budget.id === local.id ? { ...budget, amountCents: input.amountCents } : budget
+              ),
+            };
+          }
           return {
             ...current,
-            budgets: current.budgets.map((budget) =>
-              budget.id === existing.id ? { ...budget, amountCents: input.amountCents } : budget
-            ),
+            budgets: [
+              ...current.budgets,
+              {
+                id: createId('bud'),
+                categoryId: input.categoryId,
+                amountCents: input.amountCents,
+                periodStart: start,
+                periodEnd: end,
+              },
+            ],
           };
+        },
+        async () => {
+          if (existing) {
+            await api.updateBudget(existing.id, { amountCents: input.amountCents });
+            return;
+          }
+          await api.createBudget({
+            categoryId: input.categoryId,
+            amountCents: input.amountCents,
+            periodStart: start,
+            periodEnd: end,
+          });
         }
-        return {
-          ...current,
-          budgets: [
-            ...current.budgets,
-            {
-              id: createId('bud'),
-              categoryId: input.categoryId,
-              amountCents: input.amountCents,
-              periodStart: start,
-              periodEnd: end,
-            },
-          ],
-        };
-      });
+      );
     },
-    [updateSnapshot]
+    [mutate, snapshot.budgets]
   );
 
   const deleteBudget = useCallback(
-    (id: string) => {
-      updateSnapshot((current) => ({
-        ...current,
-        budgets: current.budgets.filter((budget) => budget.id !== id),
-      }));
-    },
-    [updateSnapshot]
+    (id: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          budgets: current.budgets.filter((budget) => budget.id !== id),
+        }),
+        () => api.deleteBudget(id)
+      ),
+    [mutate]
   );
 
   const addGoal = useCallback(
-    (input: { name: string; targetCents: string; dueDate: string | null }) => {
-      updateSnapshot((current) => {
-        const goal: FinanceGoal = {
-          id: createId('goal'),
-          name: input.name.trim(),
-          targetCents: input.targetCents,
-          currentCents: '0',
-          dueDate: input.dueDate,
-        };
-        return { ...current, goals: [...current.goals, goal] };
-      });
-    },
-    [updateSnapshot]
+    (input: { name: string; targetCents: string; dueDate: string | null }) =>
+      mutate(
+        (current) => {
+          const goal: FinanceGoal = {
+            id: createId('goal'),
+            name: input.name.trim(),
+            targetCents: input.targetCents,
+            currentCents: '0',
+            dueDate: input.dueDate,
+          };
+          return { ...current, goals: [...current.goals, goal] };
+        },
+        () =>
+          api.createGoal({
+            name: input.name.trim(),
+            targetCents: input.targetCents,
+            dueDate: input.dueDate ?? undefined,
+          })
+      ),
+    [mutate]
   );
 
   const contributeGoal = useCallback(
     (id: string, amountCents: string) => {
-      updateSnapshot((current) => ({
-        ...current,
-        goals: current.goals.map((goal) =>
-          goal.id === id
-            ? {
-                ...goal,
-                currentCents: (BigInt(goal.currentCents) + BigInt(amountCents)).toString(),
-              }
-            : goal
-        ),
-      }));
+      const goal = snapshot.goals.find((item) => item.id === id) ?? null;
+      const nextCents = goal ? (BigInt(goal.currentCents) + BigInt(amountCents)).toString() : '0';
+      return mutate(
+        (current) => ({
+          ...current,
+          goals: current.goals.map((item) =>
+            item.id === id ? { ...item, currentCents: nextCents } : item
+          ),
+        }),
+        () => api.updateGoal(id, { currentCents: nextCents })
+      );
     },
-    [updateSnapshot]
+    [mutate, snapshot.goals]
   );
 
   const deleteGoal = useCallback(
-    (id: string) => {
-      updateSnapshot((current) => ({
-        ...current,
-        goals: current.goals.filter((goal) => goal.id !== id),
-      }));
-    },
-    [updateSnapshot]
+    (id: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          goals: current.goals.filter((goal) => goal.id !== id),
+        }),
+        () => api.deleteGoal(id)
+      ),
+    [mutate]
   );
 
   const setHideValues = useCallback(

@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { PasswordResetService } from './password-reset.service';
 import { LocalStrategy } from './local.strategy';
 import { JwtStrategy } from './jwt.strategy';
 import { MfaSessionStrategy } from './mfa-session.strategy';
@@ -27,7 +28,7 @@ import { resolveJwtSecret } from './jwt-secret';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, LocalStrategy, JwtStrategy, MfaSessionStrategy],
+  providers: [AuthService, PasswordResetService, LocalStrategy, JwtStrategy, MfaSessionStrategy],
   controllers: [AuthController],
   exports: [AuthService],
 })

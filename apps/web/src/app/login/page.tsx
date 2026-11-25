@@ -6,7 +6,7 @@ import { useFinance } from '@/lib/store';
 import { withTimeout } from '@/lib/api';
 import type { AuthResponse } from '@meufinanceiro/shared-types';
 
-type Mode = 'login' | 'register';
+type Mode = 'login' | 'register' | 'forgot' | 'reset';
 
 export default function LoginPage() {
   const { session, hydrated, startDemo } = useFinance();
@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [token, setToken] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +30,41 @@ export default function LoginPage() {
   function enterDemo() {
     startDemo();
     router.push('/');
+  }
+
+  async function handleForgot() {
+    setError('');
+    setNotice('');
+    setSubmitting(true);
+    try {
+      const { api } = await import('@/lib/api');
+      await withTimeout(api.forgotPassword(email), 8000);
+      // A resposta é sempre a mesma, com ou sem conta cadastrada.
+      setMode('reset');
+      setNotice('Se este e-mail existir, enviamos um link de redefinição válido por 30 minutos.');
+    } catch (err) {
+      setError(formatAuthError(err instanceof Error ? err.message : 'Falha ao enviar o pedido.'));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleReset() {
+    setError('');
+    setNotice('');
+    setSubmitting(true);
+    try {
+      const { api } = await import('@/lib/api');
+      await withTimeout(api.resetPassword(token, password), 8000);
+      setMode('login');
+      setToken('');
+      setPassword('');
+      setNotice('Senha redefinida. Entre com a nova senha.');
+    } catch (err) {
+      setError(formatAuthError(err instanceof Error ? err.message : 'Falha ao redefinir a senha.'));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -173,47 +209,117 @@ export default function LoginPage() {
                   />
                 </label>
               ) : null}
-              <label className="field">
-                <span>E-mail</span>
-                <input
-                  autoComplete="email"
-                  className="input"
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                  type="email"
-                  value={email}
-                />
-              </label>
-              <label className="field">
-                <span>Senha</span>
-                <input
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  className="input"
-                  minLength={8}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                  type="password"
-                  value={password}
-                />
-              </label>
+              {mode !== 'reset' ? (
+                <label className="field">
+                  <span>E-mail</span>
+                  <input
+                    autoComplete="email"
+                    className="input"
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                    type="email"
+                    value={email}
+                  />
+                </label>
+              ) : null}
+              {mode === 'reset' ? (
+                <label className="field">
+                  <span>Código recebido por e-mail</span>
+                  <input
+                    autoComplete="one-time-code"
+                    className="input"
+                    minLength={32}
+                    onChange={(event) => setToken(event.target.value.trim())}
+                    required
+                    type="text"
+                    value={token}
+                  />
+                </label>
+              ) : null}
+              {mode !== 'forgot' ? (
+                <label className="field">
+                  <span>{mode === 'reset' ? 'Nova senha' : 'Senha'}</span>
+                  <input
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    className="input"
+                    minLength={8}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    type="password"
+                    value={password}
+                  />
+                </label>
+              ) : null}
               {error ? <p className="form-error">{error}</p> : null}
               {notice ? <p className="toast">{notice}</p> : null}
-              <button className="button button-primary" disabled={submitting} type="submit">
-                {submitting ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+              <button
+                className="button button-primary"
+                disabled={submitting}
+                onClick={(event) => {
+                  if (mode === 'forgot') {
+                    event.preventDefault();
+                    void handleForgot();
+                  } else if (mode === 'reset') {
+                    event.preventDefault();
+                    void handleReset();
+                  }
+                }}
+                type="submit"
+              >
+                {submitting
+                  ? 'Aguarde…'
+                  : mode === 'login'
+                    ? 'Entrar'
+                    : mode === 'register'
+                      ? 'Criar conta'
+                      : mode === 'forgot'
+                        ? 'Enviar link de redefinição'
+                        : 'Definir nova senha'}
               </button>
-              <p className="auth-note">
-                {mode === 'login' ? 'Ainda não tem conta? ' : 'Já tem conta? '}
-                <button
-                  className="link-button"
-                  onClick={() => {
-                    setMode(mode === 'login' ? 'register' : 'login');
-                    setError('');
-                  }}
-                  type="button"
-                >
-                  {mode === 'login' ? 'Cadastre-se' : 'Faça login'}
-                </button>
-              </p>
+              {mode === 'login' ? (
+                <p className="auth-note">
+                  <button
+                    className="link-button"
+                    onClick={() => {
+                      setMode('forgot');
+                      setError('');
+                      setNotice('');
+                    }}
+                    type="button"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </p>
+              ) : null}
+              {mode === 'forgot' || mode === 'reset' ? (
+                <p className="auth-note">
+                  <button
+                    className="link-button"
+                    onClick={() => {
+                      setMode('login');
+                      setError('');
+                      setNotice('');
+                    }}
+                    type="button"
+                  >
+                    Voltar para o login
+                  </button>
+                </p>
+              ) : (
+                <p className="auth-note">
+                  {mode === 'login' ? 'Ainda não tem conta? ' : 'Já tem conta? '}
+                  <button
+                    className="link-button"
+                    onClick={() => {
+                      setMode(mode === 'login' ? 'register' : 'login');
+                      setError('');
+                    }}
+                    type="button"
+                  >
+                    {mode === 'login' ? 'Cadastre-se' : 'Faça login'}
+                  </button>
+                </p>
+              )}
             </form>
           )}
 

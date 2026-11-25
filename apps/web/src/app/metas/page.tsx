@@ -17,7 +17,7 @@ export default function GoalsPage() {
   const [error, setError] = useState('');
   const [contributions, setContributions] = useState<Record<string, string>>({});
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
     if (!name.trim()) {
@@ -29,7 +29,15 @@ export default function GoalsPage() {
       setError('Informe um valor alvo maior que zero.');
       return;
     }
-    addGoal({ name, targetCents: cents.toString(), dueDate: dueDate || null });
+    const failure = await addGoal({
+      name,
+      targetCents: cents.toString(),
+      dueDate: dueDate || null,
+    });
+    if (failure) {
+      setError(failure);
+      return;
+    }
     setName('');
     setTarget('');
     setDueDate('');
@@ -133,7 +141,9 @@ export default function GoalsPage() {
                       onClick={() => {
                         const value = centsFromInput(contributions[goal.id] ?? '');
                         if (value <= 0n) return;
-                        contributeGoal(goal.id, value.toString());
+                        void contributeGoal(goal.id, value.toString()).then((failure) => {
+                          if (failure) setError(failure);
+                        });
                         setContributions((current) => ({ ...current, [goal.id]: '' }));
                       }}
                       type="button"
@@ -150,7 +160,10 @@ export default function GoalsPage() {
                             'O valor já guardado não volta para nenhuma conta — ajuste o saldo manualmente se precisar.',
                           confirmLabel: 'Excluir meta',
                         });
-                        if (confirmed) deleteGoal(goal.id);
+                        if (!confirmed) return;
+                        void deleteGoal(goal.id).then((failure) => {
+                          if (failure) setError(failure);
+                        });
                       }}
                       type="button"
                     >

@@ -35,8 +35,25 @@ model User {
   financialGoals      FinancialGoal[]
   syncJobs            SyncJob[]
   auditLogs           AuditLog[]
+  passwordResets      PasswordReset[]
 
   @@map("users")
+}
+
+/// Pedido de redefinição de senha. O token só é guardado como hash, expira em
+/// 30 minutos e é de uso único (`usedAt`), conforme regra de segurança do item 26.2.
+model PasswordReset {
+  id        String    @id @default(cuid()) @db.VarChar(255)
+  userId    String    @db.VarChar(255)
+  tokenHash String    @unique @db.VarChar(255)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_resets")
 }
 
 model Session {
@@ -156,6 +173,8 @@ model Transaction {
   type         String   @db.VarChar(16) // income, expense, transfer
   origin       String   @default("manual") @db.VarChar(32) // manual, imported
   providerId   String?  @db.VarChar(255) // id original do provedor (idempotência)
+  /// Par que liga as duas pontas de uma transferência (débito na origem e crédito no destino).
+  transferId   String?  @db.VarChar(255)
   date         DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -168,6 +187,7 @@ model Transaction {
   @@index([userId])
   @@index([accountId])
   @@index([date])
+  @@index([transferId])
   @@unique([providerId])
 }
 

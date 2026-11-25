@@ -22,6 +22,11 @@ export class CreateTransactionDto {
   @IsString()
   categoryId?: string;
 
+  /** Obrigatório quando `type` é `transfer`: conta que recebe o valor. */
+  @IsOptional()
+  @IsString()
+  transferAccountId?: string;
+
   @IsDateString()
   date: string;
 }

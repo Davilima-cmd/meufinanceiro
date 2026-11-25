@@ -1,88 +1,49 @@
-import { Body, Controller, Get, NotFoundException, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { PrismaService } from '../prisma/prisma.service';
+import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/transaction.dto';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
-import { centsToString, type DecimalLike } from '../common/money';
+import { centsToString } from '../common/money';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
 }
 
-/** Linha de transação com a conta relacionada (formato do select da consulta). */
-interface TransactionWithAccount {
-  id: string;
-  accountId: string;
-  userId: string;
-  categoryId: string | null;
-  description: string;
-  amountCents: DecimalLike;
-  type: string;
-  origin: string;
-  providerId: string | null;
-  date: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  account: { id: string; name: string };
+/** Converte os `Decimal` do Prisma em string de centavos antes de responder. */
+function toJson<T extends { amountCents: unknown }>(row: T) {
+  return { ...row, amountCents: centsToString(row.amountCents as never) };
 }
 
 @Controller('transactions')
 @UseGuards(AuthGuard('jwt'))
 export class TransactionsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly transactions: TransactionsService) {}
 
   @Get()
   async list(@Req() req: AuthenticatedRequest) {
-    const transactions: TransactionWithAccount[] = await this.prisma.transaction.findMany({
-      where: { userId: req.user.userId },
-      orderBy: { date: 'desc' },
-      include: {
-        account: {
-          select: { id: true, name: true },
-        },
-      },
-    });
-
-    return transactions.map((tx) => ({
-      ...tx,
-      amountCents: centsToString(tx.amountCents),
-    }));
+    const rows = await this.transactions.list(req.user.userId);
+    return rows.map(toJson);
   }
 
   @Post()
   @AuditLog(AuditAction.TRANSACTION_CREATE)
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateTransactionDto) {
-    // A conta de destino precisa pertencer ao usuário autenticado: sem esta
-    // checagem, um usuário poderia lançar transações na conta de outro.
-    const account = await this.prisma.financialAccount.findFirst({
-      where: { id: dto.accountId, userId: req.user.userId },
-      select: { id: true },
-    });
-    if (!account) {
-      throw new NotFoundException('Conta não encontrada');
+    const created = await this.transactions.create(req.user.userId, dto);
+    if ('transactions' in created) {
+      return { ...created, transactions: created.transactions.map(toJson) };
     }
+    return toJson(created);
+  }
 
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        accountId: account.id,
-        userId: req.user.userId,
-        description: dto.description,
-        amountCents: String(dto.amountCents),
-        type: dto.type,
-        categoryId: dto.categoryId ?? null,
-        origin: 'manual',
-        date: new Date(dto.date),
-      },
-      include: {
-        account: {
-          select: { id: true, name: true },
-        },
-      },
-    });
+  @Post(':id/reverse')
+  @AuditLog(AuditAction.TRANSACTION_CREATE)
+  async reverse(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return toJson(await this.transactions.reverse(req.user.userId, id));
+  }
 
-    return {
-      ...transaction,
-      amountCents: centsToString(transaction.amountCents),
-    };
+  @Delete(':id')
+  @AuditLog(AuditAction.TRANSACTION_DELETE)
+  async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.transactions.remove(req.user.userId, id);
   }
 }

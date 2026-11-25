@@ -104,5 +104,7 @@ export type NewTransaction = {
   description: string;
   amountCents: string;
   type: TransactionType;
+  /** Só para transferências: conta que recebe o valor. */
+  transferAccountId?: string | null;
   date: string;
 };

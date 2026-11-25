@@ -30,16 +30,16 @@ describe('FinanceProvider (modo demonstração)', () => {
     const saldoAntes = toCents(account.balanceCents);
     const totalAntes = result.current.snapshot.transactions.length;
 
-    act(() =>
-      result.current.addTransaction({
+    await act(async () => {
+      await result.current.addTransaction({
         accountId: account.id,
         categoryId: null,
         description: 'Café da tarde',
         amountCents: '-1234',
         type: 'expense',
         date: '2026-11-25',
-      })
-    );
+      });
+    });
 
     await waitFor(() => expect(result.current.snapshot.transactions).toHaveLength(totalAntes + 1));
     const atualizada = result.current.snapshot.accounts.find((item) => item.id === account.id);
@@ -59,7 +59,9 @@ describe('FinanceProvider (modo demonstração)', () => {
     );
     const saldoAntes = toCents(account?.balanceCents ?? '0');
 
-    act(() => result.current.deleteTransaction(transaction.id));
+    await act(async () => {
+      await result.current.deleteTransaction(transaction.id);
+    });
 
     await waitFor(() =>
       expect(result.current.snapshot.transactions.some((item) => item.id === transaction.id)).toBe(
@@ -83,7 +85,9 @@ describe('FinanceProvider (modo demonstração)', () => {
     const account = result.current.snapshot.accounts.find((item) => item.shareLevel === 'private');
     expect(account).toBeDefined();
 
-    act(() => result.current.setShareLevel(account!.id, 'FULL'));
+    await act(async () => {
+      result.current.setShareLevel(account!.id, 'FULL');
+    });
 
     await waitFor(() =>
       expect(
@@ -99,16 +103,16 @@ describe('FinanceProvider (modo demonstração)', () => {
     await waitFor(() => expect(result.current.session?.mode).toBe('demo'));
 
     const totalComAjustes = result.current.snapshot.transactions.length;
-    act(() =>
-      result.current.addTransaction({
+    await act(async () => {
+      await result.current.addTransaction({
         accountId: result.current.snapshot.accounts[0].id,
         categoryId: null,
         description: 'Teste',
         amountCents: '-100',
         type: 'expense',
         date: '2026-11-25',
-      })
-    );
+      });
+    });
     act(() => result.current.signOut());
 
     await waitFor(() => expect(result.current.session).toBeNull());

@@ -20,6 +20,8 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [accountId, setAccountId] = useState(snapshot.accounts[0]?.id ?? '');
+  const [transferAccountId, setTransferAccountId] = useState(snapshot.accounts[1]?.id ?? '');
+  const [submitting, setSubmitting] = useState(false);
   const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState(defaultDate ?? todayISO());
   const [error, setError] = useState('');
@@ -36,7 +38,7 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
   const cents = centsFromInput(amount);
   const absolute = cents < 0n ? -cents : cents;
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
     if (!description.trim()) {
@@ -51,15 +53,28 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
       setError('Escolha uma conta.');
       return;
     }
+    if (type === 'transfer' && (!transferAccountId || transferAccountId === accountId)) {
+      setError('Escolha uma conta de destino diferente da origem.');
+      return;
+    }
     const signed = type === 'income' ? absolute : -absolute;
-    addTransaction({
+    setSubmitting(true);
+    // A API é a dona da verdade: se ela recusar, o erro aparece aqui e o
+    // formulário continua aberto com os dados preenchidos.
+    const failure = await addTransaction({
       accountId,
       categoryId: categoryId || null,
       description,
       amountCents: signed.toString(),
       type,
+      transferAccountId: type === 'transfer' ? transferAccountId : null,
       date,
     });
+    setSubmitting(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
     setDescription('');
     setAmount('');
     setCategoryId('');
@@ -173,6 +188,27 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
             </div>
           </div>
 
+          {type === 'transfer' ? (
+            <div className="field">
+              <span>Conta de destino</span>
+              <Select
+                label="Conta que recebe a transferência"
+                onChange={setTransferAccountId}
+                options={snapshot.accounts
+                  .filter((account) => account.id !== accountId)
+                  .map((account) => ({
+                    value: account.id,
+                    label: account.name,
+                    color: account.color,
+                  }))}
+                value={transferAccountId}
+              />
+              <small className="field-hint">
+                Transferência não entra como receita nem despesa: só move o saldo entre as contas.
+              </small>
+            </div>
+          ) : null}
+
           <div className="field">
             <span>Data</span>
             <DateField
@@ -189,8 +225,8 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
             <button className="button button-ghost" onClick={onClose} type="button">
               Cancelar
             </button>
-            <button className="button button-primary" type="submit">
-              Salvar lançamento
+            <button className="button button-primary" disabled={submitting} type="submit">
+              {submitting ? 'Salvando…' : 'Salvar lançamento'}
             </button>
           </footer>
         </form>

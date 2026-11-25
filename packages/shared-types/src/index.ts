@@ -90,6 +90,7 @@ export type CreateAccountDto = {
 export type ApiTransaction = {
   id: string;
   accountId: string;
+  transferId?: string | null;
   userId: string;
   categoryId?: string | null;
   description: string;
@@ -146,6 +147,8 @@ export type CreateTransactionDto = {
   amountCents: string;
   type: string;
   categoryId?: string;
+  /** Só para `type: 'transfer'`: conta que recebe o valor. */
+  transferAccountId?: string;
   date: string;
 };
 

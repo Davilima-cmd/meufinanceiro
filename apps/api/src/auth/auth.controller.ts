@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
-import { RegisterDto } from './dto/auth.dto';
-import { LoginDto } from './dto/auth.dto';
+import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from './dto/auth.dto';
+import { PasswordResetService } from './password-reset.service';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 
 interface AuthenticatedRequest extends Request {
@@ -21,7 +21,10 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly passwordReset: PasswordResetService
+  ) {}
 
   @Post('register')
   @AuditLog(AuditAction.REGISTER)
@@ -47,6 +50,24 @@ export class AuthController {
 
     const token = this.authService.generateToken(user.id);
     return { user, token };
+  }
+
+  /**
+   * Sempre responde `{ requested: true }`, exista ou não a conta, para não
+   * revelar quais e-mails estão cadastrados.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('forgot-password')
+  @AuditLog(AuditAction.PASSWORD_RESET_REQUEST)
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.passwordReset.request(dto.email);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('reset-password')
+  @AuditLog(AuditAction.PASSWORD_RESET)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.passwordReset.reset(dto.token, dto.password);
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)

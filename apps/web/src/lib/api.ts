@@ -197,6 +197,10 @@ class ApiClient {
     });
   }
 
+  async removeAccount(id: string): Promise<void> {
+    await this.request<void>(`/accounts/${id}`, { method: 'DELETE' });
+  }
+
   async getTransactions(): Promise<ApiTransaction[]> {
     return this.request<ApiTransaction[]>('/transactions');
   }
@@ -206,6 +210,10 @@ class ApiClient {
       method: 'POST',
       body: dto,
     });
+  }
+
+  async deleteTransaction(id: string): Promise<{ deleted: number }> {
+    return this.request<{ deleted: number }>(`/transactions/${id}`, { method: 'DELETE' });
   }
 
   async getCategories(): Promise<ApiCategory[]> {
@@ -293,6 +301,20 @@ class ApiClient {
   async deleteGoal(id: string) {
     return this.request<{ id: string }>(`/financial-goals/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  async forgotPassword(email: string): Promise<{ requested: true }> {
+    return this.request<{ requested: true }>('/auth/forgot-password', {
+      method: 'POST',
+      body: { email },
+    });
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ reset: true }> {
+    return this.request<{ reset: true }>('/auth/reset-password', {
+      method: 'POST',
+      body: { token, password },
     });
   }
 

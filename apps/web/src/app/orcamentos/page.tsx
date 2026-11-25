@@ -68,7 +68,7 @@ export default function BudgetsPage() {
     return { limit, used, remaining: limit - used };
   }, [budgets]);
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
     if (!categoryId) {
@@ -80,7 +80,15 @@ export default function BudgetsPage() {
       setError('Informe um limite maior que zero.');
       return;
     }
-    setBudget({ categoryId, amountCents: cents.toString(), monthKey });
+    const failure = await setBudget({
+      categoryId,
+      amountCents: cents.toString(),
+      monthKey,
+    });
+    if (failure) {
+      setError(failure);
+      return;
+    }
     setAmount('');
     setCategoryId('');
     void dialog.notice({
@@ -184,7 +192,10 @@ export default function BudgetsPage() {
                             description: `O orçamento de ${formatMonth(monthKey)} deixa de ser acompanhado. Os lançamentos continuam intactos.`,
                             confirmLabel: 'Excluir limite',
                           });
-                          if (confirmed) deleteBudget(budget.id);
+                          if (!confirmed) return;
+                          void deleteBudget(budget.id).then((failure) => {
+                            if (failure) setError(failure);
+                          });
                         }}
                         type="button"
                       >

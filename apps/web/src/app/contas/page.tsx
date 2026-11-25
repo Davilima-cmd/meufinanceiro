@@ -38,14 +38,18 @@ export default function AccountsPage() {
     return { assets, debts, net: assets - debts };
   }, [snapshot.accounts]);
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
     if (!name.trim()) {
       setError('Dê um nome à conta.');
       return;
     }
-    addAccount({ name, institution, type, shareLevel: 'private' });
+    const failure = await addAccount({ name, institution, type, shareLevel: 'private' });
+    if (failure) {
+      setError(failure);
+      return;
+    }
     setName('');
     setInstitution('');
     setType('checking');
@@ -158,7 +162,10 @@ export default function AccountsPage() {
                                 : 'A conta será removida. Não dá para desfazer.',
                             confirmLabel: 'Excluir conta',
                           });
-                          if (confirmed) deleteAccount(account.id);
+                          if (!confirmed) return;
+                          void deleteAccount(account.id).then((failure) => {
+                            if (failure) setError(failure);
+                          });
                         }}
                         type="button"
                       >

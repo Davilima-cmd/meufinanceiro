@@ -42,10 +42,18 @@ Erros esperados:
 
 ### Contas (exige autenticação JWT)
 
-| Método | Endpoint    | Descrição                      | Corpo                                      | Resposta           |
-| ------ | ----------- | ------------------------------ | ------------------------------------------ | ------------------ |
-| GET    | `/accounts` | Lista contas do usuário logado | —                                          | `200 ApiAccount[]` |
-| POST   | `/accounts` | Cria conta                     | `{ name, institution?, type?, currency? }` | `201 ApiAccount`   |
+| Método | Endpoint         | Descrição                      | Corpo                                                     | Resposta           |
+| ------ | ---------------- | ------------------------------ | --------------------------------------------------------- | ------------------ |
+| Método | Endpoint         | Descrição                      | Corpo                                                     | Resposta           |
+| ------ | ---------------- | ------------------------------ | -------------------------------------------------         | ------------------ |
+| GET    | `/accounts`      | Lista contas do usuário logado | —                                                         | `200 ApiAccount[]` |
+| POST   | `/accounts`      | Cria conta                     | `{ name, institution?, type?, currency?, balanceCents? }` | `201 ApiAccount`   |
+| PATCH  | `/accounts/:id`  | Edita ou arquiva a conta       | `{ name?, institution?, type?, isActive? }`               | `200 ApiAccount`   |
+| DELETE | `/accounts/:id`  | Exclui conta sem histórico     | —                                                         | `200 { deleted }`  |
+
+O `balanceCents` do `POST` é o **saldo inicial**: é gravado como um lançamento "Saldo inicial", de
+modo que o saldo continue sendo derivado do histórico. `DELETE` é recusado (`400`) quando a conta
+tem lançamentos — nesse caso o caminho correto é arquivar com `PATCH { "isActive": false }`.
 
 Exemplo de conta:
 
@@ -67,12 +75,36 @@ Erros: `401` (não autenticado), `400` (body inválido).
 
 ### Transações (exige autenticação JWT)
 
-|      | Método          | Endpoint                     | Descrição                                                          | Corpo                  | Resposta |
-| ---- | --------------- | ---------------------------- | ------------------------------------------------------------------ | ---------------------- | -------- |
-| GET  | `/transactions` | Listar transações do usuário | —                                                                  | `200 ApiTransaction[]` |
-| POST | `/transactions` | Criar lançamento             | `{ accountId, description, amountCents, type, categoryId?, date }` | `201 ApiTransaction`   |
+| Método | Endpoint                    | Descrição                                            | Corpo                                                                                  | Resposta               |
+| ------ | --------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------- |
+| GET    | `/transactions`             | Listar transações do usuário                         | —                                                                                      | `200 ApiTransaction[]` |
+| POST   | `/transactions`             | Criar lançamento                                     | `{ accountId, description, amountCents, type, categoryId?, transferAccountId?, date }` | `201 ApiTransaction`   |
+| POST   | `/transactions/:id/reverse` | Estorna criando o lançamento inverso                 | —                                                                                      | `201 ApiTransaction`   |
+| DELETE | `/transactions/:id`         | Remove (estorna as duas pontas de uma transferência) | —                                                                                      | `200 { deleted }`      |
 
-Valores em centavos (string), negativos para despesa.
+Valores em centavos (string), negativos para despesa e positivos para receita — o servidor recusa
+(`400`) despesa positiva, receita negativa e valor zero.
+
+Regras de integridade aplicadas no servidor:
+
+- criar, estornar ou excluir um lançamento ajusta `balanceCents` da conta dentro de uma transação de
+  banco, pelo mesmo delta gravado no histórico;
+- `type: "transfer"` exige `transferAccountId` (diferente da origem) e cria duas pontas com o mesmo
+  `transferId`, uma negativa na origem e outra positiva no destino; transferência nunca conta como
+  receita nem despesa;
+- excluir uma das pontas remove o par inteiro;
+- `categoryId` precisa ser do usuário ou uma categoria do sistema (`isSystem`).
+
+### Recuperação de senha (público)
+
+| Método | Endpoint                | Corpo                 | Resposta                  |
+| ------ | ----------------------- | --------------------- | ------------------------- |
+| POST   | `/auth/forgot-password` | `{ email }`           | `200 { requested: true }` |
+| POST   | `/auth/reset-password`  | `{ token, password }` | `200 { reset: true }`     |
+
+`forgot-password` responde sempre igual, exista ou não a conta, para não revelar quais e-mails estão
+cadastrados. O token tem 32 bytes aleatórios, é guardado apenas como hash SHA-256, vale 30 minutos e
+é de uso único; ao redefinir, todas as sessões abertas do usuário são encerradas.
 
 ### Open Finance e sincronização (exige autenticação JWT)
 

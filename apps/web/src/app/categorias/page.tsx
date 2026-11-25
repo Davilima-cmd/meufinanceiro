@@ -44,7 +44,7 @@ export default function CategoriesPage() {
     return counts;
   }, [snapshot.transactions]);
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
     const trimmed = name.trim();
@@ -58,7 +58,11 @@ export default function CategoriesPage() {
       setError('Já existe uma categoria com esse nome.');
       return;
     }
-    addCategory({ name: trimmed, color, kind });
+    const failure = await addCategory({ name: trimmed, color, kind });
+    if (failure) {
+      setError(failure);
+      return;
+    }
     setName('');
   }
 
@@ -127,7 +131,10 @@ export default function CategoriesPage() {
                                 'Os lançamentos que usam esta categoria continuam existindo, mas ficam sem categoria.',
                               confirmLabel: 'Excluir categoria',
                             });
-                            if (confirmed) deleteCategory(category.id);
+                            if (!confirmed) return;
+                            void deleteCategory(category.id).then((failure) => {
+                              if (failure) setError(failure);
+                            });
                           }}
                           type="button"
                         >
