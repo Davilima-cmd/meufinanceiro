@@ -15,6 +15,13 @@ const nextConfig: NextConfig = {
   // Nenhuma variável pública é obrigatória: sem NEXT_PUBLIC_API_BASE o app roda
   // em modo demonstração e só usa a API quando o usuário escolhe "Tenho conta".
   poweredByHeader: false,
+  // Hosts usados pelos previews de desenvolvimento (sandbox do Arena e afins).
+  // Em produção o app é servido pelo domínio da Vercel e esta lista não é usada.
+  allowedDevOrigins: [
+    'localhost',
+    '127.0.0.1',
+    ...(process.env.ALLOWED_DEV_ORIGINS?.split(',') ?? []),
+  ],
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },
