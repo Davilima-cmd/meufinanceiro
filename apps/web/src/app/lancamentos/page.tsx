@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { Select, useDialog } from '@/components/dialog';
 import { TransactionDialog } from '@/components/transaction-dialog';
 import { Badge, Card, EmptyState, Money, PageHeader } from '@/components/ui';
 import { coverage, visibleAccounts } from '@/lib/analytics';
@@ -24,6 +25,7 @@ const PAGE_SIZE = 20;
 
 export default function TransactionsPage() {
   const { snapshot, session, deleteTransaction } = useFinance();
+  const dialog = useDialog();
   const [monthKey, setMonthKey] = useState(() => currentMonthKey());
   const [filter, setFilter] = useState<Filter>('all');
   const [accountFilter, setAccountFilter] = useState('all');
@@ -192,22 +194,23 @@ export default function TransactionsPage() {
               placeholder="Buscar por descrição ou categoria…"
               value={search}
             />
-            <select
-              aria-label="Filtrar por conta"
-              className="input"
-              onChange={(event) => {
-                setAccountFilter(event.target.value);
+            <Select
+              className="filter-select"
+              label="Filtrar por conta"
+              onChange={(next) => {
+                setAccountFilter(next);
                 setLimit(PAGE_SIZE);
               }}
+              options={[
+                { value: 'all', label: 'Todas as contas' },
+                ...snapshot.accounts.map((account) => ({
+                  value: account.id,
+                  label: account.name,
+                  color: account.color,
+                })),
+              ]}
               value={accountFilter}
-            >
-              <option value="all">Todas as contas</option>
-              {snapshot.accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
+            />
             <div className="page-actions">
               {(
                 [
@@ -314,10 +317,14 @@ export default function TransactionsPage() {
                             <button
                               aria-label={`Excluir ${transaction.description}`}
                               className="icon-button"
-                              onClick={() => {
-                                if (window.confirm(`Excluir “${transaction.description}”?`)) {
-                                  deleteTransaction(transaction.id);
-                                }
+                              onClick={async () => {
+                                const confirmed = await dialog.confirm({
+                                  title: `Excluir “${transaction.description}”?`,
+                                  description:
+                                    'O valor deixa de entrar no saldo da conta e nos totais do mês.',
+                                  confirmLabel: 'Excluir lançamento',
+                                });
+                                if (confirmed) deleteTransaction(transaction.id);
                               }}
                               type="button"
                             >

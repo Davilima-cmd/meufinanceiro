@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { DateField } from '@/components/date-field';
+import { useDialog } from '@/components/dialog';
 import { Badge, Card, EmptyState, Money, PageHeader, ProgressBar } from '@/components/ui';
 import { centsFromInput, daysUntil, formatBRL, toCents, todayISO } from '@/lib/format';
 import { useFinance } from '@/lib/store';
 
 export default function GoalsPage() {
   const { snapshot, addGoal, contributeGoal, deleteGoal } = useFinance();
+  const dialog = useDialog();
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -140,8 +143,14 @@ export default function GoalsPage() {
                     <button
                       aria-label={`Excluir ${goal.name}`}
                       className="icon-button"
-                      onClick={() => {
-                        if (window.confirm(`Excluir a meta “${goal.name}”?`)) deleteGoal(goal.id);
+                      onClick={async () => {
+                        const confirmed = await dialog.confirm({
+                          title: `Excluir a meta “${goal.name}”?`,
+                          description:
+                            'O valor já guardado não volta para nenhuma conta — ajuste o saldo manualmente se precisar.',
+                          confirmLabel: 'Excluir meta',
+                        });
+                        if (confirmed) deleteGoal(goal.id);
                       }}
                       type="button"
                     >
@@ -181,16 +190,18 @@ export default function GoalsPage() {
                 value={target}
               />
             </label>
-            <label className="field">
+            <div className="field">
               <span>Prazo (opcional)</span>
-              <input
-                className="input"
+              <DateField
+                allowClear
+                clearLabel="Sem prazo"
+                label="Prazo da meta"
                 min={todayISO()}
-                onChange={(event) => setDueDate(event.target.value)}
-                type="date"
+                onChange={setDueDate}
+                placeholder="Sem prazo"
                 value={dueDate}
               />
-            </label>
+            </div>
             <button className="button button-primary" type="submit">
               Criar meta
             </button>

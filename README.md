@@ -278,6 +278,14 @@ Resumo dos principais itens:
   `node dist/main.js` para iniciar. No plano gratuito do Render o serviço hiberna por inatividade —
   a reconciliação diária cobre isso.
 
+### Componentes de interface
+
+Os controles do painel são próprios, não os do navegador: `apps/web/src/components/dialog.tsx` traz
+o `Select` (listbox com teclado) e o `useDialog()` com `confirm`/`notice` — no lugar de `<select>` e
+`window.confirm` —, e `apps/web/src/components/date-field.tsx` traz o `DateField` (calendário em
+português) no lugar de `<input type="date">`. As confirmações de exclusão de lançamento, conta,
+categoria, orçamento e meta e o aviso de limite salvo usam essa camada.
+
 ## Escopo atual
 
 Implementado: monorepo, web (demo + API), API com autenticação JWT, MFA TOTP, contas, transações,

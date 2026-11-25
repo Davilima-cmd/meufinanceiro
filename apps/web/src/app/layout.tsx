@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './styles.css';
+import { DialogProvider } from '@/components/dialog';
 import { FinanceProvider } from '@/lib/store';
 
 export const metadata: Metadata = {
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body>
-        <FinanceProvider>{children}</FinanceProvider>
+        <FinanceProvider>
+          <DialogProvider>{children}</DialogProvider>
+        </FinanceProvider>
       </body>
     </html>
   );

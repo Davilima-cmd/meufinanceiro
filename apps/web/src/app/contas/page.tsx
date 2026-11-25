@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { Select, useDialog } from '@/components/dialog';
 import { Badge, Card, EmptyState, Money, PageHeader } from '@/components/ui';
 import { monthKeyOf, currentMonthKey, sumCents, toCents } from '@/lib/format';
 import { useFinance } from '@/lib/store';
@@ -18,6 +19,7 @@ const ACCOUNT_TYPES: Array<{ value: AccountType; label: string }> = [
 
 export default function AccountsPage() {
   const { snapshot, session, addAccount, deleteAccount } = useFinance();
+  const dialog = useDialog();
   const [name, setName] = useState('');
   const [institution, setInstitution] = useState('');
   const [type, setType] = useState<AccountType>('checking');
@@ -144,12 +146,19 @@ export default function AccountsPage() {
                     {own ? (
                       <button
                         className="link-button"
-                        onClick={() => {
-                          if (
-                            window.confirm(`Excluir “${account.name}” e todos os lançamentos dela?`)
-                          ) {
-                            deleteAccount(account.id);
-                          }
+                        onClick={async () => {
+                          const count = snapshot.transactions.filter(
+                            (item) => item.accountId === account.id
+                          ).length;
+                          const confirmed = await dialog.confirm({
+                            title: `Excluir “${account.name}”?`,
+                            description:
+                              count > 0
+                                ? `A conta e ${count} lançamento(s) dela serão removidos. Não dá para desfazer.`
+                                : 'A conta será removida. Não dá para desfazer.',
+                            confirmLabel: 'Excluir conta',
+                          });
+                          if (confirmed) deleteAccount(account.id);
                         }}
                         type="button"
                       >
@@ -192,20 +201,18 @@ export default function AccountsPage() {
                   value={institution}
                 />
               </label>
-              <label className="field">
+              <div className="field">
                 <span>Tipo</span>
-                <select
-                  className="input"
-                  onChange={(event) => setType(event.target.value as AccountType)}
+                <Select
+                  label="Tipo da conta"
+                  onChange={(next) => setType(next as AccountType)}
+                  options={ACCOUNT_TYPES.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
                   value={type}
-                >
-                  {ACCOUNT_TYPES.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                />
+              </div>
             </div>
             {error ? <p className="form-error">{error}</p> : null}
             <div className="page-actions">

@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { DateField } from '@/components/date-field';
+import { Select } from '@/components/dialog';
 import { useFinance } from '@/lib/store';
 import { centsFromInput, formatBRL, todayISO } from '@/lib/format';
 import type { TransactionType } from '@/lib/types';
@@ -139,47 +141,47 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
           </label>
 
           <div className="field-row">
-            <label className="field">
+            <div className="field">
               <span>Conta</span>
-              <select
-                className="input"
-                onChange={(event) => setAccountId(event.target.value)}
+              <Select
+                label="Conta do lançamento"
+                onChange={setAccountId}
+                options={snapshot.accounts.map((account) => ({
+                  value: account.id,
+                  label: account.name,
+                  color: account.color,
+                  hint: account.shareLevel === 'private' ? undefined : 'compartilhada',
+                }))}
                 value={accountId}
-              >
-                {snapshot.accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
+              />
+            </div>
+            <div className="field">
               <span>Categoria</span>
-              <select
-                className="input"
-                onChange={(event) => setCategoryId(event.target.value)}
+              <Select
+                label="Categoria do lançamento"
+                onChange={setCategoryId}
+                options={[
+                  { value: '', label: 'Sem categoria' },
+                  ...categories.map((category) => ({
+                    value: category.id,
+                    label: category.name,
+                    color: category.color,
+                  })),
+                ]}
                 value={categoryId}
-              >
-                <option value="">Sem categoria</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+            </div>
           </div>
 
-          <label className="field">
+          <div className="field">
             <span>Data</span>
-            <input
-              className="input"
+            <DateField
+              label="Data do lançamento"
               max={todayISO()}
-              onChange={(event) => setDate(event.target.value)}
-              type="date"
+              onChange={setDate}
               value={date}
             />
-          </label>
+          </div>
 
           {error ? <p className="form-error">{error}</p> : null}
 

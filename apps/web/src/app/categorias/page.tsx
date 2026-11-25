@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { Select, useDialog } from '@/components/dialog';
 import { Badge, Card, Money, PageHeader } from '@/components/ui';
 import { spentByCategory } from '@/lib/analytics';
 import { currentMonthKey, formatMonth } from '@/lib/format';
@@ -21,6 +22,7 @@ const COLOR_OPTIONS = [
 
 export default function CategoriesPage() {
   const { snapshot, session, addCategory, deleteCategory } = useFinance();
+  const dialog = useDialog();
   const [name, setName] = useState('');
   const [color, setColor] = useState(COLOR_OPTIONS[0]);
   const [kind, setKind] = useState<FinanceCategory['kind']>('expense');
@@ -118,14 +120,14 @@ export default function CategoriesPage() {
                         <button
                           aria-label={`Excluir ${category.name}`}
                           className="icon-button"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Excluir “${category.name}”? Os lançamentos ficam sem categoria.`
-                              )
-                            ) {
-                              deleteCategory(category.id);
-                            }
+                          onClick={async () => {
+                            const confirmed = await dialog.confirm({
+                              title: `Excluir “${category.name}”?`,
+                              description:
+                                'Os lançamentos que usam esta categoria continuam existindo, mas ficam sem categoria.',
+                              confirmLabel: 'Excluir categoria',
+                            });
+                            if (confirmed) deleteCategory(category.id);
                           }}
                           type="button"
                         >
@@ -157,18 +159,19 @@ export default function CategoriesPage() {
                 value={name}
               />
             </label>
-            <label className="field">
+            <div className="field">
               <span>Tipo</span>
-              <select
-                className="input"
-                onChange={(event) => setKind(event.target.value as FinanceCategory['kind'])}
+              <Select
+                label="Tipo da categoria"
+                onChange={(next) => setKind(next as FinanceCategory['kind'])}
+                options={[
+                  { value: 'expense', label: 'Despesa' },
+                  { value: 'income', label: 'Receita' },
+                  { value: 'both', label: 'Ambos' },
+                ]}
                 value={kind}
-              >
-                <option value="expense">Despesa</option>
-                <option value="income">Receita</option>
-                <option value="both">Ambos</option>
-              </select>
-            </label>
+              />
+            </div>
             <div className="field">
               <span>Cor</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

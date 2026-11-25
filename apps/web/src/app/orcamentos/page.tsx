@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { Select, useDialog } from '@/components/dialog';
 import { Badge, Card, EmptyState, Money, PageHeader, ProgressBar } from '@/components/ui';
 import { spentByCategory } from '@/lib/analytics';
 import {
@@ -16,6 +17,7 @@ import { useFinance } from '@/lib/store';
 
 export default function BudgetsPage() {
   const { snapshot, session, setBudget, deleteBudget } = useFinance();
+  const dialog = useDialog();
   const [monthKey, setMonthKey] = useState(() => currentMonthKey());
   const [categoryId, setCategoryId] = useState('');
   const [amount, setAmount] = useState('');
@@ -50,6 +52,16 @@ export default function BudgetsPage() {
     [snapshot.budgets, snapshot.categories, monthKey, spent]
   );
 
+  const budgetByCategory = useMemo(
+    () => new Map(budgets.map((budget) => [budget.categoryId, budget])),
+    [budgets]
+  );
+
+  const amountPreview = useMemo(() => {
+    const cents = centsFromInput(amount);
+    return cents > 0n ? cents : 0n;
+  }, [amount]);
+
   const totals = useMemo(() => {
     const limit = budgets.reduce((sum, budget) => sum + budget.limit, 0n);
     const used = budgets.reduce((sum, budget) => sum + budget.used, 0n);
@@ -71,6 +83,12 @@ export default function BudgetsPage() {
     setBudget({ categoryId, amountCents: cents.toString(), monthKey });
     setAmount('');
     setCategoryId('');
+    void dialog.notice({
+      title: 'Limite salvo',
+      description: `${formatBRL(cents)} por mês em ${formatMonth(monthKey)}. Acompanhe o consumo no cartão acima.`,
+      tone: 'success',
+      confirmLabel: 'Fechar',
+    });
   }
 
   return (
@@ -160,7 +178,14 @@ export default function BudgetsPage() {
                       <button
                         aria-label={`Excluir orçamento de ${budget.name}`}
                         className="icon-button"
-                        onClick={() => deleteBudget(budget.id)}
+                        onClick={async () => {
+                          const confirmed = await dialog.confirm({
+                            title: `Excluir o limite de “${budget.name}”?`,
+                            description: `O orçamento de ${formatMonth(monthKey)} deixa de ser acompanhado. Os lançamentos continuam intactos.`,
+                            confirmLabel: 'Excluir limite',
+                          });
+                          if (confirmed) deleteBudget(budget.id);
+                        }}
                         type="button"
                       >
                         ✕
@@ -200,32 +225,38 @@ export default function BudgetsPage() {
             </div>
           </div>
           <form className="form-row" onSubmit={handleSubmit}>
-            <label className="field">
+            <div className="field">
               <span>Categoria</span>
-              <select
-                className="input"
-                onChange={(event) => setCategoryId(event.target.value)}
+              <Select
+                label="Categoria do orçamento"
+                onChange={setCategoryId}
+                options={[
+                  { value: '', label: 'Escolha uma categoria…' },
+                  ...snapshot.categories
+                    .filter((category) => category.kind !== 'income')
+                    .map((category) => ({
+                      value: category.id,
+                      label: category.name,
+                      color: category.color,
+                      hint: budgetByCategory.has(category.id) ? 'já tem limite' : undefined,
+                    })),
+                ]}
                 value={categoryId}
-              >
-                <option value="">Escolha…</option>
-                {snapshot.categories
-                  .filter((category) => category.kind !== 'income')
-                  .map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
+              />
+            </div>
             <label className="field">
               <span>Limite mensal</span>
               <input
+                aria-label="Limite mensal"
                 className="input"
                 inputMode="decimal"
                 onChange={(event) => setAmount(event.target.value)}
                 placeholder="600,00"
                 value={amount}
               />
+              <span className="field-hint">
+                {amountPreview === 0n ? 'Digite o valor do limite' : formatBRL(amountPreview)}
+              </span>
             </label>
             <button className="button button-primary" type="submit">
               Salvar limite
