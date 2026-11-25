@@ -273,10 +273,29 @@ Resumo dos principais itens:
   (camelCase + `hide_values`), com as duas migrations aplicadas e registradas em
   `_prisma_migrations`, além das 8 categorias de sistema do `prisma/seed.ts`. Para conferir:
   `psql "$DATABASE_URL_DIRECT" -c '\dt'`.
-- **API** (Render ou qualquer host Node): variáveis de `.env.example`,
+- **API na Vercel** (projeto `meufinanceiro-api`, _Root Directory_ `apps/api`): o entrypoint é a
+  função Zero Config `apps/api/api/index.ts`, que reusa o bootstrap do Nest. Ajustes necessários na
+  Vercel — sem eles o deploy quebra com `STATIC_BUILD_NO_OUT_DIR`:
+  - **Build Command vazio** (nem no projeto, nem em `apps/api/vercel.json`). Qualquer buildCommand
+    faz a Vercel tratar o diretório como site estático.
+  - **Install Command**
+    `cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @meufinanceiro/api exec prisma generate`
+    — o `prisma generate` roda no install porque o typecheck do pacote depende do client gerado. Não
+    use `--no-engine`: a função precisa do engine.
+  - `apps/api/vercel.json`: `outputDirectory: "public"` (com `apps/api/public/index.html`, exigência
+    do preset _Other_), o rewrite `/api/(.*) → /api` e `functions["api/index.ts"].includeFiles`
+    cobrindo `node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/**` para o engine ir
+    junto no bundle.
+  - `generator client` declara `binaryTargets = ["native", "rhel-openssl-3.0.x"]`, o alvo do runtime
+    Amazon Linux da Vercel.
+  - `NODE_ENV=production` **não** deve existir como variável de build (derruba o `tsc`); se
+    precisar, configure só para runtime.
+  - O projeto está com _Deployment Protection → Vercel Authentication_ ligado, então o domínio
+    responde com o login da Vercel até a proteção ser desligada ou um domínio próprio ser usado.
+- **API em outro host Node** (Render, Azure): variáveis de `.env.example`,
   `pnpm --filter @meufinanceiro/api build`, `prisma generate` + `prisma migrate deploy` no deploy e
-  `node dist/main.js` para iniciar. No plano gratuito do Render o serviço hiberna por inatividade —
-  a reconciliação diária cobre isso.
+  `node dist/main.js` para iniciar (imagens em `apps/api/Dockerfile*`). No plano gratuito do Render
+  o serviço hiberna por inatividade — a reconciliação diária cobre isso.
 
 ### Componentes de interface
 
