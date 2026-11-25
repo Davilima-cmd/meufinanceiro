@@ -221,3 +221,41 @@ despesas"). Hoje, "cartão de crédito" é apenas um tipo de conta com saldo man
 - Camada de UI própria e testes de componente: base boa.
 - CSS próprio e gráficos SVG: migrar para Tailwind/Recharts seria custo sem ganho.
 - Open Finance sandbox: já idempotente e com webhook assinado.
+
+---
+
+## 6. Correções aplicadas nesta auditoria
+
+O que a seguir deixou de ser "ausente" ou "divergente". Nada foi removido nem migrado de forma
+destrutiva: as duas migrations são **aditivas** (uma coluna e uma tabela novas).
+
+| #   | Antes                                              | Depois                                                                                             |
+| --- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1   | Interface só gravava em `localStorage` no modo API | `store.tsx` chama o cliente HTTP em todas as mutações e relê o estado do servidor                  |
+| 2   | Erro da API era invisível                          | Cada tela exibe a recusa no próprio formulário (`syncError` + mensagem local)                      |
+| 3   | Lançamento não alterava o saldo                    | `TransactionsService` ajusta `balanceCents` na mesma transação de banco                            |
+| 4   | Transferência aceita mas inerte                    | Duas pontas com `transferId`, sem contar como receita/despesa, removidas em par                    |
+| 5   | Exclusão apagava o histórico                       | Estorno (`POST /transactions/:id/reverse`) cria o inverso; exclusão devolve o valor ao saldo       |
+| 6   | `categoryId` sem validação de dono                 | Servidor aceita só categoria do usuário ou do sistema                                              |
+| 7   | Conta nasce com saldo zero                         | `balanceCents` no `POST` vira o lançamento "Saldo inicial"                                         |
+| 8   | Conta sem edição/arquivo                           | `PATCH /accounts/:id` (`isActive`), `DELETE` bloqueado com histórico                               |
+| 9   | Sem recuperação de senha                           | `/auth/forgot-password` + `/auth/reset-password`, token de uso único (30 min) e sessões encerradas |
+
+Cobertura nova: `test/transactions.service.test.ts` (12), `test/accounts.controller.test.ts` (7),
+`test/password-reset.service.test.ts` (6), `components/store.api.test.tsx` (5),
+`app/login/login.test.tsx` (4).
+
+## 7. Próximo passo recomendado (P1)
+
+1. **Núcleos e rateio** — maior lacuna funcional do MVP: entidade de núcleo com papéis, convite por
+   token e rateio com divisão igualitária/proporcional fechando exatamente o valor.
+2. **Status e liquidação de lançamento** (`pending`/`paid`) com data de competência separada da data
+   de caixa.
+3. **Contas a pagar** com vencimento e lembretes.
+4. **Permissão por conta compartilhada verificada no servidor** (hoje o isolamento é por `userId`, o
+   que é seguro mas impede o compartilhamento real).
+5. **Publicar a API** — hoje só a web é implantada; a API responde apenas em `localhost` em
+   desenvolvimento, então o modo API não funciona em produção.
+
+Itens que continuam fora de escopo (V2, conforme §26): cartões e faturas, parcelamentos, patrimônio
+detalhado, assistente com IA, notificações, assinaturas e aprovações.
