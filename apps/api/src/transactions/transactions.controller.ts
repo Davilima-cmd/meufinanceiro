@@ -3,9 +3,27 @@ import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/transaction.dto';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
+import { centsToString, type DecimalLike } from '../common/money';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
+}
+
+/** Linha de transação com a conta relacionada (formato do select da consulta). */
+interface TransactionWithAccount {
+  id: string;
+  accountId: string;
+  userId: string;
+  categoryId: string | null;
+  description: string;
+  amountCents: DecimalLike;
+  type: string;
+  origin: string;
+  providerId: string | null;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  account: { id: string; name: string };
 }
 
 @Controller('transactions')
@@ -15,7 +33,7 @@ export class TransactionsController {
 
   @Get()
   async list(@Req() req: AuthenticatedRequest) {
-    const transactions = await this.prisma.transaction.findMany({
+    const transactions: TransactionWithAccount[] = await this.prisma.transaction.findMany({
       where: { userId: req.user.userId },
       orderBy: { date: 'desc' },
       include: {
@@ -27,7 +45,7 @@ export class TransactionsController {
 
     return transactions.map((tx) => ({
       ...tx,
-      amountCents: tx.amountCents.toString(),
+      amountCents: centsToString(tx.amountCents),
     }));
   }
 
@@ -64,7 +82,7 @@ export class TransactionsController {
 
     return {
       ...transaction,
-      amountCents: transaction.amountCents.toString(),
+      amountCents: centsToString(transaction.amountCents),
     };
   }
 }

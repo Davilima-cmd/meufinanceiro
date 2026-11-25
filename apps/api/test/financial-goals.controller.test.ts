@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NotFoundException } from '@nestjs/common';
 import { FinancialGoalsController } from '../src/financial-goals/financial-goals.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -6,15 +7,17 @@ const prismaMock = {
   financialGoal: {
     findMany: vi.fn(),
     create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
+    updateMany: vi.fn(),
+    deleteMany: vi.fn(),
+    findUnique: vi.fn(),
   },
 } as unknown as {
   financialGoal: {
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
-    update: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
   };
 };
 
@@ -76,20 +79,37 @@ describe('FinancialGoalsController', () => {
   });
 
   it('atualiza e remove apenas meta própria', async () => {
-    prismaMock.financialGoal.update.mockResolvedValue({
+    prismaMock.financialGoal.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.financialGoal.findUnique.mockResolvedValue({
       id: 'g-1',
-      targetCents: { toString: () => '10000' } as any,
-      currentCents: { toString: () => '5000' } as any,
+      targetCents: { toString: () => '10000' },
+      currentCents: { toString: () => '5000' },
     });
-    prismaMock.financialGoal.delete.mockResolvedValue({ id: 'g-1' });
+    prismaMock.financialGoal.deleteMany.mockResolvedValue({ count: 1 });
+
     await makeController().update(req(), 'g-1', { currentCents: '5000' });
-    expect(prismaMock.financialGoal.update).toHaveBeenCalledWith({
+    expect(prismaMock.financialGoal.updateMany).toHaveBeenCalledWith({
       where: { id: 'g-1', userId: 'user-1' },
       data: { currentCents: '5000' },
     });
+
     await makeController().remove(req(), 'g-1');
-    expect(prismaMock.financialGoal.delete).toHaveBeenCalledWith({
+    expect(prismaMock.financialGoal.deleteMany).toHaveBeenCalledWith({
       where: { id: 'g-1', userId: 'user-1' },
     });
+  });
+
+  it('responde 404 ao tentar alterar meta de outro usuário', async () => {
+    prismaMock.financialGoal.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      makeController().update(req(), 'g-alheia', { currentCents: '5000' })
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('responde 404 ao tentar remover meta de outro usuário', async () => {
+    prismaMock.financialGoal.deleteMany.mockResolvedValue({ count: 0 });
+    await expect(makeController().remove(req(), 'g-alheia')).rejects.toBeInstanceOf(
+      NotFoundException
+    );
   });
 });

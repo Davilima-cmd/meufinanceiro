@@ -48,7 +48,7 @@ export type {
 } from '@meufinanceiro/shared-types';
 export { LOCAL_STORAGE_KEYS } from '@meufinanceiro/shared-types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3001/api';
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3001/api';
 
 /** Erro padronizado retornado pela API (corpo do NestJS: { message, error, statusCode }). */
 export class ApiError extends Error {
@@ -359,3 +359,25 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+/** Envolve uma promessa com limite de tempo, para não travar a interface quando a API não responde. */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timeout de ${ms}ms ao chamar a API`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    );
+  });
+}
+
+/** `true` quando existe uma base de API configurada em tempo de build. */
+export function hasConfiguredApi(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_API_BASE);
+}

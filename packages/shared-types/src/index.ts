@@ -200,4 +200,4 @@ export const LOCAL_STORAGE_KEYS = {
   hideValues: 'mf_hide_values',
 } as const;
 
-export { formatCents } from './format-money.js';
+export { formatCents, formatBRL } from './format-money.js';

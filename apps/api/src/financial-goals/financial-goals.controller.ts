@@ -1,9 +1,33 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
+import { centsToString, type DecimalLike } from '../common/money';
+import { CreateGoalDto, UpdateGoalDto } from './dto/goal.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
+}
+
+interface GoalRow {
+  id: string;
+  userId: string;
+  name: string;
+  targetCents: DecimalLike;
+  currentCents: DecimalLike;
+  dueDate: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 @Controller('financial-goals')
@@ -13,30 +37,21 @@ export class FinancialGoalsController {
 
   @Get()
   async list(@Req() req: AuthenticatedRequest) {
-    const goals = await this.prisma.financialGoal.findMany({
+    const goals: GoalRow[] = await this.prisma.financialGoal.findMany({
       where: { userId: req.user.userId },
       orderBy: { createdAt: 'desc' },
     });
     return goals.map((goal) => ({
       ...goal,
-      targetCents: goal.targetCents.toString(),
-      currentCents: goal.currentCents.toString(),
+      targetCents: centsToString(goal.targetCents),
+      currentCents: centsToString(goal.currentCents),
       progress:
         Number(goal.targetCents) > 0 ? Number(goal.currentCents) / Number(goal.targetCents) : 0,
     }));
   }
 
   @Post()
-  async create(
-    @Req() req: AuthenticatedRequest,
-    @Body()
-    dto: {
-      name: string;
-      targetCents: string;
-      currentCents?: string;
-      dueDate?: string;
-    }
-  ) {
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateGoalDto) {
     const goal = await this.prisma.financialGoal.create({
       data: {
         userId: req.user.userId,
@@ -48,8 +63,8 @@ export class FinancialGoalsController {
     });
     return {
       ...goal,
-      targetCents: goal.targetCents.toString(),
-      currentCents: goal.currentCents.toString(),
+      targetCents: centsToString(goal.targetCents),
+      currentCents: centsToString(goal.currentCents),
     };
   }
 
@@ -57,15 +72,9 @@ export class FinancialGoalsController {
   async update(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body()
-    dto: {
-      name?: string;
-      targetCents?: string;
-      currentCents?: string;
-      dueDate?: string;
-    }
+    @Body() dto: UpdateGoalDto
   ) {
-    const goal = await this.prisma.financialGoal.update({
+    const updated = await this.prisma.financialGoal.updateMany({
       where: { id, userId: req.user.userId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -76,18 +85,28 @@ export class FinancialGoalsController {
         ...(dto.dueDate !== undefined && { dueDate: new Date(dto.dueDate) }),
       },
     });
+    if (updated.count === 0) {
+      throw new NotFoundException('Meta não encontrada');
+    }
+    const goal = await this.prisma.financialGoal.findUnique({ where: { id } });
+    if (!goal) {
+      throw new NotFoundException('Meta não encontrada');
+    }
     return {
       ...goal,
-      targetCents: goal.targetCents.toString(),
-      currentCents: goal.currentCents.toString(),
+      targetCents: centsToString(goal.targetCents),
+      currentCents: centsToString(goal.currentCents),
     };
   }
 
   @Delete(':id')
   async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    await this.prisma.financialGoal.delete({
+    const deleted = await this.prisma.financialGoal.deleteMany({
       where: { id, userId: req.user.userId },
     });
+    if (deleted.count === 0) {
+      throw new NotFoundException('Meta não encontrada');
+    }
     return { id };
   }
 }

@@ -11,12 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Prisma } from '@prisma/client';
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import type { IncomingMessage } from 'http';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../sync/sync.service';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
+import { asJson } from '../common/json';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -140,7 +140,7 @@ export class OpenFinanceController {
         data: {
           provider,
           eventId,
-          payload: payload as Prisma.JsonObject,
+          payload: asJson(payload),
           processed: false,
         },
       })

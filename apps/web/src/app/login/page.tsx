@@ -1,30 +1,69 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { useAuth, apiErrorMessage } from '@/contexts/auth-context';
-import Link from 'next/link';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { useFinance } from '@/lib/store';
+import { withTimeout } from '@/lib/api';
+import type { AuthResponse } from '@meufinanceiro/shared-types';
+
+type Mode = 'login' | 'register';
 
 export default function LoginPage() {
-  const { login, register } = useAuth();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
+  const { session, hydrated, startDemo } = useFinance();
+  const router = useRouter();
+  const [tab, setTab] = useState<'demo' | 'conta'>('demo');
+  const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (hydrated && session) {
+      router.replace('/');
+    }
+  }, [hydrated, session, router]);
+
+  function enterDemo() {
+    startDemo();
+    router.push('/');
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
     setError('');
+    setNotice('');
     setSubmitting(true);
     try {
-      if (mode === 'login') {
-        await login(email, password);
-      } else {
-        await register(email, name, password);
+      const { api } = await import('@/lib/api');
+      if (mode === 'register') {
+        await withTimeout(api.register({ email, name, password }), 8000);
+        setMode('login');
+        setNotice('Conta criada. Entre com a senha cadastrada.');
+        setSubmitting(false);
+        return;
       }
+      const result: AuthResponse = await withTimeout(api.login({ email, password }), 8000);
+      if (result.mfaRequired && result.tempToken) {
+        sessionStorage.setItem('mf.mfa.temp', result.tempToken);
+        sessionStorage.setItem('mf.mfa.email', email);
+        router.push('/login/mfa');
+        return;
+      }
+      if (!result.token || !result.user) {
+        throw new Error('Resposta de login inválida.');
+      }
+      api.setToken(result.token);
+      localStorage.setItem(
+        'mf.session.api',
+        JSON.stringify({ token: result.token, user: result.user })
+      );
+      router.push('/api');
     } catch (err) {
-      setError(apiErrorMessage(err));
+      const message = err instanceof Error ? err.message : 'Não foi possível entrar agora.';
+      setError(formatAuthError(message));
     } finally {
       setSubmitting(false);
     }
@@ -32,67 +71,174 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <h1>{mode === 'login' ? 'Entrar' : 'Criar conta'}</h1>
-        <p className="page-description">
-          {mode === 'login'
-            ? 'Acesse sua conta para continuar.'
-            : 'Crie sua conta para começar a organizar suas finanças.'}
+      <aside className="auth-showcase">
+        <div className="brand">
+          <span aria-hidden="true" className="brand-mark">
+            mf
+          </span>
+          <span className="brand-text">
+            meu financeiro
+            <small>finanças a dois</small>
+          </span>
+        </div>
+        <div className="stack">
+          <p className="eyebrow">Um painel para o casal</p>
+          <h2>Tudo o que vocês gastam, juntam e planejam em um só lugar.</h2>
+          <p>
+            Contas compartilhadas com privacidade por padrão, orçamentos por categoria e metas
+            acompanhadas mês a mês.
+          </p>
+          <ul className="auth-bullets">
+            <li>
+              <span className="tick" aria-hidden="true">
+                ✓
+              </span>
+              Cada conta é privada até você compartilhar — só o saldo ou o histórico completo.
+            </li>
+            <li>
+              <span className="tick" aria-hidden="true">
+                ✓
+              </span>
+              Orçamentos e metas com progresso calculado automaticamente.
+            </li>
+            <li>
+              <span className="tick" aria-hidden="true">
+                ✓
+              </span>
+              Valores em centavos, sem erro de arredondamento, exibidos em reais.
+            </li>
+          </ul>
+        </div>
+        <p className="auth-note">
+          Protótipo · dados fictícios · não use informações bancárias reais.
         </p>
-        {error && <p className="error">{error}</p>}
-        <form onSubmit={handleSubmit}>
-          <label>
-            E-mail
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          {mode === 'register' && (
-            <label>
-              Nome
-              <input
-                type="text"
-                autoComplete="name"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
+      </aside>
+
+      <div className="auth-form-wrap">
+        <div className="auth-card">
+          <div>
+            <h1>Entrar no painel</h1>
+            <p className="page-description">
+              Explore com dados de exemplo ou conecte-se à sua conta na API.
+            </p>
+          </div>
+
+          <div className="auth-tabs" role="tablist" aria-label="Forma de acesso">
+            <button
+              aria-selected={tab === 'demo'}
+              className={tab === 'demo' ? 'is-active' : ''}
+              onClick={() => setTab('demo')}
+              role="tab"
+              type="button"
+            >
+              Demonstração
+            </button>
+            <button
+              aria-selected={tab === 'conta'}
+              className={tab === 'conta' ? 'is-active' : ''}
+              onClick={() => setTab('conta')}
+              role="tab"
+              type="button"
+            >
+              Tenho uma conta
+            </button>
+          </div>
+
+          {tab === 'demo' ? (
+            <div className="stack">
+              <p className="page-description">
+                Entra na hora, com o casal de exemplo: 5 contas, 6 meses de lançamentos, orçamentos
+                e metas. Você pode lançar, editar e excluir à vontade — tudo fica salvo apenas neste
+                navegador.
+              </p>
+              <button className="button button-primary" onClick={enterDemo} type="button">
+                Entrar no modo demonstração
+              </button>
+              <p className="auth-note">
+                Sem cadastro, sem banco de dados. Ideal para conhecer o produto.
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              {mode === 'register' ? (
+                <label className="field">
+                  <span>Nome</span>
+                  <input
+                    autoComplete="name"
+                    className="input"
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                    type="text"
+                    value={name}
+                  />
+                </label>
+              ) : null}
+              <label className="field">
+                <span>E-mail</span>
+                <input
+                  autoComplete="email"
+                  className="input"
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  type="email"
+                  value={email}
+                />
+              </label>
+              <label className="field">
+                <span>Senha</span>
+                <input
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  className="input"
+                  minLength={8}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  type="password"
+                  value={password}
+                />
+              </label>
+              {error ? <p className="form-error">{error}</p> : null}
+              {notice ? <p className="toast">{notice}</p> : null}
+              <button className="button button-primary" disabled={submitting} type="submit">
+                {submitting ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+              </button>
+              <p className="auth-note">
+                {mode === 'login' ? 'Ainda não tem conta? ' : 'Já tem conta? '}
+                <button
+                  className="link-button"
+                  onClick={() => {
+                    setMode(mode === 'login' ? 'register' : 'login');
+                    setError('');
+                  }}
+                  type="button"
+                >
+                  {mode === 'login' ? 'Cadastre-se' : 'Faça login'}
+                </button>
+              </p>
+            </form>
           )}
-          <label>
-            Senha
-            <input
-              type="password"
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <button type="submit" disabled={submitting}>
-            {submitting ? 'Aguarde…' : mode === 'login' ? 'Entrar' : 'Criar conta'}
-          </button>
-        </form>
-        <p>
-          {mode === 'login' ? 'Não tem uma conta? ' : 'Já tem uma conta? '}
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-            className="link-button"
-          >
-            {mode === 'login' ? 'Cadastre-se' : 'Faça login'}
-          </button>
-        </p>
-        <p className="note">Dados de exemplo · protótipo local · não use dados bancários reais</p>
-        <Link href="/" className="back-link">
-          ← Voltar
-        </Link>
+
+          <p className="auth-note">
+            A API é servida separadamente (<code>NEXT_PUBLIC_API_BASE</code>). Se ela não estiver
+            disponível, use o modo demonstração.
+          </p>
+        </div>
       </div>
     </div>
   );
+}
+
+function formatAuthError(message: string): string {
+  if (/fetch|Failed|network|ERR_NETWORK/i.test(message)) {
+    return 'API indisponível. Inicie o servidor da API ou use o modo demonstração.';
+  }
+  if (/timeout/i.test(message)) {
+    return 'A API demorou para responder. Tente novamente ou use o modo demonstração.';
+  }
+  if (/401|credenciais/i.test(message)) {
+    return 'E-mail ou senha inválidos.';
+  }
+  if (/409|já cadastrado|already/i.test(message)) {
+    return 'Este e-mail já está cadastrado.';
+  }
+  return message;
 }

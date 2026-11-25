@@ -10,6 +10,14 @@ interface SyncResult {
   transactions: number;
 }
 
+interface ProviderIdRow {
+  providerId: string | null;
+}
+
+interface IdRow {
+  id: string;
+}
+
 /**
  * Reconciliação diária e sob demanda.
  *
@@ -88,7 +96,7 @@ export class SyncService {
 
       // Uma única consulta: quais lançamentos deste usuário já existem?
       // Evita um `upsert` por transação (N+1) dentro do loop de conexões.
-      const existing = await this.prisma.transaction.findMany({
+      const existing: ProviderIdRow[] = await this.prisma.transaction.findMany({
         where: {
           providerId: { in: providerIds },
           userId,
@@ -178,7 +186,7 @@ export class SyncService {
    * o N+1 de um `findFirst` por usuário dentro do loop.
    */
   async runDailyReconciliation(): Promise<void> {
-    const users = await this.prisma.user.findMany({
+    const users: IdRow[] = await this.prisma.user.findMany({
       where: { bankConnections: { some: { status: 'active' } } },
     });
     if (users.length === 0) return;

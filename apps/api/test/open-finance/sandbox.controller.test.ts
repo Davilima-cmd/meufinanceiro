@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { SyncService } from '../../src/sync/sync.service';
 import { SandboxController } from '../../src/open-finance/sandbox.controller';
@@ -157,10 +156,7 @@ describe('SandboxController', () => {
 
     it('evento duplicado já processado não reprocessa', async () => {
       prismaMock.webhookEvent.create.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError('Unique constraint', {
-          code: 'P2002',
-          clientVersion: '6.19.3',
-        })
+        Object.assign(new Error('Unique constraint'), { code: 'P2002' })
       );
       prismaMock.webhookEvent.findUnique.mockResolvedValue({
         ...baseEvent,
@@ -181,10 +177,7 @@ describe('SandboxController', () => {
 
     it('evento duplicado não processado é processado uma vez', async () => {
       prismaMock.webhookEvent.create.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError('Unique constraint', {
-          code: 'P2002',
-          clientVersion: '6.19.3',
-        })
+        Object.assign(new Error('Unique constraint'), { code: 'P2002' })
       );
       prismaMock.webhookEvent.findUnique.mockResolvedValue({
         ...baseEvent,

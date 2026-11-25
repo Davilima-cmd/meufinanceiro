@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import type { JsonValue } from '../common/json';
 
 export interface AuditLogData {
   userId?: string | null;
   action: string;
   target?: string | null;
-  metadata?: Prisma.InputJsonValue | null;
+  metadata?: JsonValue | null;
 }
 
 @Injectable()

@@ -1,9 +1,9 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import { AuditLogService } from './audit-log.service';
+import { asJson } from '../common/json';
 import { AUDIT_LOG_ACTION } from './audit-log.decorator';
 import { Reflector } from '@nestjs/core';
-import { Prisma } from '@prisma/client';
 
 /**
  * Campos que nunca devem ser gravados no log de auditoria (secrets do corpo da requisição).
@@ -87,14 +87,14 @@ export class AuditLogInterceptor implements NestInterceptor {
             userId: resolvedUserId,
             action,
             target,
-            metadata: {
+            metadata: asJson({
               method: request.method,
               path: request.path,
               route: request.route?.path ?? null,
               statusCode: response.statusCode ?? null,
               body: sanitize(request.body),
               ip: request.ip ?? null,
-            } as Prisma.InputJsonValue,
+            }),
           })
           .catch(() => undefined);
       })

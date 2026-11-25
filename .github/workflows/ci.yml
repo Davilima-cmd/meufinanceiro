@@ -21,6 +21,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Gera o cliente Prisma tipado (sem binários de engine: o typecheck não
+      # executa consultas). O build da API também roda o generate.
+      - run: pnpm --filter @meufinanceiro/api exec prisma generate --no-engine
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
