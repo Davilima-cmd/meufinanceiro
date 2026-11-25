@@ -284,8 +284,8 @@ Resumo dos principais itens:
     use `--no-engine`: a função precisa do engine.
   - `apps/api/vercel.json`: `outputDirectory: "public"` (com `apps/api/public/index.html`, exigência
     do preset _Other_), o rewrite `/api/(.*) → /api` e `functions["api/index.ts"].includeFiles`
-    cobrindo `node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/**` para o engine ir
-    junto no bundle.
+    (`{node_modules,../../node_modules}/**/.prisma/client/**`) para o engine ir junto no bundle —
+    com pnpm o client gerado fica fora de `apps/api`, e a função falharia sem ele.
   - `generator client` declara `binaryTargets = ["native", "rhel-openssl-3.0.x"]`, o alvo do runtime
     Amazon Linux da Vercel.
   - `NODE_ENV=production` **não** deve existir como variável de build (derruba o `tsc`); se
