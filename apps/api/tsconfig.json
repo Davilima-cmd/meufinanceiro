@@ -10,5 +10,5 @@
     "verbatimModuleSyntax": false,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "prisma-client.d.ts"]
+  "include": ["src/**/*.ts", "api/**/*.ts", "test/**/*.ts", "prisma-client.d.ts"]
 }

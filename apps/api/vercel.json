@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@meufinanceiro/api... && cd apps/api && pnpm prune --prod --ignore-scripts",
-  "outputDirectory": null,
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@meufinanceiro/api...",
   "rewrites": [{ "source": "/api/(.*)", "destination": "/api" }]
 }
