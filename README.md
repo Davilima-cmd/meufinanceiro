@@ -1,7 +1,35 @@
 # Meu Financeiro
 
-Aplicativo financeiro para duas pessoas, com versões web e Android e uma API única. A especificação
-funcional está em [`docs/especificacao_final.md`](docs/especificacao_final.md).
+Painel financeiro para um casal: contas, lançamentos, orçamentos e metas em um só lugar, com
+privacidade por conta. Aplicativo web completo (modo demonstração + integração com a API), API
+NestJS, app móvel Expo e pacotes compartilhados. A especificação funcional está em
+[`docs/especificacao_final.md`](docs/especificacao_final.md).
+
+## Interface web
+
+O app web (`apps/web`) tem oito áreas: **Visão geral**, **Lançamentos**, **Contas**, **Orçamentos**,
+**Metas**, **Categorias**, **Casal** e **Configurações**.
+
+- **Modo demonstração**: entre em `/login` → “Entrar no modo demonstração”. Dados fictícios do casal
+  (5 contas, 6 meses de lançamentos, orçamentos e metas) gerados de forma determinística e salvos
+  apenas no `localStorage` do navegador. Tudo pode ser criado, editado e excluído; “Restaurar dados
+  de exemplo” volta ao estado inicial.
+- **Modo API**: em “Tenho uma conta”, o login usa `NEXT_PUBLIC_API_BASE`. Cadastro, login, MFA
+  (TOTP) e os endpoints de contas, lançamentos, categorias, orçamentos e metas são consumidos de
+  verdade.
+- **Regras de privacidade** aplicadas na interface: uma conta mostra o histórico completo quando é
+  sua ou quando foi compartilhada como `FULL`; no nível `BALANCE_ONLY` o parceiro vê apenas o saldo
+  (esses lançamentos ficam fora dos relatórios). Contas privadas nunca aparecem na visão conjunta.
+- **Dinheiro em centavos**: toda soma é feita com `BigInt` e só é formatada em reais na tela, o que
+  evita erro de arredondamento. Transferências não contam como despesa nem consomem orçamento.
+- Tema escuro/claro, “ocultar valores”, gráficos em SVG sem dependências e layout responsivo com
+  navegação inferior no celular.
+
+```sh
+pnpm install
+pnpm --filter @meufinanceiro/shared-types build   # pacotes consumidos pela web
+pnpm --filter @meufinanceiro/web dev              # http://localhost:3000
+```
 
 ## Estrutura
 
@@ -135,25 +163,11 @@ docker compose exec api pnpm prisma generate
 
 ### Sem Docker (execução local)
 
-O PostgreSQL 18 está instalado localmente na máquina. Crie o banco `meufinanceiro`, copie
-`.env.example` para `.env`, então:
+Crie um banco PostgreSQL, copie `.env.example` para `.env` com a `DATABASE_URL` do banco, então:
 
 ```sh
 pnpm install
-npx prisma migrate dev
-pnpm dev
-```
-
-A web fica em http://localhost:3000 e a API em http://localhost:3001.
-
-### Sem Docker (execução local)
-
-O PostgreSQL 18 está instalado localmente na máquina. Crie o banco `meufinanceiro`, copie
-`.env.example` para `.env`, então:
-
-```sh
-pnpm install
-npx prisma migrate dev
+pnpm --filter @meufinanceiro/api exec prisma migrate deploy   # aplica as migrations
 pnpm dev
 ```
 
@@ -242,8 +256,24 @@ Resumo dos principais itens:
 - **Nenhum segredo no Git:** `.env`, `.env.local` e demais `.env.*` (exceto `.env.example`) são
   ignorados pelo `.gitignore`.
 
+## Implantação (Vercel + Supabase)
+
+- **Web na Vercel**: projeto `meufinanceiro` com build
+  `pnpm turbo run build --filter=@meufinanceiro/web`, saída `apps/web/.next` e install
+  `pnpm install --frozen-lockfile` (igual a `vercel.json`). O app sobe mesmo sem a API — a tela de
+  login oferece o modo demonstração.
+- **Banco no Supabase** (PostgreSQL, região `sa-east-1`): use a URL direta para migrations
+  (`DATABASE_URL_DIRECT`) e a URL do pooler para a aplicação (`DATABASE_URL`), com
+  `?pgbouncer=true&connection_limit=1`. O Supabase é usado **apenas** como Postgres: autenticação e
+  autorização continuam no NestJS.
+- **API** (Render ou qualquer host Node): variáveis de `.env.example`,
+  `pnpm --filter @meufinanceiro/api build`, `prisma generate` + `prisma migrate deploy` no deploy e
+  `node dist/main.js` para iniciar. No plano gratuito do Render o serviço hiberna por inatividade —
+  a reconciliação diária cobre isso.
+
 ## Escopo atual
 
-A Fase 0 estabelece o monorepo, builds, lint, typecheck, testes de exemplo, CI e documentação.
-Cadastro, movimentações, compartilhamento, banco de dados e integração Open Finance ainda não estão
-disponíveis.
+Implementado: monorepo, web (demo + API), API com autenticação JWT, MFA TOTP, contas, transações,
+categorias, orçamentos, metas, auditoria, criptografia de campos sensíveis e Open Finance em
+sandbox. Ainda fora do escopo: transferências/pagamentos reais, compartilhamento persistido no banco
+(as tabelas `partnerships`/`account_shares` existem; falta expor endpoints) e recuperação de senha.

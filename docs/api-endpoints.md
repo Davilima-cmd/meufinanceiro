@@ -123,6 +123,40 @@ Exemplo de conexão:
 Tipos compartilhados adicionados em `packages/shared-types/src/index.ts`: `ApiBankConnection`,
 `ConnectConnectionDto`, `BankConnectionStatus`, `SyncJob`, `TriggerSyncResponse`.
 
+### Orçamentos (exige autenticação JWT)
+
+| Método | Endpoint       | Descrição                                    | Corpo                                                 | Resposta                                  |
+| ------ | -------------- | -------------------------------------------- | ----------------------------------------------------- | ----------------------------------------- |
+| GET    | `/budgets`     | Lista orçamentos com gasto e restante        | —                                                     | `200 ApiBudget[]`                         |
+| POST   | `/budgets`     | Cria orçamento para uma categoria do usuário | `{ categoryId, amountCents, periodStart, periodEnd }` | `201 ApiBudget` (404 se categoria alheia) |
+| PATCH  | `/budgets/:id` | Atualiza valor/período do próprio orçamento  | `{ amountCents?, periodStart?, periodEnd? }`          | `200 ApiBudget` ou `404`                  |
+| DELETE | `/budgets/:id` | Remove o próprio orçamento                   | —                                                     | `200 { id }` ou `404`                     |
+
+`amountCents` é inteiro em centavos (string). `spentCents` usa o módulo das despesas do período e
+`remainingCents = amountCents - spentCents`.
+
+### Categorias (exige autenticação JWT)
+
+| Método | Endpoint          | Descrição                                    | Corpo                     | Resposta                   |
+| ------ | ----------------- | -------------------------------------------- | ------------------------- | -------------------------- |
+| GET    | `/categories`     | Lista categorias próprias e do sistema       | —                         | `200 ApiCategory[]`        |
+| POST   | `/categories`     | Cria categoria do usuário                    | `{ name, color?, kind? }` | `201 ApiCategory`          |
+| PATCH  | `/categories/:id` | Renomeia/recolore categoria própria          | `{ name?, color? }`       | `200 ApiCategory` ou `404` |
+| DELETE | `/categories/:id` | Exclui categoria própria (do sistema: `404`) | —                         | `200 { id }` ou `404`      |
+
+### Metas financeiras (exige autenticação JWT)
+
+| Método | Endpoint               | Descrição                       | Corpo                                              | Resposta        |
+| ------ | ---------------------- | ------------------------------- | -------------------------------------------------- | --------------- |
+| GET    | `/financial-goals`     | Lista metas com progresso (0–1) | —                                                  | `200 ApiGoal[]` |
+| POST   | `/financial-goals`     | Cria meta                       | `{ name, targetCents, currentCents?, dueDate? }`   | `201 ApiGoal`   |
+| PATCH  | `/financial-goals/:id` | Atualiza meta própria           | `{ name?, targetCents?, currentCents?, dueDate? }` | `200` ou `404`  |
+| DELETE | `/financial-goals/:id` | Remove meta própria             | —                                                  | `200 { id }`    |
+
+Todas as rotas acima filtram por `userId` da sessão (`updateMany`/`deleteMany` com `where` composto)
+e respondem `404` quando o recurso é de outro usuário — o mesmo comportamento de um recurso
+inexistente, sem revelar sua existência.
+
 ### Saúde
 
 || Método | Endpoint | Descrição || ||--------|----------|-----------|| || GET | `/api/health` |
