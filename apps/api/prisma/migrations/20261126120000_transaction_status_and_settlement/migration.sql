@@ -25,6 +25,7 @@ ALTER TABLE "transactions" ALTER COLUMN "status" SET DEFAULT 'pending';
 
 -- 4. Índices e checagem de domínio.
 ALTER TABLE "transactions" ALTER COLUMN "competenceDate" SET NOT NULL;
+ALTER TABLE "transactions" ALTER COLUMN "competenceDate" SET DEFAULT CURRENT_TIMESTAMP;
 CREATE INDEX "transactions_competenceDate_idx" ON "transactions"("competenceDate");
 CREATE INDEX "transactions_status_idx" ON "transactions"("status");
 
