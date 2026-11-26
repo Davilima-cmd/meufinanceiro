@@ -54,7 +54,7 @@ export default async function handler(_req: any, res: any) {
           tentativas[label] = message === 'rollback' ? 'aceito' : message;
         }
       }
-      return { ...tentativas, ...(counters() && {}) };
+      return tentativas;
     });
 
     let pendingId = '';
