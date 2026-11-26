@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { centsToString, type DecimalLike } from '../common/money';
+import { centsToString, decimalOperand, type DecimalLike } from '../common/money';
 import type { CreateTransactionDto, UpdateTransactionDto } from './dto/transaction.dto';
 
 /**
@@ -101,7 +101,7 @@ export class TransactionsService {
       if (status === 'paid') {
         await tx.financialAccount.update({
           where: { id: account.id },
-          data: { balanceCents: { increment: amount } },
+          data: { balanceCents: { increment: decimalOperand(amount) } },
         });
       }
 
@@ -141,7 +141,9 @@ export class TransactionsService {
         if (row.status !== 'paid') continue;
         await tx.financialAccount.update({
           where: { id: row.accountId },
-          data: { balanceCents: { decrement: BigInt(centsToString(row.amountCents)) } },
+          data: {
+            balanceCents: { decrement: decimalOperand(BigInt(centsToString(row.amountCents))) },
+          },
         });
       }
       const result = await tx.transaction.deleteMany({
@@ -208,7 +210,7 @@ export class TransactionsService {
 
       await tx.financialAccount.update({
         where: { id: target.accountId },
-        data: { balanceCents: { increment: inverse } },
+        data: { balanceCents: { increment: decimalOperand(inverse) } },
       });
 
       return created;
@@ -274,7 +276,7 @@ export class TransactionsService {
       if (movesBalance) {
         await tx.financialAccount.update({
           where: { id: target.accountId },
-          data: { balanceCents: { increment: delta } },
+          data: { balanceCents: { increment: decimalOperand(delta) } },
         });
       }
 
@@ -323,7 +325,7 @@ export class TransactionsService {
 
       await tx.financialAccount.update({
         where: { id: target.accountId },
-        data: { balanceCents: { increment: amount } },
+        data: { balanceCents: { increment: decimalOperand(amount) } },
       });
 
       return settled;
@@ -415,11 +417,11 @@ export class TransactionsService {
 
       await tx.financialAccount.update({
         where: { id: dto.accountId },
-        data: { balanceCents: { decrement: value } },
+        data: { balanceCents: { decrement: decimalOperand(value) } },
       });
       await tx.financialAccount.update({
         where: { id: targetAccountId },
-        data: { balanceCents: { increment: value } },
+        data: { balanceCents: { increment: decimalOperand(value) } },
       });
 
       return { transferId, transactions: [debit, credit] };

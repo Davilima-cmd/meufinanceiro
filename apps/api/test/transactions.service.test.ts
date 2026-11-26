@@ -66,7 +66,7 @@ describe('TransactionsService — saldo derivado', () => {
 
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
-      data: { balanceCents: { increment: -15000n } },
+      data: { balanceCents: { increment: '-15000' } },
     });
   });
 
@@ -167,11 +167,11 @@ describe('TransactionsService — transferência', () => {
 
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
-      data: { balanceCents: { decrement: 50000n } },
+      data: { balanceCents: { decrement: '50000' } },
     });
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-2' },
-      data: { balanceCents: { increment: 50000n } },
+      data: { balanceCents: { increment: '50000' } },
     });
   });
 
@@ -210,11 +210,11 @@ describe('TransactionsService — remoção e estorno', () => {
     expect(result).toEqual({ deleted: 2 });
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
-      data: { balanceCents: { decrement: -50000n } },
+      data: { balanceCents: { decrement: '-50000' } },
     });
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-2' },
-      data: { balanceCents: { decrement: 50000n } },
+      data: { balanceCents: { decrement: '50000' } },
     });
     expect(txMock.transaction.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ['tx-1', 'tx-2'] }, userId: 'user-1' },
@@ -248,7 +248,7 @@ describe('TransactionsService — remoção e estorno', () => {
     );
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
-      data: { balanceCents: { increment: 15000n } },
+      data: { balanceCents: { increment: '15000' } },
     });
     expect(txMock.transaction.deleteMany).not.toHaveBeenCalled();
   });
@@ -265,6 +265,22 @@ describe('TransactionsService — remoção e estorno', () => {
   it('não remove lançamento de outro usuário', async () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     await expect(service().remove('user-1', 'tx-x')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('TransactionsService — fronteira com o banco', () => {
+  // O Prisma recusa `bigint` em `increment`/`decrement` ("Expected Decimal,
+  // provided BigInt"). O ajuste de saldo precisa sair daqui como string de
+  // centavos, senão toda escrita de saldo falha em produção.
+  it('nunca manda bigint para o saldo da conta', async () => {
+    await service().create('user-1', { ...baseDto, status: 'paid' });
+
+    const arg = (txMock.financialAccount.update as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+      data: { balanceCents: Record<string, unknown> };
+    };
+    const operand = Object.values(arg.data.balanceCents)[0];
+    expect(typeof operand).toBe('string');
+    expect(operand).toBe('-15000');
   });
 });
 
@@ -292,7 +308,7 @@ describe('TransactionsService — liquidação', () => {
     expect(result.paidAt).toEqual(new Date('2026-11-20'));
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
-      data: { balanceCents: { increment: -15000n } },
+      data: { balanceCents: { increment: '-15000' } },
     });
   });
 
@@ -384,7 +400,7 @@ describe('TransactionsService — liquidação', () => {
 
     expect(txMock.financialAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
-      data: { balanceCents: { increment: -5000n } },
+      data: { balanceCents: { increment: '-5000' } },
     });
   });
 
