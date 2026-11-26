@@ -257,9 +257,13 @@ integração).
   reconciliação (`synced: false` quando a sincronização falha — o vínculo continua valendo e a
   próxima varredura tenta de novo).
 - Conta já vinculada responde `409`. Tudo é gravado em transação: conta, consentimento e conexão.
-- `available: false` significa que o provedor real não está integrado naquele ambiente (produção
-  hoje). Nesse caso `link-account` responde `400` e **o sandbox nunca é usado para criar conta
-  real** — o provedor expõe `kind: 'sandbox' | 'live'` justamente para impedir isso.
+- `available: false` significa que o provedor real não está integrado naquele ambiente. Nesse caso
+  `link-account` responde `400` e **o sandbox nunca é usado para criar conta real por padrão** — o
+  provedor expõe `kind: 'sandbox' | 'live'` justamente para impedir isso.
+- Para testar o fluxo ponta a ponta antes de contratar um provedor, defina
+  `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true`: o sandbox passa a responder e a criar contas de teste
+  (provedor `sandbox`, fáceis de identificar e excluir). Sem essa variável, produção continua
+  bloqueando — saldo fictício não vira conta real.
 
 Exemplo de conexão:
 

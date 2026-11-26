@@ -42,9 +42,10 @@ A tela **Contas** agora separa dois caminhos: **Vincular conta bancária** (a co
 da instituição) e **Conta manual** (espécie, carteira, banco sem integração).
 
 1. Em **Contas** → **Buscar contas para vincular**.
-2. Hoje, em produção, a resposta é `available: false` com a explicação de que a integração ainda
-   não está liberada — **isso é o esperado** enquanto o provedor real não está integrado; o sandbox
-   é recusado de propósito para não criar conta com saldo fictício.
+2. Em produção o sandbox está liberado por `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true` (só para
+   teste): a lista mostra contas do provedor fictício. **As contas criadas por esse caminho têm
+   saldo e lançamentos inventados** — use para validar o fluxo e apague depois. Para voltar a
+   bloquear, remova a variável e redeploye; o provedor real ainda não está integrado.
 3. Em desenvolvimento (`pnpm dev`, sem `NODE_ENV=production`), o mesmo botão lista duas contas de
    sandbox. **Vincular** deve criar a conta com o nome, instituição e saldo do provedor, importar
    3 lançamentos e marcar a linha como "Já vinculada" na consulta seguinte.
