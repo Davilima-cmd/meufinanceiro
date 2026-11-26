@@ -1,45 +1,54 @@
 /**
- * Sonda de bootstrap: cria o app Nest completo via `createApp()`, inicializa,
- * faz um `SELECT 1` e fecha. Serve para validar o runtime publicado.
- * Só para diagnóstico; removida após o deploy validado.
+ * Sonda end-to-end: sobe o app Nest completo numa porta efêmera e chama a si
+ * mesma (register → login → rota protegida), validando banco, argon2, JWT e
+ * guards dentro do runtime publicado. Só para diagnóstico.
  */
 import 'reflect-metadata';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-const run = `run-${Date.now()}`;
-
-async function log(step: string, detail: unknown = '') {
-  try {
-    await prisma.$executeRawUnsafe(
-      'INSERT INTO _probe_log (run, step, detail) VALUES ($1, $2, $3)',
-      run,
-      step,
-      typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 700)
-    );
-  } catch {
-    // best-effort
-  }
-}
+import { createApp } from '../src/bootstrap';
 
 export default async function handler(req: any, res: any) {
-  const out: Record<string, unknown> = { run };
+  const out: Record<string, unknown> = {};
+  const email = `probe+${Date.now()}@exemplo.test`;
+
   try {
-    await log('inicio');
-    const { createApp } = await import('../src/bootstrap');
-    await log('bootstrap importado');
-
     const app = await createApp();
-    await log('app criado');
-    await app.init();
-    await log('app init ok');
+    await app.listen(0);
+    const address = app.getHttpServer().address() as { port: number };
+    const base = `http://127.0.0.1:${address.port}/api`;
+    out.port = address.port;
 
-    const health = await prisma.$queryRaw`SELECT 1 AS ok`;
-    out.health = health;
-    await log('consulta ok');
+    const call = async (path: string, init?: RequestInit) => {
+      const response = await fetch(`${base}${path}`, {
+        ...init,
+        headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+      });
+      const text = await response.text();
+      return { status: response.status, body: text.slice(0, 300) };
+    };
+
+    out.health = await call('/health');
+    const register = await call('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, name: 'Probe', password: 'SenhaForte#2025' }),
+    });
+    out.register = register;
+
+    const token = /"token":"([^"]+)"/.exec(register.body)?.[1];
+    out.hasToken = Boolean(token);
+
+    out.login = await call('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password: 'SenhaForte#2025' }),
+    });
+
+    out.accountsNoAuth = await call('/accounts');
+    if (token) {
+      out.accountsAuth = await call('/accounts', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+    }
 
     await app.close();
-    await log('app fechado');
     out.ok = true;
   } catch (error) {
     const err = error as { name?: string; message?: string; stack?: string };
@@ -50,9 +59,8 @@ export default async function handler(req: any, res: any) {
         .slice(0, 600),
       stack: String(err?.stack ?? '')
         .replace(/:\/\/[^@\s/]*@/g, '://***@')
-        .slice(0, 800),
+        .slice(0, 600),
     };
-    await log('erro', out.error as unknown as string);
   }
 
   res.setHeader('content-type', 'application/json');
