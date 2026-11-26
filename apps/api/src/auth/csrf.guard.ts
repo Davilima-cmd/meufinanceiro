@@ -28,7 +28,8 @@ export class CsrfGuard implements CanActivate {
     // `filter(Boolean)`: em contextos sem handler/classe (testes que chamam o
     // guard direto, jobs internos) o Reflector não tem onde procurar metadata.
     const targets = [context.getHandler(), context.getClass()].filter(Boolean);
-    const skip = targets.length > 0 && this.reflector.getAllAndOverride<boolean>(SKIP_CSRF, targets);
+    const skip =
+      targets.length > 0 && this.reflector.getAllAndOverride<boolean>(SKIP_CSRF, targets);
     if (skip) return true;
 
     const request = context.switchToHttp().getRequest<{
