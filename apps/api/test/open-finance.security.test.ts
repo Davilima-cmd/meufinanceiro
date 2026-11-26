@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'crypto';
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { OpenFinanceController } from '../src/open-finance/open-finance.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -94,6 +94,23 @@ describe('OpenFinanceController', () => {
         rawBody: Buffer.from('{}'),
       } as any)
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejeita evento maior que o teto (enchimento de webhook_events)', async () => {
+    // Sem assinatura em desenvolvimento: o limite de tamanho não depende dela.
+    const grande = { event_id: 'e1', filler: 'x'.repeat(65 * 1024) };
+
+    await expect(makeController().webhook('bank', grande, {} as any)).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+    expect(prismaMock.webhookEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('rejeita provider fora do formato em vez de criar chave arbitrária', async () => {
+    await expect(
+      makeController().webhook('../../etc/passwd', { event_id: 'e1' }, {} as any)
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prismaMock.webhookEvent.create).not.toHaveBeenCalled();
   });
 
   it('aceita webhook com assinatura valida', async () => {

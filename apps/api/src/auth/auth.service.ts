@@ -78,6 +78,11 @@ export class AuthService {
     });
 
     if (existing) {
+      // Enumeração de contas: o 409 confirma que o e-mail existe. Fechar isso
+      // exige cadastro assíncrono (responde 201 e manda e-mail de confirmação),
+      // o que muda o fluxo de entrada — decisão de produto registrada em
+      // docs/seguranca.md. Enquanto for 409, o limite de 5/min por IP em
+      // `POST /auth/register` é o que impede varredura em massa.
       throw new ConflictException('Email já cadastrado');
     }
 

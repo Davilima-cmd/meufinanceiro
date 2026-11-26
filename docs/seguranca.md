@@ -70,6 +70,34 @@ por teste.
 | 2.10 | Ids (`accountId`, `categoryId`, `transferAccountId`, `partnershipId`) sem `Length` — payload de 300 KB por campo | `Length(1, 255)` em todos |
 | 2.11 | Webhook do provedor sem rate limit próprio | `@Throttle` 120/min (hoje é o único endpoint público de escrita) |
 
+### 2.12 Webhook: evento sem teto enchia o banco
+
+O corpo já era limitado a 1 MB pelo parser, mas o `payload` ia inteiro para
+`webhook_events` a cada chamada (120/min). Um evento real de Open Finance tem
+poucos KB. **Correção:** teto de 64 KB por evento; `:provider` passa a exigir
+formato `^[a-z0-9_-]{1,32}$` (antes qualquer caminho criava linha).
+
+### 2.13 `POST /open-finance/connections` com corpo inline, sem validação
+
+`{ provider, providerAccountId, accountId }` chegavam sem DTO. **Correção:**
+`ConnectConnectionDto` — `provider` restrito a `pluggy`/`manual`,
+`providerAccountId` só `[A-Za-z0-9_-]` até 128 caracteres, `accountId` até 64. A
+autorização (conta do próprio usuário) continua no controller.
+
+### 2.14 CSV injection na exportação
+
+A descrição de um lançamento é texto do usuário e virava célula de planilha: uma
+descrição começando com `=`, `+`, `-` ou `@` é **executada** pelo Excel/
+LibreOffice ao abrir o arquivo exportado (ex.: `=HYPERLINK(...)` vazando a
+planilha, ou `=cmd|...`). **Correção:** prefixo `'` em campos que começam com
+esses caracteres, aplicado a coluna de texto antes das aspas — a célula fica
+literal e a fórmula não roda.
+
+### 2.15 Login MFA devolvia o `userId` interno
+
+Quem acertava a senha recebia `{ mfaRequired, userId, tempToken }`. **Correção:**
+`userId` sai da resposta — já vai assinado no `tempToken` e a web não o usa.
+
 ---
 
 ## 3. Endurecimento adicional
@@ -111,20 +139,36 @@ por teste.
 
 ## 5. Pendências e riscos residuais (decisão do responsável)
 
-1. **`ENABLE_API_DOCS=true` em produção** — o Swagger está público (`/api/docs`). Exponibiliza o mapa
-   da API, não dados. Se não houver uso, remover a variável.
+1. **Swagger em produção** — a variável `ENABLE_API_DOCS` foi **removida** do projeto na Vercel e o
+   `/api/docs` responde 404 em produção. Para reabrir temporariamente, cadastrar a variável de novo
+   (aceitável só para inspeção pontual: expõe o mapa da API, não dados).
 2. **Chaves do Supabase** — depois de 1.1, `anon` não lê nada. Vale **rotacionar** a chave
    publicável/`service_role` por precaução, já que estiveram eficazes por um período.
 3. **`TRUNCATE` para `service_role`** — mantido (o `service_role` é o papel administrativo do
    Supabase e não é distribuído ao cliente). Se quiser fechar: revogar `TRUNCATE` dele também.
 4. **Rate limit por conta é em memória** — em serverless cada instância tem seu contador. Isso encarece
    o ataque, mas não é um contador global. Se a ameaça justificar, migrar para Redis/Upstash.
-5. **`GRANT` do `app_api`** — a policy `app_api_all` concede tudo de propósito: a autorização por
+5. **Enumeração de e-mails no cadastro** — `POST /auth/register` responde `409` quando o e-mail já
+   existe, o que confirma a existência da conta. Fechar de vez exige cadastro assíncrono (responder
+   `201` sempre e mandar e-mail de confirmação), uma mudança de fluxo de produto. Mitigação atual:
+   5 cadastros/min por IP. Recomendação: adotar o fluxo assíncrono se o cadastro for aberto ao público.
+6. **`GRANT` do `app_api`** — a policy `app_api_all` concede tudo de propósito: a autorização por
    usuário é feita na aplicação. Um vazamento de credencial do banco continua sendo catastrófico, como
    em qualquer app com um único usuário de banco. Mitigação futura: RLS com `current_setting`
    por requisição.
 
-## 6. Como revalidar
+## 6. Limites conhecidos das próprias correções
+
+- O bloqueio por conta (`LoginThrottleService`) é **em memória**: em serverless cada instância tem seu
+  contador. Aumenta muito o custo do ataque, não é um contador global.
+- RLS protege contra a **chave publicável** (o vetor real: PostgREST). Não protege contra vazamento da
+  credencial do papel `app_api`, que por desenho enxerga todas as linhas — a autorização por usuário é
+  da aplicação.
+- A validação de titularidade do item Pluggy depende do `clientUserId` que o provedor devolve. Se um
+  dia o provedor deixar de devolver, a checagem é pulada (fail-open por compatibilidade) — nesse caso
+  a proteção volta a ser o `itemId` secreto. Vale reavaliar se o contrato mudar.
+
+## 7. Como revalidar
 
 ```bash
 # API: testes de segurança (entrada, throttle, auditoria, rateio)

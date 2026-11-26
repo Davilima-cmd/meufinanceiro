@@ -73,7 +73,10 @@ export class AuthController {
     // MFA obrigatória: não libera o JWT completo sem um token TOTP válido.
     if (user.mfaEnabled) {
       const tempToken = this.authService.generateTempToken(user.id);
-      return { mfaRequired: true, userId: user.id, tempToken };
+      // Sem `userId` no corpo: o identificador já vai assinado dentro do
+      // `tempToken` e a web não precisa dele. Devolvê-lo daria a qualquer um
+      // que acertasse a senha o id interno da conta.
+      return { mfaRequired: true, tempToken };
     }
 
     const { token, sessionId } = await this.sessions.create(user.id);

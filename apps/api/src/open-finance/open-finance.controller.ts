@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -18,10 +19,23 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../sync/sync.service';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 import { asJson } from '../common/json';
+import { ConnectConnectionDto } from './dto/connect-connection.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
 }
+
+/** Evento de webhook acima disso é abuso, não notificação. */
+const WEBHOOK_MAX_PAYLOAD_BYTES = 64 * 1024;
+
+/**
+ * Formato aceito no `:provider` do webhook.
+ *
+ * Não é uma lista fechada (novo provedor não pode exigir deploy), mas impede
+ * que o path vire chave arbitrária — sem isso, qualquer string criava linha em
+ * `webhook_events`.
+ */
+const WEBHOOK_PROVIDER_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
 @Controller('open-finance')
 export class OpenFinanceController {
@@ -53,11 +67,7 @@ export class OpenFinanceController {
   @Post('connections')
   @UseGuards(AuthGuard('jwt'))
   @AuditLog(AuditAction.ACCOUNT_CONNECT)
-  async connect(
-    @Req() req: AuthenticatedRequest,
-    @Body()
-    dto: { provider: string; providerAccountId: string; accountId: string }
-  ) {
+  async connect(@Req() req: AuthenticatedRequest, @Body() dto: ConnectConnectionDto) {
     // A conta vinculada precisa pertencer ao usuário autenticado: sem esta
     // checagem, um usuário poderia apontar a conexão para a conta de outro.
     const account = await this.prisma.financialAccount.findFirst({
@@ -132,6 +142,24 @@ export class OpenFinanceController {
     @Req() req: IncomingMessage & { rawBody?: Buffer }
   ) {
     this.verifyWebhookSignature(req, payload);
+
+    /**
+     * Teto de tamanho do evento.
+     *
+     * O parser global já limita o corpo a 1 MB, mas o `payload` é gravado
+     * inteiro em `webhook_events`: a 120 req/min, isso enche o banco com dados
+     * de quem nem precisa da assinatura no ambiente de desenvolvimento. Um
+     * evento real de Open Finance tem poucos KB.
+     */
+    if (Buffer.byteLength(JSON.stringify(payload ?? null), 'utf8') > WEBHOOK_MAX_PAYLOAD_BYTES) {
+      throw new BadRequestException('Evento maior que o permitido');
+    }
+
+    // `provider` é chave de consulta e sai do path: restringir evita criar uma
+    // linha por nome arbitrário (`/webhooks/qualquer-coisa`).
+    if (!WEBHOOK_PROVIDER_PATTERN.test(provider)) {
+      throw new BadRequestException('Provedor inválido');
+    }
 
     const eventId =
       typeof payload === 'object' &&
