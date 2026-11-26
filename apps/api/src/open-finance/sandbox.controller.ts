@@ -56,7 +56,7 @@ export class SandboxController {
       data: {
         userId: body.userId,
         provider: 'sandbox',
-        externalId: consent.externalId,
+        externalId: this.prisma.encryptSensitive(consent.externalId) as string,
         status: consent.status,
         expiresAt: consent.expiresAt,
       },

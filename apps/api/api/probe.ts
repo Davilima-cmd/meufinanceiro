@@ -1,6 +1,6 @@
 /**
- * Sonda instrumentada: registra etapas em `_probe_log` antes de executá-las, para
- * que um crash do processo deixe rastro do último passo alcançado.
+ * Sonda de bootstrap: cria o app Nest completo via `createApp()`, inicializa,
+ * faz um `SELECT 1` e fecha. Serve para validar o runtime publicado.
  * Só para diagnóstico; removida após o deploy validado.
  */
 import 'reflect-metadata';
@@ -23,41 +23,39 @@ async function log(step: string, detail: unknown = '') {
 }
 
 export default async function handler(req: any, res: any) {
-  const v = new URL(req.url, 'http://x').searchParams.get('v') ?? 'service';
-  await log('inicio', { v });
-
+  const out: Record<string, unknown> = { run };
   try {
-    await log('typeof $use', typeof (PrismaClient.prototype as any).$use);
+    await log('inicio');
+    const { createApp } = await import('../src/bootstrap');
+    await log('bootstrap importado');
 
-    const { EncryptionService } = await import('../src/encryption/encryption.service');
-    const { PrismaService } = await import('../src/prisma/prisma.service');
-    await log('prisma.service importado');
+    const app = await createApp();
+    await log('app criado');
+    await app.init();
+    await log('app init ok');
 
-    const config = {
-      get: (key: string) => (key === 'ENCRYPTION_KEY' ? process.env.ENCRYPTION_KEY : undefined),
-    } as never;
-    const encryption = new EncryptionService(config);
-    encryption.onModuleInit();
-    await log('encryption pronta');
+    const health = await prisma.$queryRaw`SELECT 1 AS ok`;
+    out.health = health;
+    await log('consulta ok');
 
-    if (v === 'ctor') {
-      const service = new PrismaService(encryption);
-      await log('PrismaService construído');
-      await service.$disconnect();
-    } else {
-      const client = new PrismaClient();
-      await log('client cru criado');
-      await client.$connect();
-      await log('client cru conectado');
-      await client.$disconnect();
-      await log('client cru desconectado');
-    }
+    await app.close();
+    await log('app fechado');
+    out.ok = true;
   } catch (error) {
-    await log('erro', String((error as Error)?.stack ?? error));
+    const err = error as { name?: string; message?: string; stack?: string };
+    out.error = {
+      name: err?.name,
+      message: String(err?.message ?? error)
+        .replace(/:\/\/[^@\s/]*@/g, '://***@')
+        .slice(0, 600),
+      stack: String(err?.stack ?? '')
+        .replace(/:\/\/[^@\s/]*@/g, '://***@')
+        .slice(0, 800),
+    };
+    await log('erro', out.error as unknown as string);
   }
 
-  await log('fim');
   res.setHeader('content-type', 'application/json');
   res.statusCode = 200;
-  res.end(JSON.stringify({ run }));
+  res.end(JSON.stringify(out));
 }

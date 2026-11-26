@@ -22,6 +22,16 @@ interface AuthenticatedRequest extends Request {
   user: { userId: string };
 }
 
+interface BankConnectionRow {
+  providerAccountId: string | null;
+  [key: string]: unknown;
+}
+
+interface ConsentRow {
+  externalId: string | null;
+  [key: string]: unknown;
+}
+
 @Controller('open-finance')
 export class OpenFinanceController {
   constructor(
@@ -32,7 +42,7 @@ export class OpenFinanceController {
   @Get('connections')
   @UseGuards(AuthGuard('jwt'))
   async listConnections(@Req() req: AuthenticatedRequest) {
-    return this.prisma.bankConnection.findMany({
+    const connections = await this.prisma.bankConnection.findMany({
       where: { userId: req.user.userId },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -47,6 +57,12 @@ export class OpenFinanceController {
         account: { select: { id: true, name: true } },
       },
     });
+
+    return connections.map((connection: BankConnectionRow) => ({
+      ...connection,
+      providerAccountId:
+        this.prisma.decryptSensitive(connection.providerAccountId) ?? connection.providerAccountId,
+    }));
   }
 
   @Post('connections')
@@ -67,34 +83,49 @@ export class OpenFinanceController {
       throw new NotFoundException('Conta não encontrada');
     }
 
-    return this.prisma.bankConnection.create({
+    const connection = await this.prisma.bankConnection.create({
       data: {
         userId: req.user.userId,
         provider: dto.provider,
-        providerAccountId: dto.providerAccountId,
+        providerAccountId: this.prisma.encryptSensitive(dto.providerAccountId) as string,
         accountId: account.id,
         status: 'active',
       },
     });
+
+    return {
+      ...connection,
+      providerAccountId: this.prisma.decryptSensitive(connection.providerAccountId),
+    };
   }
 
   @Patch('connections/:id/revoke')
   @UseGuards(AuthGuard('jwt'))
   @AuditLog(AuditAction.ACCOUNT_REVOKE)
   async revoke(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.prisma.bankConnection.update({
+    const connection = await this.prisma.bankConnection.update({
       where: { id, userId: req.user.userId },
       data: { status: 'disconnected' },
     });
+
+    return {
+      ...connection,
+      providerAccountId: this.prisma.decryptSensitive(connection.providerAccountId),
+    };
   }
 
   @Get('consents')
   @UseGuards(AuthGuard('jwt'))
   async listConsents(@Req() req: AuthenticatedRequest) {
-    return this.prisma.consent.findMany({
+    const consents = await this.prisma.consent.findMany({
       where: { userId: req.user.userId },
       orderBy: { createdAt: 'desc' },
     });
+
+    return consents.map((consent: ConsentRow) => ({
+      ...consent,
+      externalId: this.prisma.decryptSensitive(consent.externalId),
+    }));
   }
 
   @Post('sync')

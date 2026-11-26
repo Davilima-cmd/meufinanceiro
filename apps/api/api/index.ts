@@ -52,7 +52,6 @@ export default async function handler(req: any, res: any) {
     const instance = app.getHttpAdapter().getInstance();
     await instance(req, res);
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error('[api] falha ao inicializar a aplicação', error);
 
     // `?__diag=1` devolve 200 para que o diagnóstico seja legível por qualquer

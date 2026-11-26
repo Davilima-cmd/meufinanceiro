@@ -3,98 +3,31 @@ import { PrismaClient } from '@prisma/client';
 import { EncryptionService } from '../encryption/encryption.service';
 
 /**
- * Campos sensíveis que devem ser armazenados cifrados no banco.
- * O middleware do Prisma cifra na gravação e decifra na leitura, de forma
- * transparente para o restante da aplicação.
+ * Cliente Prisma da aplicação.
+ *
+ * Os campos sensíveis (`Consent.externalId`, `BankConnection.providerAccountId`)
+ * são cifrados em repouso. O Prisma 6 removeu o middleware global (`$use`), e um
+ * middleware silenciosamente inativo deixaria esses campos em texto plano, então
+ * a cifragem passa a ser explícita: quem escreve/lê esses campos usa
+ * `encryptSensitive`/`decryptSensitive`.
  */
-const SENSITIVE_FIELDS: Record<string, string[]> = {
-  Consent: ['externalId'],
-  BankConnection: ['providerAccountId'],
-};
-
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor(private readonly encryption: EncryptionService) {
     super();
-    (this as any).$use(this.encryptDecryptMiddleware.bind(this));
   }
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
   }
 
-  private encryptDecryptMiddleware(params: any, next: any) {
-    const model = params.model;
-    const action = params.action;
-    const sensitiveFields = SENSITIVE_FIELDS[model] ?? [];
-
-    // Gravação: cifra os campos sensíveis antes de enviar ao banco.
-    if (
-      action === 'create' ||
-      action === 'update' ||
-      action === 'upsert' ||
-      action === 'createMany' ||
-      action === 'updateMany'
-    ) {
-      this.encryptSensitiveFields(model, params.data);
-    }
-
-    return next(params).then((result: any) => {
-      // Leitura: decifra os campos sensíveis ao retornar para a aplicação.
-      if (
-        sensitiveFields.length > 0 &&
-        (action === 'findUnique' || action === 'findFirst' || action === 'findMany')
-      ) {
-        if (Array.isArray(result)) {
-          result.forEach((item) => this.decryptSensitiveFields(model, item));
-        } else if (result && typeof result === 'object') {
-          this.decryptSensitiveFields(model, result);
-        }
-      }
-      return result;
-    });
+  /** Cifra um campo sensível antes de gravá-lo no banco. */
+  encryptSensitive(value: string | null | undefined): string | null {
+    return this.encryption.encrypt(value);
   }
 
-  private encryptSensitiveFields(model: string, data: any): void {
-    if (!data || typeof data !== 'object') {
-      return;
-    }
-
-    // `update` traz os dados sob `data`; `upsert` sob `create`/`update`.
-    const targets: any[] = [];
-    if (data.data && typeof data.data === 'object') {
-      targets.push(data.data);
-    } else {
-      targets.push(data);
-      if (data.create && typeof data.create === 'object') {
-        targets.push(data.create);
-      }
-      if (data.update && typeof data.update === 'object') {
-        targets.push(data.update);
-      }
-    }
-
-    const fields = SENSITIVE_FIELDS[model] ?? [];
-    for (const target of targets) {
-      for (const field of fields) {
-        const value = target[field];
-        if (typeof value === 'string' && !this.encryption.isEncrypted(value)) {
-          target[field] = this.encryption.encrypt(value);
-        }
-      }
-    }
-  }
-
-  private decryptSensitiveFields(model: string, item: any): void {
-    if (!item || typeof item !== 'object') {
-      return;
-    }
-    const fields = SENSITIVE_FIELDS[model] ?? [];
-    for (const field of fields) {
-      const value = item[field];
-      if (typeof value === 'string') {
-        item[field] = this.encryption.decrypt(value);
-      }
-    }
+  /** Decifra um campo sensível lido do banco (texto plano passa direto). */
+  decryptSensitive(value: string | null | undefined): string | null {
+    return this.encryption.decrypt(value);
   }
 }
