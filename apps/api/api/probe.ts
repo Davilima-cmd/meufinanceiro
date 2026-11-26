@@ -23,7 +23,8 @@ export default async function handler(req: any, res: any) {
         headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
       });
       const text = await response.text();
-      return { status: response.status, body: text.slice(0, 400) };
+      // `body` é truncado só para exibição; o texto integral fica em `raw`.
+      return { status: response.status, body: text.slice(0, 400), raw: text };
     };
 
     await call('/auth/register', {
@@ -34,7 +35,7 @@ export default async function handler(req: any, res: any) {
       method: 'POST',
       body: JSON.stringify({ email, password: 'SenhaForte#2025' }),
     });
-    const token = /"token":"([^"]+)"/.exec(login.body)?.[1];
+    const token = /"token":"([^"]+)"/.exec(login.raw)?.[1];
     const auth = { authorization: `Bearer ${token}` };
 
     const account = await call('/accounts', {
@@ -43,7 +44,7 @@ export default async function handler(req: any, res: any) {
       body: JSON.stringify({ name: 'Conta probe', type: 'checking' }),
     });
     out.accountStatus = account.status;
-    const accountId = /"id":"([^"]+)"/.exec(account.body)?.[1];
+    const accountId = /"id":"([^"]+)"/.exec(account.raw)?.[1];
 
     const connection = await call('/open-finance/connections', {
       method: 'POST',
@@ -52,10 +53,13 @@ export default async function handler(req: any, res: any) {
     });
     out.connectionStatus = connection.status;
     // Resposta da API deve voltar em claro (extension decifra na leitura).
-    out.respostaEmClaro = connection.body.includes(providerAccountId);
+    out.temToken = Boolean(token);
+    out.accountId = Boolean(accountId);
+    out.respostaEmClaro = connection.raw.includes(providerAccountId);
+    out.resposta = connection.body.slice(0, 260);
 
     const listed = await call('/open-finance/connections', { headers: auth });
-    out.listagemEmClaro = listed.body.includes(providerAccountId);
+    out.listagemEmClaro = listed.raw.includes(providerAccountId);
     out.listagemResposta = listed.body.slice(0, 260);
 
     await app.close();
