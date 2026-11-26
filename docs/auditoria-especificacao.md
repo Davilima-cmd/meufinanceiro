@@ -52,12 +52,12 @@ concluído, apesar de a interface parecer completa.
 | Transactions                                       | Parcial        | `transactions.controller.ts`         | Só `GET`/`POST`; **sem baixa de saldo e sem transferência** |
 | Categories                                         | Implementado   | `categories.controller.ts`           | CRUD com escopo por dono                                    |
 | Transfers                                          | **Ausente**    | —                                    | Tipo existe no DTO, mas nada é debitado/creditado           |
-| Allocations (rateio)                               | Ausente        | —                                    | Nenhuma tabela ou regra                                     |
+| Allocations (rateio)                               | Implementado   | `allocations/`, tabela `allocations`  | Igualitário e proporcional; soma fecha exatamente o valor   |
 | Budgets                                            | Implementado   | `budgets.controller.ts`              | Gasto calculado por período                                 |
 | Credit Cards / Purchases / Installments / Invoices | Ausente        | —                                    | Conta do tipo `credit` é só rótulo                          |
-| Bills (a pagar/receber)                            | Ausente        | —                                    | Sem vencimento, status ou recorrência                       |
-| Goals                                              | Implementado   | `financial-goals.controller.ts`      | Sem histórico de contribuições                              |
-| Assets / Liabilities                               | Ausente        | —                                    | Sem patrimônio separado do saldo                            |
+| Bills (a pagar/receber)                            | Implementado   | `billing.ts`, `/recurrences`, `/vencimentos` | `pending` + vencimento, lembretes e recorrência mensal      |
+| Goals                                              | Implementado   | `financial-goals.controller.ts`      | Com histórico de aportes (`goal_contributions`)             |
+| Assets / Liabilities                               | Implementado   | `net-worth/`, tabela `net_worth_items` | Bens e dívidas declarados; patrimônio líquido e endividamento |
 | Reports                                            | Parcial        | `lancamentos/page.tsx` (`exportCsv`) | Só CSV de lançamentos no navegador; sem PDF/Excel           |
 | Notifications                                      | Ausente        | —                                    | —                                                           |
 | Attachments                                        | Ausente        | —                                    | —                                                           |
@@ -157,9 +157,9 @@ despesas"). Hoje, "cartão de crédito" é apenas um tipo de conta com saldo man
 | Paleta verde/ dourado (1.3)             | **Divergente**             | Tema atual usa violeta/verde-menta                  |
 | Aplicativo iOS/Android (1.2)            | Parcial                    | `apps/mobile` Expo exporta web; sem fluxos          |
 | Testes (27)                             | Parcial                    | 178 testes; sem testes de integração com banco real |
-| Migrations versionadas (23)             | Implementado               | 2 migrations + `_prisma_migrations`                 |
-| Exclusão lógica (23)                    | Ausente                    | Tudo é `DELETE` físico                              |
-| `GET /status` / sessões revogáveis      | Parcial                    | `Session` existe; não é consultada a cada request   |
+| Migrations versionadas (23)             | Implementado               | 10 migrations + `_prisma_migrations`                 |
+| Exclusão lógica (23)                    | Implementado               | `deletedAt` em contas e lançamentos, sempre filtrado |
+| `GET /status` / sessões revogáveis      | Implementado               | `sid` no JWT; `session.service.assertActive` por request |
 
 ---
 
@@ -172,10 +172,10 @@ despesas"). Hoje, "cartão de crédito" é apenas um tipo de conta com saldo man
 | 3   | Transferência aceita no DTO mas não move dinheiro entre contas                    | `transaction.dto.ts` + controller       | 21.2            | **P0**     |
 | 4   | `DELETE /transactions` inexistente como soft delete/estorno; web apaga em memória | `store.tsx` `deleteTransaction`         | 21.7, 21.8      | P1         |
 | 5   | Sem lançamento pendente x liquidado                                               | modelo `Transaction`                    | 21.11           | P1         |
-| 6   | Rateio inexistente                                                                | —                                       | 21.5, 21.6      | P1         |
-| 7   | Nenhum endpoint valida permissão por núcleo/parceiro (só `userId`)                | todos os controllers                    | 20.2, 21.15     | P1         |
+| 6   | Rateio inexistente — **resolvido** (`src/allocations`)                            | —                                       | 21.5, 21.6      | P1         |
+| 7   | Autorização por conta/parceiro — **resolvido** (`AccountAccessService`)           | todos os controllers                    | 20.2, 21.15     | P1         |
 | 8   | Sem transação de banco em operações multi-registro                                | controllers                             | 21.9            | P1         |
-| 9   | Dashboard do modo API não distingue competência de caixa                          | `analytics.ts`                          | 21.13           | P2         |
+| 9   | Dashboard não distinguia competência de caixa — **resolvido** (`basisTotals`)     | `analytics.ts`                          | 21.13           | P2         |
 
 ---
 
@@ -259,3 +259,45 @@ Cobertura nova: `test/transactions.service.test.ts` (12), `test/accounts.control
 
 Itens que continuam fora de escopo (V2, conforme §26): cartões e faturas, parcelamentos, patrimônio
 detalhado, assistente com IA, notificações, assinaturas e aprovações.
+
+---
+
+## 8. Fechamento do plano de correção (fase 6)
+
+Tudo o que a seção 4 listou como P0–P2 foi implementado. A tabela abaixo é o mapa de onde cada item
+mora hoje, para a próxima auditoria não precisar refazer a busca.
+
+| Item do plano                                   | Onde está                                                                                    | Prova automatizada                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| P0.1 escritas persistidas no modo API           | `apps/web/src/lib/store.tsx` (`mutate` chama a API e relê o snapshot)                         | `components/store.api.test.tsx`                           |
+| P0.2 saldo derivado das movimentações           | `apps/api/src/transactions/transactions.service.ts` (`$transaction` + delta)                  | `test/transactions.service.test.ts`                       |
+| P0.3 transferência real (duas pontas)           | idem (`transferId`, par removido junto)                                                       | idem                                                      |
+| P0.4 estorno + soft delete (req. 23)            | `transactions.service.remove`, `accounts.controller.remove`                                   | `transactions.service.test.ts`, `accounts.controller.test.ts` |
+| P1.5 status, vencimento e liquidação            | `Transaction.status/dueDate/paidAt`; `PATCH /transactions/:id/settle`                         | `transactions.service.test.ts`                            |
+| P1.6 rateio igualitário e proporcional          | `apps/api/src/allocations/{split,allocations.service}.ts`                                     | `allocations.split.test.ts`, `allocations.service.test.ts` |
+| P1.7 contas a pagar com vencimento e lembretes  | `/vencimentos` + `apps/web/src/lib/billing.ts` + lembrete em `/`                              | `lib/billing.test.ts`                                     |
+| P1.8 recuperação de senha                       | `auth/password-reset.service.ts`                                                              | `test/password-reset.service.test.ts`                     |
+| P1.9 permissão por conta compartilhada          | `common/account-access.service.ts` (`assertVisible`/`assertWritable`)                          | `test/account-access.service.test.ts`                     |
+| P2.10 patrimônio (ativos × passivos)            | `apps/api/src/net-worth`, `/patrimonio`, `lib/net-worth.ts`                                   | `test/net-worth.service.test.ts`, `lib/net-worth.test.ts` |
+| P2.11 recorrência e aportes em metas            | `recurrences/`, `goal_contributions` + `/financial-goals/:id/contributions`                    | `recurrences.service.test.ts`, `financial-goals.controller.test.ts` |
+| P2.12 relatório/exportação além do CSV          | `apps/web/src/lib/export.ts` (CSV Excel pt-BR + JSON versionado)                              | `lib/export.test.ts`                                      |
+| P2.13 Swagger e Sentry                          | `common/openapi.ts`, `common/sentry.ts`, `common/all-exceptions.filter.ts`                    | `build` + typecheck (integração com DSN é externa)        |
+
+Extras que entraram junto, fora do plano original:
+
+- **sessões revogáveis + `GET /auth/status`** — o JWT carrega `sid` e cada requisição checa a sessão;
+- **cookie `HttpOnly` + CSRF** e remoção do JWT do `localStorage`;
+- **rate limit** global (120/min/IP) e por endpoint sensível (login, register, forgot/reset, MFA);
+- **mobile consumindo a API** (`apps/mobile/src/lib/api.ts`), com Bearer e liquidação de pendente;
+- **CI em branches de trabalho** (`.github/workflows/ci.yml` → `arena/**`).
+
+O que **continua aberto**, e por quê:
+
+| Pendência                                                        | Por que ficou para depois                                                                     |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Validação manual do fluxo de convite → aceite → nível → leitura  | Precisa de duas contas reais em produção; não é verificável em teste automatizado do sandbox   |
+| Teste ponta a ponta com banco real no CI                          | Exige serviço Postgres no CI; hoje os testes usam Prisma dublado                               |
+| Auditoria DTO por DTO de todos os endpoints                       | Varredura manual ampla; os endpoints com risco já têm DTO e teste                              |
+| Rotação de `ENCRYPTION_KEY` com reencriptação                     | Envolve migração de dados sensíveis; merece janela própria                                     |
+| Cadastro de lançamento pelo mobile                                | O app já lê, autentica e liquida; criar/editar lançamento fica na web nesta fase               |
+| Notificações push de vencimento                                   | Depende de serviço de push e de permissão do usuário                                           |

@@ -46,21 +46,64 @@ qualquer dado bancário real; a Fase 0 não conecta banco nem autentica usuário
 | MFA (TOTP) ativo                                       | ✅ Verificado | `apps/api/src/mfa/mfa.service.ts`; segredo TOTP cifrado com AES-256-GCM em `User.totpSecret`                                                    |
 | Rate limit de sincronização (429)                      | ✅ Verificado | `apps/api/src/sync/sync.service.ts` (`enforceRateLimit` → `429` com `Retry-After`); `SYNC_RATE_LIMIT_MINUTES`                                   |
 | Secret scanning (Gitleaks)                             | ✅ Verificado | `.gitleaks.toml` configurado e executado no CI (`.github/workflows/ci.yml`)                                                                     |
-| Testes de segurança                                    | ✅ Passam     | `apps/api`: 56 testes (encryption, mfa, sync, auth) verdes; `typecheck` e `build` do api verdes                                                 |
+| Cookie `HttpOnly` + CSRF                               | ✅ Verificado | `apps/api/src/auth/session-cookie.ts`, `csrf.guard.ts`; `csrf.guard.test.ts`                                                                     |
+| Sessão revogável (`sid` no JWT)                        | ✅ Verificado | `apps/api/src/auth/session.service.ts`; `session.service.test.ts`                                                                                |
+| Autorização centralizada                               | ✅ Verificado | `apps/api/src/common/account-access.service.ts`; `account-access.service.test.ts`                                                                |
+| Rate limit global e de autenticação                    | ✅ Verificado | `@nestjs/throttler` em `app.module.ts`/`auth.module.ts`; `rate-limit.test.ts`                                                                    |
+| Soft delete com filtro de leitura                      | ✅ Verificado | `prisma/migrations/20261126180000_soft_delete`; `transactions.service.test.ts`, `accounts.controller.test.ts`                                     |
+| Testes de segurança                                    | ✅ Passam     | `apps/api`: 28 arquivos / 228 testes verdes; web 12/97; mobile 2/15; `lint`, `typecheck`, `test` e `build` verdes                                |
 
 Observações: `dev-secret-change-me`, `SENHA` e `exemplo_de_chave...` são placeholders de
 desenvolvimento, não segredos reais. Nunca substituí-los por valores reais no Git.
 
+## Controles implementados (fase 6 — sessão, CSRF e autorização)
+
+- **Sessão revogável de verdade.** O JWT carrega o `sid` (`sessions.id`) e cada requisição
+  autenticada confere `sessions.revokedAt`/`expiresAt`. `POST /auth/logout` revoga a sessão atual,
+  `POST /auth/logout-all` todas; trocar a senha revoga todas. Token antigo **sem** `sid` é rejeitado
+  com `401` — não existe caminho para token "eterno".
+- **Cookie `HttpOnly` + CSRF.** A web recebe `mf_session` (`HttpOnly`, `Secure` em produção,
+  `SameSite=Lax`) e `mf_csrf` (legível). Toda escrita exige `X-CSRF-Token` igual ao cookie; o
+  `CsrfGuard` isenta `GET`/`HEAD`/`OPTIONS` e requisições com `Authorization: Bearer` (que não
+  carregam cookie ambiente, logo não sofrem CSRF). O JWT **não** é mais gravado em `localStorage`.
+- **Autorização centralizada.** `AccountAccessService` (`apps/api/src/common/account-access.service.ts`)
+  é a única fonte de verdade para "posso ver / posso escrever": `assertVisible` responde `404` e
+  `assertWritable` responde `403` quando a conta é de outra pessoa. Serviços de lançamento, conta,
+  orçamento e Open Finance passam por ele em vez de refazer `where` a mão.
+- **Limites contra força bruta e abuso.** `@nestjs/throttler` global em 120 req/min/IP
+  (`RATE_LIMIT_PER_MINUTE`) e limites específicos: register 5, login 10, forgot-password 3,
+  reset-password 10, mfa/verify 10 — todos em 60 s, com `429` e `Retry-After`. `forgot-password`
+  responde sempre igual, com ou sem conta, para não permitir enumeração de e-mails.
+- **Soft delete em vez de apagar histórico (requisito 23).** `FinancialAccount.deletedAt` e
+  `Transaction.deletedAt` (com índice). `DELETE /accounts/:id` apaga em transação a conta, seus
+  lançamentos e revoga os compartilhamentos; `DELETE /transactions/:id` marca `deletedAt` e devolve
+  o valor ao saldo. Toda leitura filtra `deletedAt: null` — inclusive a reconciliação, que não pode
+  recriar o que o usuário apagou de propósito.
+- **Observabilidade de erro.** Filtro global `AllExceptionsFilter`: `4xx` em uma linha de `warn`,
+  `5xx` com stack no log e envio ao Sentry (`SENTRY_DSN`). O `beforeSend` remove `cookie`,
+  `authorization` e `x-csrf-token` do evento — relatório de erro não pode virar vazamento de sessão.
+- **Documentação de API fechada por padrão.** `/api/docs` só existe fora de produção ou com
+  `ENABLE_API_DOCS=true`.
+- **CI em branches de trabalho.** O workflow roda em `main` **e** em `arena/**`, então o push de
+  trabalho é verificado antes do merge (antes só o PR era).
+- **Auditoria ampliada** para `LOGIN`, `LOGOUT`, `REGISTER`, `MFA_ENABLE`, `MFA_DISABLE`,
+  `ACCOUNT_CONNECT`, `ACCOUNT_REVOKE`, `ACCOUNT_DELETE`, `TRANSACTION_CREATE`,
+  `ALLOCATION_UPSERT`, `ALLOCATION_SETTLE` e `RECURRENCE_CREATE`, com corpo sanitizado
+  (`[REDACTED]` em senhas e tokens).
+
 ## Controles previstos, ainda pendentes
 
-- Cookie web `HttpOnly`, `Secure`, `SameSite` e proteção CSRF.
-- Autorização centralizada para dono, compartilhamento e nível de acesso.
-- Limites contra força bruta, abuso de endpoints e enumeração de contas.
-- Validação de entrada em todos os endpoints.
-- Webhooks autenticados, idempotentes e com proteção contra duplicidade.
+- Auditoria **endpoint a endpoint** de todos os DTOs de entrada (não apenas dos endpoints cobertos
+  por teste): falta uma varredura formal de cada campo aceito versus cada campo usado.
+- Segundo fator obrigatório para ações destrutivas (exclusão de conta, `logout-all`) quando `MFA`
+  estiver ativo.
+- Rotação periódica de `ENCRYPTION_KEY` com reencriptação dos campos sensíveis.
+- Teste de integração ponta a ponta com banco real em CI (os testes atuais exercitam serviços e
+  guards com Prisma dublado).
+- Alerta de anomalia de acesso (muitos 401/403 por usuário) além do rate limit por IP.
 
 Nenhum controle listado como pendente deve ser considerado implementado apenas por estar
-documentado. Revisar esta lista nas fases 2, 4, 5 e 6 da especificação.
+documentado.
 
 ## Políticas LGPD e privacidade de dados
 

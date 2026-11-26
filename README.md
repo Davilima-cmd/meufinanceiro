@@ -7,16 +7,29 @@ NestJS, app móvel Expo e pacotes compartilhados. A especificação funcional es
 
 ## Interface web
 
-O app web (`apps/web`) tem oito áreas: **Visão geral**, **Lançamentos**, **Contas**, **Orçamentos**,
-**Metas**, **Categorias**, **Casal** e **Configurações**.
+O app web (`apps/web`) tem dez áreas: **Visão geral**, **Lançamentos**, **Vencimentos**, **Contas**,
+**Orçamentos**, **Patrimônio**, **Metas**, **Categorias**, **Casal** e **Configurações**.
 
 - **Modo demonstração**: entre em `/login` → “Entrar no modo demonstração”. Dados fictícios do casal
   (5 contas, 6 meses de lançamentos, orçamentos e metas) gerados de forma determinística e salvos
   apenas no `localStorage` do navegador. Tudo pode ser criado, editado e excluído; “Restaurar dados
   de exemplo” volta ao estado inicial.
 - **Modo API**: em “Tenho uma conta”, o login usa `NEXT_PUBLIC_API_BASE`. Cadastro, login, MFA
-  (TOTP) e os endpoints de contas, lançamentos, categorias, orçamentos, metas e compartilhamento são
-  consumidos de verdade.
+  (TOTP) e os endpoints de contas, lançamentos, categorias, orçamentos, metas, vencimentos, rateio,
+  recorrências, patrimônio e compartilhamento são consumidos de verdade. A sessão usa **cookie
+  `HttpOnly`** (`mf_session`) mais `X-CSRF-Token` nas escritas — o JWT não fica no `localStorage`.
+- **Vencimentos:** lista de contas a pagar/receber ordenada por urgência (atrasado → hoje → próximos
+  dias), com “Paguei/Recebi” em um toque. O painel mostra um lembrete quando há algo atrasado ou
+  vencendo, porque pendente não entra no saldo e passaria despercebido.
+- **Patrimônio:** saldo das contas **mais** bens declarados **menos** dívidas, com o percentual de
+  endividamento. Carro e financiamento não são conta corrente; mostrar só o ativo faria o número
+  mentir.
+- **Metas com histórico:** cada “Guardar” vira um aporte datado (com observação opcional); o saldo
+  da meta é a soma deles, e é possível remover um aporte lançado errado.
+- **Caixa × competência:** o painel compara o mês pelo regime de caixa (quando o dinheiro passou) e
+  pelo de competência (a que mês o lançamento pertence) e mostra a diferença.
+- **Exportação:** CSV com `sep=;` e BOM UTF-8 (abre certo no Excel em português) e JSON versionado
+  (`meufinanceiro.transactions.v1`).
 - **Compartilhamento a dois:** a parceria nasce de um convite por e-mail (fica `pending` até o outro
   aceitar) e cada conta tem seu próprio nível — `private` (padrão), `BALANCE_ONLY` (só saldo) ou
   `FULL` (saldo e histórico). O dono muda o nível em **Casal** e pode desfazer a parceria, o que
@@ -40,7 +53,8 @@ pnpm --filter @meufinanceiro/web dev              # http://localhost:3000
 ## Estrutura
 
 - `apps/web`: interface web em Next.js, React e TypeScript.
-- `apps/mobile`: aplicativo Android em React Native e Expo.
+- `apps/mobile`: aplicativo Android em React Native e Expo. Funciona em modo demonstração e, com
+  `EXPO_PUBLIC_API_URL` definida, autentica na API (Bearer) e mostra dados reais.
 - `apps/api`: API em NestJS.
 - `packages/shared-types`: contratos compartilhados entre as aplicações.
 - `packages/validation`: tipos para resultados de validação de entrada.
@@ -257,6 +271,19 @@ Resumo dos principais itens:
 - **MFA (TOTP):** emissor configurado por `TOTP_ISSUER`.
 - **Rate limit de sincronização:** `POST /open-finance/sync` limitado por frequência
   (`SYNC_RATE_LIMIT_MINUTES`, padrão 5 minutos; `429` com `Retry-After`).
+- **Sessão revogável:** o JWT carrega o `sid` da sessão; `POST /auth/logout` revoga a sessão atual,
+  `POST /auth/logout-all` todas, e trocar a senha encerra tudo. `GET /auth/status` permite à web
+  confirmar, ao abrir, que a sessão guardada ainda vale.
+- **Cookie `HttpOnly` + CSRF:** a web usa `mf_session` (`HttpOnly`, `Secure`, `SameSite=Lax`) e
+  manda `X-CSRF-Token` em toda escrita. Bearer continua válido para o mobile.
+- **Autorização centralizada:** `AccountAccessService` decide visibilidade e escrita para contas
+  próprias e compartilhadas; compartilhada é sempre somente leitura (`403`).
+- **Rate limit global e de autenticação:** 120 req/min/IP e limites por endpoint sensível
+  (login 10, register 5, forgot-password 3…), com `429` e `Retry-After`.
+- **Soft delete (requisito 23):** excluir conta ou lançamento marca `deletedAt` em vez de apagar; o
+  histórico nunca some sem rastro e todas as leituras ignoram linhas excluídas.
+- **Observabilidade:** `SENTRY_DSN` opcional + filtro global de exceções (5xx com stack, 4xx em uma
+  linha), sem cookies/headers de autorização no relatório.
 - **Secret scanning:** Gitleaks (`.gitleaks.toml`) no CI.
 - **Dependabot:** atualização de dependências (npm/pnpm) via GitHub.
 - **Nenhum segredo no Git:** `.env`, `.env.local` e demais `.env.*` (exceto `.env.example`) são
@@ -325,7 +352,11 @@ categoria, orçamento e meta e o aviso de limite salvo usam essa camada.
 
 ## Escopo atual
 
-Implementado: monorepo, web (demo + API), API com autenticação JWT, MFA TOTP, contas, transações com
-status/liquidação, categorias, orçamentos, metas, compartilhamento entre o casal (parceria e nível
-por conta), auditoria, criptografia de campos sensíveis e Open Finance em sandbox. Ainda fora do
-escopo: transferências/pagamentos reais e Open Finance com instituições de verdade.
+Implementado: monorepo, web (demo + API), API com autenticação JWT em cookie `HttpOnly` + CSRF,
+sessões revogáveis, MFA TOTP, contas, transações com status/liquidação, categorias, orçamentos,
+metas com histórico de aportes, rateio entre o casal (igualitário e proporcional, fechando
+exatamente o valor), lançamentos recorrentes, patrimônio (bens × dívidas), vencimentos com
+lembretes, compartilhamento entre o casal (parceria e nível por conta), soft delete, auditoria,
+criptografia de campos sensíveis, Open Finance em sandbox, Swagger e Sentry opcionais. O app mobile
+consome a API. Ainda fora do escopo: transferências/pagamentos reais, Open Finance com instituições
+de verdade e cadastro de lançamento pelo mobile (hoje feito pela web).
