@@ -9,12 +9,14 @@ import { PrismaService } from '../src/prisma/prisma.service';
 
 export default async function handler(_req: any, res: any) {
   const out: Record<string, unknown> = {};
+  let shared: PrismaService | null = null;
   const email = `probe2+${Date.now()}@exemplo.test`;
 
   try {
     const app = await createApp();
     await app.init();
     const prisma = app.get(PrismaService);
+    shared = prisma;
     await app.listen(0);
     const { port } = app.getHttpServer().address() as { port: number };
     const base = `http://127.0.0.1:${port}/api`;
@@ -139,18 +141,27 @@ export default async function handler(_req: any, res: any) {
       })
     )?.balanceCents?.toString();
 
-    await prisma.transaction.deleteMany({
-      where: { userId: (await prisma.user.findFirst({ where: { email } }))?.id },
-    });
-    await prisma.financialAccount.deleteMany({
-      where: { userId: (await prisma.user.findFirst({ where: { email } }))?.id },
-    });
-    await prisma.user.deleteMany({ where: { email } });
-    out.limpo = true;
     out.ok = true;
   } catch (error) {
     out.erro = error instanceof Error ? error.message : String(error);
   }
 
+  // Grava o resultado no banco: a coleta lê por SQL (a resposta HTTP pode
+  // estourar o tempo do cliente antes do fim do ciclo).
+  try {
+    if (!shared) throw new Error('cliente indisponível');
+    const prisma = shared;
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "_probe_out" (
+        id serial PRIMARY KEY,
+        payload text NOT NULL,
+        "createdAt" timestamp NOT NULL DEFAULT now()
+      )`);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "_probe_out" (payload) VALUES ('${JSON.stringify(out).replace(/'/g, "''")}')`
+    );
+  } catch (error) {
+    out.gravacaoFalhou = error instanceof Error ? error.message : String(error);
+  }
   res.status(200).json(out);
 }
