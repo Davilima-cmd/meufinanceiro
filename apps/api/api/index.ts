@@ -39,10 +39,9 @@ function getApp() {
  */
 function describeError(error: unknown): { error: string; detail: string } {
   const message = error instanceof Error ? error.message : String(error);
-  const sanitized = message.replace(/:\/\/[^@\s/]*@/g, '://***@');
   return {
     error: 'api_initialization_failed',
-    detail: sanitized.slice(0, 800),
+    detail: message.replace(/:\/\/[^@\s/]*@/g, '://***@').slice(0, 800),
   };
 }
 
@@ -53,27 +52,8 @@ export default async function handler(req: any, res: any) {
     await instance(req, res);
   } catch (error) {
     console.error('[api] falha ao inicializar a aplicação', error);
-
-    // `?__diag=1` devolve 200 para que o diagnóstico seja legível por qualquer
-    // cliente HTTP (ferramentas de fetch costumam descartar o corpo de um 500).
-    const isDiagnostic = String(req.url ?? '').includes('__diag=1');
-    const body = describeError(error);
-    res.statusCode = isDiagnostic ? 200 : 500;
+    res.statusCode = 500;
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify(isDiagnostic ? { ...body, env: envSummary() } : body));
+    res.end(JSON.stringify(describeError(error)));
   }
-}
-
-/** Resumo do ambiente relevante, sem valores sensíveis. */
-function envSummary() {
-  const url = process.env.DATABASE_URL ?? '';
-  return {
-    hasDatabaseUrl: Boolean(url),
-    databaseHost: url.replace(/^\w+:\/\/[^@]*@/, '').split('/')[0] ?? null,
-    hasDirectUrl: Boolean(process.env.DATABASE_URL_DIRECT),
-    hasJwtSecret: Boolean(process.env.JWT_SECRET),
-    hasEncryptionKey: Boolean(process.env.ENCRYPTION_KEY),
-    nodeEnv: process.env.NODE_ENV ?? null,
-    node: process.version,
-  };
 }
