@@ -255,7 +255,8 @@ desenvolvimento; a especificação exige dados fictícios e sandbox.
 - **Compartilhamento revogável:** toda conta é privada até o dono compartilhar; o acesso pode ser
   revogado a qualquer momento, com efeito imediato, e cada parte mantém apenas os próprios dados.
 
-Detalhes completos: [`docs/security.md`](docs/security.md).
+Detalhes completos: [`docs/security.md`](docs/security.md). O que ainda depende de
+verificação humana em produção está em [`docs/validacao-manual.md`](docs/validacao-manual.md).
 
 ## Segurança (Fase 5)
 
