@@ -4,6 +4,10 @@
   "outputDirectory": "public",
   "rewrites": [
     {
+      "source": "/api/probe",
+      "destination": "/api/probe"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api"
     }
