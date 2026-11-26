@@ -19,6 +19,7 @@ import { PasswordResetService } from './password-reset.service';
 import { SessionService } from './session.service';
 import { clearSessionCookies, csrfTokenFor, setSessionCookies } from './session-cookie';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
+import { SkipCsrf } from '../common/skip-csrf.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; sessionId?: string };
@@ -39,6 +40,9 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  // Rota pública: não depende de sessão, então cookie velho no navegador não
+  // pode bloquear o cadastro (era o 403 ao "criar conta").
+  @SkipCsrf()
   // Cadastro em massa por script é abuso: 5 por minuto por IP.
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @AuditLog(AuditAction.REGISTER)
@@ -48,6 +52,8 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
+  // Pública: o objetivo aqui é justamente obter uma sessão.
+  @SkipCsrf()
   // Força bruta de senha: 10 tentativas por minuto por IP.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(AuthGuard('local'))
@@ -85,6 +91,8 @@ export class AuthController {
    */
   @HttpCode(HttpStatus.OK)
   @Post('forgot-password')
+  // Pública: quem esqueceu a senha pode estar com sessão expirada no navegador.
+  @SkipCsrf()
   // Cada pedido grava um token e (em produção) envia e-mail: 3 por minuto.
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @AuditLog(AuditAction.PASSWORD_RESET_REQUEST)
@@ -94,6 +102,7 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('reset-password')
+  @SkipCsrf()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @AuditLog(AuditAction.PASSWORD_RESET)
   async resetPassword(@Body() dto: ResetPasswordDto) {

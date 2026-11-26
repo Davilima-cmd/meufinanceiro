@@ -1,6 +1,14 @@
 import { ArgumentsHost, Catch, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
+import { clearSessionCookies } from '../auth/session-cookie';
 import { captureException } from './sentry';
+
+/** O que usamos da resposta HTTP: limpar cookies. Tipado local para não
+ * depender dos tipos do Express (o pacote não é dependência direta do api). */
+type CookieResponse = {
+  cookie: (name: string, value: string, options?: Record<string, unknown>) => unknown;
+  clearCookie: (name: string, options?: Record<string, unknown>) => unknown;
+};
 
 /**
  * Filtro global de exceções.
@@ -18,7 +26,8 @@ export class AllExceptionsFilter extends BaseExceptionFilter {
   private readonly logger = new Logger('HttpError');
 
   override catch(exception: unknown, host: ArgumentsHost): void {
-    const request = host.switchToHttp().getRequest<{
+    const http = host.switchToHttp();
+    const request = http.getRequest<{
       method?: string;
       path?: string;
       url?: string;
@@ -39,6 +48,19 @@ export class AllExceptionsFilter extends BaseExceptionFilter {
     } else {
       // 4xx é comportamento esperado (validação, permissão): uma linha basta.
       this.logger.warn(description);
+    }
+
+    // 401 significa que a sessão apresentada não vale mais. Se a requisição veio
+    // por cookie, apagamos os cookies agora: sem isso, o navegador guarda um
+    // `mf_session` morto que a página não consegue remover (`HttpOnly`, e de
+    // outro domínio) e ele reaparece na próxima escrita — que o `CsrfGuard`
+    // então recusa com 403, como aconteceu ao tentar se cadastrar.
+    if (status === HttpStatus.UNAUTHORIZED) {
+      try {
+        clearSessionCookies(http.getResponse<CookieResponse>());
+      } catch {
+        // Resposta já enviada / sem suporte a cookie: seguir sem quebrar o erro.
+      }
     }
 
     super.catch(exception, host);

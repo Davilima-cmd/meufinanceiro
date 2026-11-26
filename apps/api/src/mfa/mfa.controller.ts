@@ -17,6 +17,7 @@ import { EnableMfaDto, VerifyMfaDto } from './dto/mfa.dto';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 import { SessionService } from '../auth/session.service';
 import { csrfTokenFor, setSessionCookies } from '../auth/session-cookie';
+import { SkipCsrf } from '../common/skip-csrf.decorator';
 import QRCode from 'qrcode';
 
 interface AuthenticatedRequest extends Request {
@@ -64,6 +65,9 @@ export class MfaController {
    * token temporário não é aceito em nenhuma outra rota.
    */
   @Post('verify')
+  // Etapa de login: a sessão definitiva só nasce no fim, então exigir CSRF de
+  // um cookie antigo aqui travaria quem está tentando entrar.
+  @SkipCsrf()
   // 6 dígitos são 1 milhão de combinações, mas o código vale 30s: limite curto
   // impede varredura dentro da janela.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

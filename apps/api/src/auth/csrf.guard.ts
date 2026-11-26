@@ -1,5 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { timingSafeEqual } from 'node:crypto';
+import { SKIP_CSRF } from '../common/skip-csrf.decorator';
 import { CSRF_HEADER, readCsrfCookie, readSessionCookie } from './session-cookie';
 
 /**
@@ -11,10 +13,23 @@ import { CSRF_HEADER, readCsrfCookie, readSessionCookie } from './session-cookie
  * não consegue definir esse header, e o token não vai junto automaticamente.
  *
  * Métodos seguros (`GET`/`HEAD`/`OPTIONS`) passam: não mudam estado.
+ *
+ * Rotas marcadas com `@SkipCsrf()` (cadastro, login, recuperação de senha) nunca
+ * passam por aqui: elas não dependem de sessão e um cookie velho no navegador
+ * não pode impedir o usuário de criar a conta.
  */
 @Injectable()
 export class CsrfGuard implements CanActivate {
+  constructor(private readonly reflector?: Reflector) {}
+
   canActivate(context: ExecutionContext): boolean {
+    // `reflector` é opcional para os testes que instanciam a classe direto.
+    const skip = this.reflector?.getAllAndOverride<boolean>(SKIP_CSRF, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (skip) return true;
+
     const request = context.switchToHttp().getRequest<{
       method?: string;
       headers: { authorization?: string; cookie?: string; 'x-csrf-token'?: string | string[] };

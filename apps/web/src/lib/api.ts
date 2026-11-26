@@ -142,6 +142,21 @@ function currentCsrfToken(): string | null {
   return csrfFromCookie() ?? csrfFromResponse;
 }
 
+/*
+ * Por que o cliente NÃO tenta apagar o cookie de sessão aqui.
+ *
+ * `mf_session` é `HttpOnly` e pertence ao domínio da **API**, enquanto a página
+ * roda em outro domínio: o `document.cookie` da web não alcança esse cookie nem
+ * para ler nem para sobrescrever. Quem limpa é o servidor, respondendo
+ * `Set-Cookie` de expiração no próprio domínio — feito em todo `401`
+ * (`apps/api/src/common/all-exceptions.filter.ts`) e no logout.
+ *
+ * Registro do erro que isso causou: um cookie órfão sobreviveu ao reset do
+ * banco, `GET /auth/status` devolvia `401` e o cookie continuava lá, então o
+ * `POST /auth/register` chegava com ele e o `CsrfGuard` respondia `403`.
+ * A correção definitiva é no servidor: rotas públicas levam `@SkipCsrf()`.
+ */
+
 class ApiClient {
   private onUnauthorized?: () => void;
 
@@ -209,8 +224,11 @@ class ApiClient {
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as unknown;
       const err = ApiError.fromResponse(res.status, body);
-      if (err.isUnauthorized && this.onUnauthorized) {
-        this.onUnauthorized();
+      if (err.isUnauthorized) {
+        // O valor em memória não vale mais; o cookie é limpo pelo servidor (ver
+        // o comentário acima — daqui não temos como apagá-lo).
+        setCsrfToken(null);
+        this.onUnauthorized?.();
       }
       throw err;
     }
