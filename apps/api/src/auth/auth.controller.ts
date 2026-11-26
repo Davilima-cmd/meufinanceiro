@@ -64,11 +64,19 @@ export class AuthController {
       return { mfaRequired: true, userId: user.id, tempToken };
     }
 
-    const { token } = await this.sessions.create(user.id);
+    const { token, sessionId } = await this.sessions.create(user.id);
+    // O token CSRF é derivado do **id da sessão** (e não do JWT): assim
+    // `GET /auth/status` consegue recalculá-lo e devolvê-lo à web.
+    const csrfToken = csrfTokenFor(sessionId);
     // A web ignora o token do corpo e usa o cookie `HttpOnly`; o mobile guarda
     // o bearer. Os dois caminhos valem a mesma sessão.
-    setSessionCookies(res, token, csrfTokenFor(token));
-    return { user, token };
+    setSessionCookies(res, token, csrfToken);
+    // `csrfToken` no corpo: quando web e API estão em domínios diferentes, o
+    // navegador não deixa o JS ler o cookie `mf_csrf` (pertence ao domínio da
+    // API). Sem esse valor a web não tinha como montar o header e toda escrita
+    // respondia 403. O corpo da resposta é same-origin-only, então devolvê-lo
+    // aqui não enfraquece o double submit.
+    return { user, token, csrfToken };
   }
 
   /**
@@ -141,6 +149,10 @@ export class AuthController {
       user,
       sessionId: req.user.sessionId ?? null,
       sessions: sessions.length,
+      // Recalculado a cada carga da página: a web recupera o valor CSRF mesmo
+      // sem conseguir ler o cookie (domínios diferentes) e sem precisar
+      // guardá-lo no navegador.
+      csrfToken: req.user.sessionId ? csrfTokenFor(req.user.sessionId) : null,
     };
   }
 

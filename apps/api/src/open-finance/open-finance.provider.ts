@@ -24,6 +24,13 @@ export interface OpenFinanceConsent {
 }
 
 export interface OpenFinanceProvider {
+  /**
+   * Natureza do provedor. `sandbox` devolve dados fictícios e **não** pode
+   * alimentar contas reais: em produção ele é recusado explicitamente, em vez
+   * de criar uma conta com saldo inventado.
+   */
+  readonly kind: 'sandbox' | 'live';
+  /** Contas disponíveis na instituição, para o usuário escolher o que vincular. */
   listAccounts(): Promise<OpenFinanceAccount[]>;
   listTransactions(): Promise<OpenFinanceTransaction[]>;
   createConsent(userId?: string): Promise<OpenFinanceConsent>;

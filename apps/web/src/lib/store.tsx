@@ -55,6 +55,14 @@ type FinanceContextValue = {
   cancelTransaction: (id: string) => Promise<string | null>;
   deleteTransaction: (id: string) => Promise<string | null>;
   addAccount: (input: NewAccount) => Promise<string | null>;
+  /**
+   * Vincula uma conta bancária pelo Open Finance: a conta é criada a partir do
+   * que a instituição informa (nome, tipo, saldo), não digitada no app.
+   */
+  linkBankAccount: (input: {
+    provider: string;
+    providerAccountId: string;
+  }) => Promise<string | null>;
   deleteAccount: (id: string) => Promise<string | null>;
   addCategory: (input: {
     name: string;
@@ -485,6 +493,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [mutate]
   );
 
+  /**
+   * Conta vinda do banco.
+   *
+   * No modo demonstração não existe instituição: a função explica isso em vez
+   * de inventar uma conta com saldo fictício (que poluiria os totais do demo).
+   */
+  const linkBankAccount = useCallback(
+    async (input: { provider: string; providerAccountId: string }): Promise<string | null> => {
+      if (sessionRef.current?.mode !== 'api') {
+        return 'Vincular banco exige uma conta real. Você está no modo demonstração.';
+      }
+      try {
+        await api.linkAccount(input);
+        const remoteSnapshot = await fetchApiSnapshot();
+        setSnapshot(remoteSnapshot);
+        setSyncError(null);
+        return null;
+      } catch (error) {
+        const message = errorMessage(error);
+        setSyncError(message);
+        return message;
+      }
+    },
+    []
+  );
+
   const deleteAccount = useCallback(
     (id: string) =>
       mutate(
@@ -834,6 +868,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       cancelTransaction,
       deleteTransaction,
       addAccount,
+      linkBankAccount,
       deleteAccount,
       addCategory,
       deleteCategory,
@@ -869,6 +904,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       cancelTransaction,
       deleteTransaction,
       addAccount,
+      linkBankAccount,
       deleteAccount,
       addCategory,
       deleteCategory,

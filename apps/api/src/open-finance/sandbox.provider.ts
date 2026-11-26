@@ -56,6 +56,8 @@ const TRANSACTIONS: OpenFinanceTransaction[] = [
 
 @Injectable()
 export class SandboxOpenFinanceProvider implements OpenFinanceProvider {
+  readonly kind = 'sandbox' as const;
+
   async listAccounts(): Promise<OpenFinanceAccount[]> {
     return ACCOUNTS;
   }

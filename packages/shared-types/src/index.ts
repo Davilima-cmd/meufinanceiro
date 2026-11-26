@@ -30,6 +30,16 @@ export type AuthResponse = {
    * memória — nunca é um segredo TOTP e nunca é gravado no localStorage.
    */
   tempToken?: string;
+  /**
+   * Valor para o header `X-CSRF-Token` quando a sessão é por cookie.
+   *
+   * A web e a API ficam em domínios diferentes: o navegador guarda o cookie
+   * `mf_csrf` no domínio da API e o JavaScript da página **não** consegue
+   * lê-lo. Devolver o valor no corpo (leitura same-origin-only) é o que permite
+   * à web montar o header; sem ele toda escrita autenticada por cookie caía em
+   * 403. Uso por bearer pode ignorar.
+   */
+  csrfToken?: string;
 };
 
 /** DTO de ativação do MFA: segredo base32 + código TOTP de confirmação. */
@@ -52,6 +62,8 @@ export type AuthStatus = {
   sessionId: string | null;
   /** Quantas sessões abertas o usuário tem (contando esta). */
   sessions: number;
+  /** Mesmo valor de `AuthResponse.csrfToken`, recalculado a cada chamada. */
+  csrfToken?: string | null;
 };
 
 /** Resposta da geração do QR code de configuração do MFA. */
@@ -250,6 +262,38 @@ export type ConnectConnectionDto = {
   provider: string;
   providerAccountId: string;
   accountId: string;
+};
+
+/** Conta disponível na instituição para vincular (Open Finance). */
+export type ApiAvailableAccount = {
+  providerAccountId: string;
+  name: string;
+  institution: string | null;
+  type: string;
+  currency: string;
+  balanceCents: string;
+  alreadyLinked: boolean;
+};
+
+/**
+ * Resposta de `GET /open-finance/available-accounts`.
+ *
+ * `available: false` significa que a integração automática não está liberada
+ * neste ambiente (provedor real não integrado): a interface mostra a
+ * explicação e não oferece o botão de vincular.
+ */
+export type ApiAvailableAccountsResponse = {
+  provider: string;
+  available: boolean;
+  accounts: ApiAvailableAccount[];
+  reason?: string;
+};
+
+/** DTO de `POST /open-finance/link-account`: a conta nasce do provedor. */
+export type LinkAccountDto = {
+  provider: string;
+  providerAccountId: string;
+  shareLevel?: 'private' | 'BALANCE_ONLY' | 'FULL';
 };
 
 /** Job de sincronização/reconciliação retornado por POST /open-finance/sync. */

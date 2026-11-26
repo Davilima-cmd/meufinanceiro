@@ -1,5 +1,6 @@
 import {
   type ApiAccount,
+  type ApiAvailableAccountsResponse,
   type ApiBankConnection,
   type ApiBudget,
   type ApiSharedAccount,
@@ -18,6 +19,7 @@ import {
   type ConnectConnectionDto,
   type CreateAccountDto,
   type CreateTransactionDto,
+  type LinkAccountDto,
   type LoginDto,
   type MfaDisableResponse,
   type MfaEnableRequest,
@@ -40,6 +42,8 @@ export type {
   ApiNetWorthItem,
   ApiNetWorthSummary,
   ApiBankConnection,
+  ApiAvailableAccountsResponse,
+  LinkAccountDto,
   ApiSharingOverview,
   ApiSharedAccount,
   ShareLevel,
@@ -118,6 +122,26 @@ function csrfFromCookie(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+/**
+ * CSRF recebido no corpo de `/auth/login`, `/auth/mfa/verify` ou `/auth/status`.
+ *
+ * Em produção web e API ficam em domínios distintos: o cookie `mf_csrf` é
+ * gravado no domínio da **API**, e `document.cookie` da página (domínio da web)
+ * nunca o enxerga. Sem este valor, o cliente não monta o header e toda escrita
+ * autenticada por cookie era recusada com 403 (era exatamente o erro ao criar
+ * conta). Fica só em memória: nada de segredo de sessão em `localStorage`.
+ */
+let csrfFromResponse: string | null = null;
+
+export function setCsrfToken(value: string | null | undefined): void {
+  csrfFromResponse = value ?? null;
+}
+
+/** Valor CSRF disponível: o do cookie, quando legível, ou o vindo do servidor. */
+function currentCsrfToken(): string | null {
+  return csrfFromCookie() ?? csrfFromResponse;
+}
+
 class ApiClient {
   private onUnauthorized?: () => void;
 
@@ -138,9 +162,10 @@ class ApiClient {
     else localStorage.removeItem(LOCAL_STORAGE_KEYS.token);
   }
 
-  /** Remove o token do cliente e do localStorage. */
+  /** Remove o token do cliente e do localStorage (e o CSRF em memória). */
   clearToken(): void {
     this.setToken(null);
+    setCsrfToken(null);
   }
 
   private async request<T>(
@@ -158,7 +183,7 @@ class ApiClient {
 
     // Sessão em cookie `HttpOnly` + double submit: o valor CSRF vem do cookie
     // legível e vai no header, que um site de terceiro não consegue montar.
-    const csrf = csrfFromCookie();
+    const csrf = currentCsrfToken();
     if (csrf && method !== 'GET' && method !== 'HEAD') {
       allHeaders[CSRF_HEADER] = csrf;
     }
@@ -214,10 +239,13 @@ class ApiClient {
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/login', {
+    const result = await this.request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: dto,
     });
+    // Guarda o CSRF da nova sessão antes de qualquer escrita.
+    if (result.csrfToken) setCsrfToken(result.csrfToken);
+    return result;
   }
 
   async getAccounts(): Promise<ApiAccount[]> {
@@ -464,6 +492,25 @@ class ApiClient {
     });
   }
 
+  /** Contas da instituição disponíveis para vincular (Open Finance). */
+  async getAvailableAccounts(): Promise<ApiAvailableAccountsResponse> {
+    return this.request<ApiAvailableAccountsResponse>('/open-finance/available-accounts');
+  }
+
+  /**
+   * Cria a conta a partir do provedor e a deixa vinculada.
+   *
+   * É o caminho "de verdade" para conta bancária: nome, instituição, tipo e
+   * saldo vêm da instituição. `POST /accounts` fica para conta manual.
+   */
+  async linkAccount(dto: LinkAccountDto): Promise<{
+    account: { id: string; name: string };
+    connectionId: string;
+    synced: boolean;
+  }> {
+    return this.request('/open-finance/link-account', { method: 'POST', body: dto });
+  }
+
   async revokeConnection(id: string): Promise<ApiBankConnection> {
     return this.request<ApiBankConnection>(`/open-finance/connections/${id}/revoke`, {
       method: 'PATCH',
@@ -495,11 +542,13 @@ class ApiClient {
 
   /** Verifica o código TOTP com o token temporário de sessão MFA (não usa o token JWT armazenado). */
   async mfaVerify(dto: MfaVerifyRequest, sessionToken: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/mfa/verify', {
+    const result = await this.request<AuthResponse>('/auth/mfa/verify', {
       method: 'POST',
       body: dto,
       token: sessionToken,
     });
+    if (result.csrfToken) setCsrfToken(result.csrfToken);
+    return result;
   }
 
   /** Encerra a sessão no servidor (o JWT deixa de valer imediatamente). */
@@ -516,7 +565,11 @@ class ApiClient {
 
   /** Valida a sessão no servidor e devolve o usuário atual. */
   async authStatus(): Promise<AuthStatus> {
-    return this.request<AuthStatus>('/auth/status');
+    const status = await this.request<AuthStatus>('/auth/status');
+    // Recupera o CSRF ao abrir/recarregar o app: é o que mantém a escrita
+    // funcionando quando o cookie não é legível (domínios diferentes).
+    if (status.csrfToken) setCsrfToken(status.csrfToken);
+    return status;
   }
 
   async mfaDisable(): Promise<MfaDisableResponse> {

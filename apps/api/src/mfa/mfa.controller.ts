@@ -81,9 +81,12 @@ export class MfaController {
       throw new NotFoundException('Token TOTP inválido');
     }
     // A sessão de verdade só nasce depois do segundo fator.
-    const { token } = await this.sessions.create(req.user.userId);
-    setSessionCookies(res, token, csrfTokenFor(token));
-    return { token };
+    const { token, sessionId } = await this.sessions.create(req.user.userId);
+    const csrfToken = csrfTokenFor(sessionId);
+    setSessionCookies(res, token, csrfToken);
+    // Mesmo motivo do login: a web precisa do valor para o header CSRF quando
+    // o cookie fica no domínio da API.
+    return { token, csrfToken };
   }
 
   /** Desabilita MFA do usuário logado. */

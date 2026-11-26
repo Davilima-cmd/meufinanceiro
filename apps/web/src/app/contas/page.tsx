@@ -6,6 +6,7 @@ import { Select, useDialog } from '@/components/dialog';
 import { Badge, Card, EmptyState, Money, PageHeader } from '@/components/ui';
 import { monthKeyOf, currentMonthKey, sumCents, toCents } from '@/lib/format';
 import { useFinance } from '@/lib/store';
+import { api, type ApiAvailableAccountsResponse } from '@/lib/api';
 import type { AccountType } from '@/lib/types';
 
 const ACCOUNT_TYPES: Array<{ value: AccountType; label: string }> = [
@@ -18,12 +19,49 @@ const ACCOUNT_TYPES: Array<{ value: AccountType; label: string }> = [
 ];
 
 export default function AccountsPage() {
-  const { snapshot, session, addAccount, deleteAccount } = useFinance();
+  const { snapshot, session, addAccount, linkBankAccount, deleteAccount } = useFinance();
   const dialog = useDialog();
   const [name, setName] = useState('');
   const [institution, setInstitution] = useState('');
   const [type, setType] = useState<AccountType>('checking');
   const [error, setError] = useState('');
+
+  // Contas da instituição (Open Finance). `null` = ainda não perguntamos.
+  const [available, setAvailable] = useState<ApiAvailableAccountsResponse | null>(null);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [linking, setLinking] = useState<string | null>(null);
+
+  const isApi = session?.mode === 'api';
+
+  async function loadAvailable() {
+    setLoadingAvailable(true);
+    setError('');
+    try {
+      const result = await api.getAvailableAccounts();
+      setAvailable(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível consultar as instituições.');
+    } finally {
+      setLoadingAvailable(false);
+    }
+  }
+
+  async function handleLink(providerAccountId: string) {
+    setError('');
+    setLinking(providerAccountId);
+    // A conta é criada pela API a partir do que o banco informa: nome, tipo e
+    // saldo não são digitados aqui.
+    const failure = await linkBankAccount({
+      provider: available?.provider ?? 'sandbox',
+      providerAccountId,
+    });
+    setLinking(null);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    void loadAvailable();
+  }
 
   const ownerId = session?.user.id ?? '';
   const monthKey = currentMonthKey();
@@ -185,8 +223,80 @@ export default function AccountsPage() {
         <Card>
           <div className="card-heading">
             <div>
-              <h2>Nova conta</h2>
-              <p>A conta começa privada e com saldo zero</p>
+              <h2>Vincular conta bancária</h2>
+              <p>
+                A conta é criada com os dados da instituição (nome, tipo e saldo) e passa a ser
+                atualizada pelo Open Finance. Você não digita nada.
+              </p>
+            </div>
+          </div>
+          {!isApi ? (
+            <p className="account-sub">
+              O vínculo com bancos exige uma conta real. No modo demonstração, use &ldquo;Conta
+              manual&rdquo; abaixo.
+            </p>
+          ) : available === null ? (
+            <div className="page-actions">
+              <button
+                className="button button-primary"
+                disabled={loadingAvailable}
+                onClick={() => void loadAvailable()}
+                type="button"
+              >
+                {loadingAvailable ? 'Consultando instituições…' : 'Buscar contas para vincular'}
+              </button>
+            </div>
+          ) : !available.available ? (
+            <p className="account-sub">
+              {available.reason ??
+                'A integração automática com bancos ainda não está liberada neste ambiente.'}
+            </p>
+          ) : available.accounts.length === 0 ? (
+            <p className="account-sub">
+              Nenhuma conta nova encontrada nas instituições conectadas.
+            </p>
+          ) : (
+            <div className="stack">
+              {available.accounts.map((item) => (
+                <div
+                  className="form-row"
+                  key={item.providerAccountId}
+                  style={{ alignItems: 'center' }}
+                >
+                  <div>
+                    <div className="account-name">{item.name}</div>
+                    <div className="account-sub">
+                      {item.institution ?? item.type} · <Money value={item.balanceCents} />
+                    </div>
+                  </div>
+                  <div className="page-actions" style={{ marginLeft: 'auto' }}>
+                    <button
+                      className="button button-primary"
+                      disabled={item.alreadyLinked || linking === item.providerAccountId}
+                      onClick={() => void handleLink(item.providerAccountId)}
+                      type="button"
+                    >
+                      {item.alreadyLinked
+                        ? 'Já vinculada'
+                        : linking === item.providerAccountId
+                          ? 'Vinculando…'
+                          : 'Vincular'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <div className="card-heading">
+            <div>
+              <h2>Conta manual</h2>
+              <p>
+                Para dinheiro em espécie, carteira ou um banco sem integração. A conta começa
+                privada e com saldo zero.
+              </p>
             </div>
           </div>
           <form className="stack" onSubmit={handleSubmit}>
@@ -225,7 +335,7 @@ export default function AccountsPage() {
             {error ? <p className="form-error">{error}</p> : null}
             <div className="page-actions">
               <button className="button button-primary" type="submit">
-                Criar conta
+                Criar conta manual
               </button>
             </div>
           </form>

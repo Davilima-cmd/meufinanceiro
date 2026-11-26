@@ -1,5 +1,6 @@
 import { Module, Type } from '@nestjs/common';
 import { OpenFinanceController } from './open-finance.controller';
+import { OpenFinanceAccountsController } from './open-finance-accounts.controller';
 import { SandboxController } from './sandbox.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SandboxOpenFinanceProvider } from './sandbox.provider';
@@ -14,9 +15,11 @@ import { SyncModule } from '../sync/sync.module';
  * injetar transações e consentimentos.
  */
 export function buildControllers(): Array<Type<any>> {
-  return process.env.NODE_ENV === 'production'
-    ? [OpenFinanceController]
-    : [OpenFinanceController, SandboxController];
+  // As rotas de vínculo de conta valem em qualquer ambiente: em produção elas
+  // respondem "ainda não liberado" enquanto o provedor real não estiver
+  // integrado, em vez de criar conta com dados do sandbox.
+  const shared = [OpenFinanceController, OpenFinanceAccountsController];
+  return process.env.NODE_ENV === 'production' ? shared : [...shared, SandboxController];
 }
 
 const CONTROLLERS = buildControllers();

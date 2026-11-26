@@ -5,10 +5,12 @@ import { SyncService } from '../../src/sync/sync.service';
 import { SandboxController } from '../../src/open-finance/sandbox.controller';
 
 const providerMock = {
+  kind: 'sandbox',
   listAccounts: vi.fn(),
   listTransactions: vi.fn(),
   createConsent: vi.fn(),
 } as unknown as {
+  kind: 'sandbox';
   listAccounts: ReturnType<typeof vi.fn>;
   listTransactions: ReturnType<typeof vi.fn>;
   createConsent: ReturnType<typeof vi.fn>;
