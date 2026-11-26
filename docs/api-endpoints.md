@@ -51,6 +51,10 @@ Erros esperados:
 | PATCH  | `/accounts/:id`  | Edita ou arquiva a conta       | `{ name?, institution?, type?, isActive? }`               | `200 ApiAccount`   |
 | DELETE | `/accounts/:id`  | Exclui conta sem histórico     | —                                                         | `200 { deleted }`  |
 
+O `GET /accounts` devolve as contas **próprias e as compartilhadas com o usuário**. Cada item traz
+`ownerId`, `ownerName`, `shareLevel` (`private` | `BALANCE_ONLY` | `FULL`) e `access`
+(`{ canSeeBalance, canSeeTransactions, readOnly }`). Conta de outra pessoa vem sempre `readOnly`.
+
 O `balanceCents` do `POST` é o **saldo inicial**: é gravado como um lançamento "Saldo inicial", de
 modo que o saldo continue sendo derivado do histórico. `DELETE` é recusado (`400`) quando a conta
 tem lançamentos — nesse caso o caminho correto é arquivar com `PATCH { "isActive": false }`.
@@ -75,12 +79,15 @@ Erros: `401` (não autenticado), `400` (body inválido).
 
 ### Transações (exige autenticação JWT)
 
-| Método | Endpoint                    | Descrição                                            | Corpo                                                                                  | Resposta               |
-| ------ | --------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------- |
-| GET    | `/transactions`             | Listar transações do usuário                         | —                                                                                      | `200 ApiTransaction[]` |
-| POST   | `/transactions`             | Criar lançamento                                     | `{ accountId, description, amountCents, type, categoryId?, transferAccountId?, date }` | `201 ApiTransaction`   |
-| POST   | `/transactions/:id/reverse` | Estorna criando o lançamento inverso                 | —                                                                                      | `201 ApiTransaction`   |
-| DELETE | `/transactions/:id`         | Remove (estorna as duas pontas de uma transferência) | —                                                                                      | `200 { deleted }`      |
+| Método | Endpoint                    | Descrição                                            | Corpo                                                                                    | Resposta               |
+| ------ | --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------- |
+| GET    | `/transactions`             | Listar transações do usuário                         | —                                                                                        | `200 ApiTransaction[]` |
+| POST   | `/transactions`             | Criar lançamento                                     | `{ accountId, description, amountCents, type, categoryId?, transferAccountId?, date }`   | `201 ApiTransaction`   |
+| POST   | `/transactions/:id/reverse` | Estorna criando o lançamento inverso                 | —                                                                                        | `201 ApiTransaction`   |
+| PATCH  | `/transactions/:id`         | Edita valor, descrição, categoria, datas e status    | `{ description?, amountCents?, categoryId?, date?, competenceDate?, dueDate?, status? }` | `200 ApiTransaction`   |
+| DELETE | `/transactions/:id`         | Remove (estorna as duas pontas de uma transferência) | —                                                                                        | `200 { deleted }`      |
+| POST   | `/transactions/:id/settle`  | Liquida um pendente e aplica o valor ao saldo        | `{ paidAt? }`                                                                            | `200 ApiTransaction`   |
+| POST   | `/transactions/:id/cancel`  | Cancela um pendente sem mexer no saldo               | —                                                                                        | `200 ApiTransaction`   |
 
 Valores em centavos (string), negativos para despesa e positivos para receita — o servidor recusa
 (`400`) despesa positiva, receita negativa e valor zero.
@@ -93,7 +100,46 @@ Regras de integridade aplicadas no servidor:
   `transferId`, uma negativa na origem e outra positiva no destino; transferência nunca conta como
   receita nem despesa;
 - excluir uma das pontas remove o par inteiro;
-- `categoryId` precisa ser do usuário ou uma categoria do sistema (`isSystem`).
+- `categoryId` precisa ser do usuário ou uma categoria do sistema (`isSystem`);
+- só lançamento `paid` mexe no saldo: `pending` é conta a pagar/receber (entra na projeção, não no
+  caixa), `canceled` não acontece. Liquidar aplica o valor, cancelar um pendente não aplica nada;
+- `GET /transactions?status=pending|paid|canceled&overdue=true` filtra a lista;
+- a lista traz os lançamentos do usuário **e os das contas compartilhadas em `FULL`** (com
+  `account.user`), sempre somente leitura.
+
+### Compartilhamento entre o casal (exige autenticação JWT)
+
+Duas camadas: primeiro a **parceria** (duas pessoas conectadas), depois o **nível por conta**.
+
+| Método | Endpoint                | Descrição                                        | Corpo       | Resposta                                |
+| ------ | ----------------------- | ------------------------------------------------ | ----------- | --------------------------------------- |
+| GET    | `/sharing`              | Parceria, parceiro e nível de cada conta própria | —           | `200 ApiSharingOverview`                |
+| GET    | `/sharing/accounts`     | Contas que o parceiro compartilhou com o usuário | —           | `200 ApiSharedAccount[]`                |
+| POST   | `/sharing/invite`       | Convida um usuário já cadastrado, pelo e-mail    | `{ email }` | `201 ApiPartnership`                    |
+| POST   | `/sharing/accept`       | Aceita o convite pendente recebido               | —           | `200 ApiPartnership`                    |
+| DELETE | `/sharing`              | Desfaz a parceria e revoga os compartilhamentos  | —           | `200 { revoked: true }`                 |
+| PATCH  | `/sharing/accounts/:id` | Define o nível de uma conta do próprio usuário   | `{ level }` | `200 AccountShare \| { revoked: true }` |
+
+Níveis:
+
+- `private` — padrão de toda conta nova. **Não é gravado**: significa "sem `account_shares` ativo"
+  (nenhuma linha ou `revokedAt` preenchido). `PATCH` com `private` revoga o compartilhamento.
+- `BALANCE_ONLY` — o parceiro vê o saldo, nunca os lançamentos.
+- `FULL` — o parceiro vê saldo e histórico. Ainda assim é **somente leitura**.
+
+Regras:
+
+- compartilhar exige parceria `accepted` (`400` caso contrário); o convite fica `pending` até o
+  outro aceitar e só quem foi convidado pode aceitar;
+- convidar e-mail sem conta responde `404`, convidar a si mesmo `400`, e um novo convite para quem
+  já é parceiro `400`; reconvidar quem recusou recoloca o pedido como `pending`;
+- só o dono muda o nível da própria conta — conta de outra pessoa responde `404` (não `403`, para
+  não revelar que ela existe);
+- escrita nunca é delegada: criar, editar, liquidar, cancelar, estornar, excluir e transferir em
+  conta compartilhada respondem `403` com "Conta compartilhada é somente leitura…". Transferência só
+  entre contas do próprio usuário;
+- `DELETE /sharing` revoga a parceria e todos os compartilhamentos dos dois lados numa transação de
+  banco; o resumo do parceiro expõe apenas `{ id, name }`, nunca o e-mail.
 
 ### Recuperação de senha (público)
 
@@ -152,7 +198,8 @@ Exemplo de conexão:
 }
 ```
 
-Tipos compartilhados adicionados em `packages/shared-types/src/index.ts`: `ApiBankConnection`,
+Tipos compartilhados adicionados em `packages/shared-types/src/index.ts`: `ShareLevel`,
+`AccountAccess`, `ApiPartnership`, `ApiSharingOverview`, `ApiSharedAccount`, `ApiBankConnection`,
 `ConnectConnectionDto`, `BankConnectionStatus`, `SyncJob`, `TriggerSyncResponse`.
 
 ### Orçamentos (exige autenticação JWT)

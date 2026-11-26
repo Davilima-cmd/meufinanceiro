@@ -15,11 +15,17 @@ O app web (`apps/web`) tem oito áreas: **Visão geral**, **Lançamentos**, **Co
   apenas no `localStorage` do navegador. Tudo pode ser criado, editado e excluído; “Restaurar dados
   de exemplo” volta ao estado inicial.
 - **Modo API**: em “Tenho uma conta”, o login usa `NEXT_PUBLIC_API_BASE`. Cadastro, login, MFA
-  (TOTP) e os endpoints de contas, lançamentos, categorias, orçamentos e metas são consumidos de
-  verdade.
+  (TOTP) e os endpoints de contas, lançamentos, categorias, orçamentos, metas e compartilhamento são
+  consumidos de verdade.
+- **Compartilhamento a dois:** a parceria nasce de um convite por e-mail (fica `pending` até o outro
+  aceitar) e cada conta tem seu próprio nível — `private` (padrão), `BALANCE_ONLY` (só saldo) ou
+  `FULL` (saldo e histórico). O dono muda o nível em **Casal** e pode desfazer a parceria, o que
+  revoga tudo dos dois lados.
 - **Regras de privacidade** aplicadas na interface: uma conta mostra o histórico completo quando é
   sua ou quando foi compartilhada como `FULL`; no nível `BALANCE_ONLY` o parceiro vê apenas o saldo
   (esses lançamentos ficam fora dos relatórios). Contas privadas nunca aparecem na visão conjunta.
+  Conta compartilhada é sempre **somente leitura**: a web esconde as ações de escrita e a API recusa
+  com `403` se algo escapar.
 - **Dinheiro em centavos**: toda soma é feita com `BigInt` e só é formatada em reais na tela, o que
   evita erro de arredondamento. Transferências não contam como despesa nem consomem orçamento.
 - Tema escuro/claro, “ocultar valores”, gráficos em SVG sem dependências e layout responsivo com
@@ -319,7 +325,7 @@ categoria, orçamento e meta e o aviso de limite salvo usam essa camada.
 
 ## Escopo atual
 
-Implementado: monorepo, web (demo + API), API com autenticação JWT, MFA TOTP, contas, transações,
-categorias, orçamentos, metas, auditoria, criptografia de campos sensíveis e Open Finance em
-sandbox. Ainda fora do escopo: transferências/pagamentos reais, compartilhamento persistido no banco
-(as tabelas `partnerships`/`account_shares` existem; falta expor endpoints) e recuperação de senha.
+Implementado: monorepo, web (demo + API), API com autenticação JWT, MFA TOTP, contas, transações com
+status/liquidação, categorias, orçamentos, metas, compartilhamento entre o casal (parceria e nível
+por conta), auditoria, criptografia de campos sensíveis e Open Finance em sandbox. Ainda fora do
+escopo: transferências/pagamentos reais e Open Finance com instituições de verdade.
