@@ -1,13 +1,22 @@
-[allowlist]
-description = "Allowlist for gitleaks"
+# Allowlist global: documentação, exemplos de ambiente, testes (que usam
+# tokens fictícios de propósito) e artefatos de build/dependências.
+#
+# Formato `[[allowlists]]` (gitleaks >= 8.19). O `[allowlist]` singular antigo
+# é aceito com aviso, mas pode falhar dependendo da versão: usar a forma nova
+# evita que o job de secret scanning quebre por configuração.
+[[allowlists]]
+description = "Documentação, exemplos e testes com valores fictícios"
 paths = [
-  "*.example",
-  "*.md",
-  "docs/**",
-  "**/*.test.ts",
-  "**/*.test.tsx",
-  "**/*.spec.ts",
-  "**/*.spec.tsx",
+  '''(?i)\.example$''',
+  '''(?i)\.md$''',
+  '''(?i)^docs/''',
+  '''(?i)\.test\.tsx?$''',
+  '''(?i)\.spec\.tsx?$''',
+  '''(?i)(^|/)node_modules/''',
+  '''(?i)(^|/)\.next/''',
+  '''(?i)(^|/)dist/''',
+  '''(?i)(^|/)coverage/''',
+  '''(?i)pnpm-lock\.yaml$''',
 ]
 
 [[rules]]

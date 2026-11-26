@@ -52,4 +52,4 @@ jobs:
             zricethezav/gitleaks:v8.28.0 \
             detect --source=/repo --config=/repo/.gitleaks.toml \
             --report-path=/repo/gitleaks-report.json --report-format=json \
-            --redact --verbose --exit-code=1
+            --redact --verbose
