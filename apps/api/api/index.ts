@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { createApp } from '../src/bootstrap';
 
 /**
@@ -14,8 +15,6 @@ import { createApp } from '../src/bootstrap';
  * O `vercel.json` reescreve `/api/*` para cá preservando o caminho original,
  * então o prefixo global `api` do Nest continua valendo.
  */
-import 'reflect-metadata';
-
 let appPromise: Promise<import('@nestjs/common').INestApplication> | null = null;
 
 function getApp() {
@@ -24,12 +23,39 @@ function getApp() {
       await app.init();
       return app;
     });
+    // Uma falha de inicialização não pode ficar em cache: sem isto toda
+    // invocação "quente" herda a mesma promise rejeitada.
+    appPromise.catch(() => {
+      appPromise = null;
+    });
   }
   return appPromise;
 }
 
+/**
+ * Erros de inicialização acontecem antes do Nest existir, então não há
+ * exception filter para tratá-los. Sem este bloco a plataforma devolve um 500
+ * opaco; aqui a causa vai no corpo da resposta, com credenciais mascaradas.
+ */
+function describeError(error: unknown): { error: string; detail: string } {
+  const message = error instanceof Error ? error.message : String(error);
+  const sanitized = message.replace(/:\/\/[^@\s/]*@/g, '://***@');
+  return {
+    error: 'api_initialization_failed',
+    detail: sanitized.slice(0, 800),
+  };
+}
+
 export default async function handler(req: any, res: any) {
-  const app = await getApp();
-  const instance = app.getHttpAdapter().getInstance();
-  await instance(req, res);
+  try {
+    const app = await getApp();
+    const instance = app.getHttpAdapter().getInstance();
+    await instance(req, res);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[api] falha ao inicializar a aplicação', error);
+    res.statusCode = 500;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(describeError(error)));
+  }
 }
