@@ -3,7 +3,7 @@
  * feature (`?m=<slug>`) para descobrir qual módulo derruba o processo no
  * runtime publicado. Só para diagnóstico; removida depois do deploy validado.
  */
-import { Module } from '@nestjs/common';
+import { Module, type Type } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
@@ -20,7 +20,7 @@ import { SyncModule } from '../src/sync/sync.module';
 import { AuditModule } from '../src/audit/audit.module';
 import { MfaModule } from '../src/mfa/mfa.module';
 
-const MODULES: Record<string, unknown> = {
+const MODULES: Record<string, Type<unknown> | undefined> = {
   app: AppModule,
   health: HealthModule,
   prisma: PrismaModule,
@@ -43,9 +43,8 @@ export default async function handler(req: any, res: any) {
 
   try {
     class ProbeModule {}
-    Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), target].filter(Boolean) })(
-      ProbeModule
-    );
+    const imports = [ConfigModule.forRoot({ isGlobal: true }), ...(target ? [target] : [])];
+    Module({ imports })(ProbeModule);
     const app = await NestFactory.create(ProbeModule as never, { logger: false });
     out.create = 'ok';
     await app.init();
