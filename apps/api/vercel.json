@@ -4,6 +4,14 @@
   "outputDirectory": "public",
   "rewrites": [
     {
+      "source": "/api/ping",
+      "destination": "/api/ping"
+    },
+    {
+      "source": "/api/probe",
+      "destination": "/api/probe"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api"
     }
