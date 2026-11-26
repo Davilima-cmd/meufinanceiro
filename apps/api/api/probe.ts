@@ -1,50 +1,42 @@
 /**
- * Sonda do app Nest em etapas (`?step=import|create|init`): isola em qual passo
- * a inicialização quebra. Só para diagnosticar o ambiente publicado.
+ * Sonda granular: importa um módulo por vez (`?m=<alvo>`) para descobrir qual
+ * derruba o processo no runtime publicado.
  */
-function describe(error: unknown) {
-  const err = error as { name?: string; message?: string; stack?: string };
-  return {
-    name: err?.name ?? typeof error,
-    message: String(err?.message ?? error)
-      .replace(/:\/\/[^@\s/]*@/g, '://***@')
-      .slice(0, 700),
-    stack: String(err?.stack ?? '')
-      .replace(/:\/\/[^@\s/]*@/g, '://***@')
-      .slice(0, 900),
-  };
-}
+const TARGETS: Record<string, string> = {
+  core: '@nestjs/core',
+  common: '@nestjs/common',
+  nestconfig: '@nestjs/config',
+  nestjwt: '@nestjs/jwt',
+  nestpassport: '@nestjs/passport',
+  argon2: 'argon2',
+  express: 'express',
+  appmodule: '../src/app.module',
+  encryption: '../src/encryption/encryption.module',
+  prisma: '../src/prisma/prisma.module',
+  auth: '../src/auth/auth.module',
+};
 
 export default async function handler(req: any, res: any) {
-  const step = new URL(req.url, 'http://x').searchParams.get('step') ?? 'init';
-  const out: Record<string, unknown> = { step };
+  const m = new URL(req.url, 'http://x').searchParams.get('m') ?? 'appmodule';
+  const target = TARGETS[m] ?? m;
+  const out: Record<string, unknown> = { target };
 
   res.setHeader('content-type', 'application/json');
   res.statusCode = 200;
 
   try {
-    const mod = await import('../src/bootstrap');
-    out.import = 'ok';
-
-    if (step === 'import') {
-      out.exports = Object.keys(mod);
-      res.end(JSON.stringify(out));
-      return;
-    }
-
-    const app = await mod.createApp();
-    out.createApp = 'ok';
-
-    if (step === 'create') {
-      res.end(JSON.stringify(out));
-      return;
-    }
-
-    await app.init();
-    out.init = 'ok';
-    out.routes = 'ok';
+    const mod: any = await import(target === 'express' ? 'express' : target);
+    out.imported = true;
+    out.exports = Object.keys(mod).slice(0, 12);
   } catch (error) {
-    out.error = describe(error);
+    const err = error as { name?: string; message?: string; code?: string };
+    out.error = {
+      name: err?.name,
+      code: err?.code,
+      message: String(err?.message ?? error)
+        .replace(/:\/\/[^@\s/]*@/g, '://***@')
+        .slice(0, 700),
+    };
   }
 
   res.end(JSON.stringify(out));
