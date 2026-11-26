@@ -268,14 +268,13 @@ Resumo dos principais itens:
   ficar público (ou use um domínio próprio, que a proteção não cobre).
 - **Banco no Supabase** (PostgreSQL 17, região `sa-east-1`): use a URL direta para migrations
   (`DATABASE_URL_DIRECT`) e a URL do pooler para a aplicação (`DATABASE_URL`), com
-  `?pgbouncer=true&connection_limit=1`. O host do pooler é
-  `aws-0-<região>.pooler.supabase.com` com usuário `<papel>.<project_ref>` — trocar só o número
-  (`aws-1-…`) devolve `ENOTFOUND` para o tenant; a URL direta `db.<ref>.supabase.co` não é
-  alcançável a partir das funções da Vercel. O Supabase é usado **apenas** como Postgres: autenticação e
-  autorização continuam no NestJS. O schema `public` já está no formato esperado pelo Prisma
-  (camelCase + `hide_values`), com as duas migrations aplicadas e registradas em
-  `_prisma_migrations`, além das 8 categorias de sistema do `prisma/seed.ts`. Para conferir:
-  `psql "$DATABASE_URL_DIRECT" -c '\dt'`.
+  `?pgbouncer=true&connection_limit=1`. O host do pooler é `aws-0-<região>.pooler.supabase.com` com
+  usuário `<papel>.<project_ref>` — trocar só o número (`aws-1-…`) devolve `ENOTFOUND` para o
+  tenant; a URL direta `db.<ref>.supabase.co` não é alcançável a partir das funções da Vercel. O
+  Supabase é usado **apenas** como Postgres: autenticação e autorização continuam no NestJS. O
+  schema `public` já está no formato esperado pelo Prisma (camelCase + `hide_values`), com as duas
+  migrations aplicadas e registradas em `_prisma_migrations`, além das 8 categorias de sistema do
+  `prisma/seed.ts`. Para conferir: `psql "$DATABASE_URL_DIRECT" -c '\dt'`.
 - **API na Vercel** (projeto `meufinanceiro-api`, _Root Directory_ `apps/api`): o entrypoint é a
   função Zero Config `apps/api/api/index.ts`, que reusa o bootstrap do Nest. Ajustes necessários na
   Vercel — sem eles o deploy quebra com `STATIC_BUILD_NO_OUT_DIR`:
