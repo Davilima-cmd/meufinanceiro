@@ -1,5 +1,7 @@
+import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { CsrfGuard } from '../src/auth/csrf.guard';
 import { csrfTokenFor, readSessionCookie } from '../src/auth/session-cookie';
 
@@ -21,6 +23,9 @@ function context(options: {
   authorization?: string;
 }) {
   return {
+    // Sem `@SkipCsrf()`: o guard aplica a regra normal de CSRF.
+    getHandler: () => undefined,
+    getClass: () => undefined,
     switchToHttp: () => ({
       getRequest: () => ({
         method: options.method ?? 'POST',
@@ -37,7 +42,7 @@ function context(options: {
 const withCookies = `mf_session=${SESSION}; mf_csrf=${CSRF}`;
 
 describe('CsrfGuard', () => {
-  const guard = new CsrfGuard();
+  const guard = new CsrfGuard(new Reflector());
 
   it('deixa passar requisição sem cookie de sessão', () => {
     expect(guard.canActivate(context({ cookie: undefined }))).toBe(true);

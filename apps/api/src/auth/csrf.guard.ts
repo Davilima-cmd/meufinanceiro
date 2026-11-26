@@ -20,14 +20,15 @@ import { CSRF_HEADER, readCsrfCookie, readSessionCookie } from './session-cookie
  */
 @Injectable()
 export class CsrfGuard implements CanActivate {
-  constructor(private readonly reflector?: Reflector) {}
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    // `reflector` é opcional para os testes que instanciam a classe direto.
-    const skip = this.reflector?.getAllAndOverride<boolean>(SKIP_CSRF, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    // Rotas públicas (cadastro, login, MFA) declaram `@SkipCsrf()`: elas não
+    // dependem de sessão e um cookie órfão não pode barrá-las.
+    // `filter(Boolean)`: em contextos sem handler/classe (testes que chamam o
+    // guard direto, jobs internos) o Reflector não tem onde procurar metadata.
+    const targets = [context.getHandler(), context.getClass()].filter(Boolean);
+    const skip = targets.length > 0 && this.reflector.getAllAndOverride<boolean>(SKIP_CSRF, targets);
     if (skip) return true;
 
     const request = context.switchToHttp().getRequest<{

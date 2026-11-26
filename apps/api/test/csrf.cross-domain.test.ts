@@ -1,5 +1,7 @@
+import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { CsrfGuard } from '../src/auth/csrf.guard';
 import { csrfTokenFor, readCsrfCookie } from '../src/auth/session-cookie';
 
@@ -23,6 +25,9 @@ function httpContext(options: {
   authorization?: string;
 }) {
   return {
+    // Sem `@SkipCsrf()`: o guard aplica a regra normal de CSRF.
+    getHandler: () => undefined,
+    getClass: () => undefined,
     switchToHttp: () => ({
       getRequest: () => ({
         method: options.method ?? 'POST',
@@ -37,7 +42,7 @@ function httpContext(options: {
 }
 
 describe('CSRF com web e API em domínios diferentes', () => {
-  const guard = new CsrfGuard();
+  const guard = new CsrfGuard(new Reflector());
   const csrf = csrfTokenFor(SESSION_ID);
   const cookies = `mf_session=${JWT}; mf_csrf=${csrf}`;
 
