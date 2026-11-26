@@ -33,7 +33,7 @@ export interface OpenFinanceProvider {
    */
   readonly kind: 'sandbox' | 'live';
   /** Contas disponíveis na instituição, para o usuário escolher o que vincular. */
-  listAccounts(userId?: string): Promise<OpenFinanceAccount[]>;
+  listAccounts(userId?: string, itemId?: string): Promise<OpenFinanceAccount[]>;
   listTransactions(accountId?: string): Promise<OpenFinanceTransaction[]>;
   createConsent(userId?: string, itemId?: string): Promise<OpenFinanceConsent>;
 }

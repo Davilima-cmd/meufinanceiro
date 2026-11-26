@@ -58,7 +58,7 @@ const TRANSACTIONS: OpenFinanceTransaction[] = [
 export class SandboxOpenFinanceProvider implements OpenFinanceProvider {
   readonly kind = 'sandbox' as const;
 
-  async listAccounts(): Promise<OpenFinanceAccount[]> {
+  async listAccounts(_userId?: string, _itemId?: string): Promise<OpenFinanceAccount[]> {
     return ACCOUNTS;
   }
 

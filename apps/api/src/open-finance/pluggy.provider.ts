@@ -46,26 +46,34 @@ export class PluggyOpenFinanceProvider implements OpenFinanceProvider {
    * A primeira conexão nasce pelo widget (consentimento no banco); a partir daí
    * esta lista alimenta a tela de vínculo com o que realmente existe.
    */
-  async listAccounts(userId?: string): Promise<OpenFinanceAccount[]> {
+  async listAccounts(userId?: string, itemId?: string): Promise<OpenFinanceAccount[]> {
     if (!userId) return [];
-    const connections = await this.prisma.bankConnection.findMany({
-      where: { userId, status: 'active', provider: 'pluggy' },
-      select: { providerItemId: true },
-    });
-    const itemIds = [
-      ...new Set(connections.map((row: { providerItemId: string | null }) => row.providerItemId)),
-    ].filter((id): id is string => Boolean(id));
+
+    // Um item específico manda: é o caso do widget de conexão, em que o item
+    // acabou de nascer e ainda não tem nenhum vínculo gravado.
+    const itemIds = itemId ? [itemId] : await this.connectedItemIds(userId);
     if (itemIds.length === 0) return [];
 
     const client = this.client();
     const accounts: OpenFinanceAccount[] = [];
-    for (const itemId of itemIds) {
-      const remote = await client.listAccounts(itemId);
+    for (const id of itemIds) {
+      const remote = await client.listAccounts(id);
       for (const account of remote) {
-        accounts.push(this.toAccount(account, itemId));
+        accounts.push(this.toAccount(account, id));
       }
     }
     return accounts;
+  }
+
+  /** Itens (`providerItemId`) dos vínculos ativos do usuário. */
+  private async connectedItemIds(userId: string): Promise<string[]> {
+    const connections = await this.prisma.bankConnection.findMany({
+      where: { userId, status: 'active', provider: 'pluggy' },
+      select: { providerItemId: true },
+    });
+    return [
+      ...new Set(connections.map((row: { providerItemId: string | null }) => row.providerItemId)),
+    ].filter((id): id is string => Boolean(id));
   }
 
   async listTransactions(accountId?: string): Promise<OpenFinanceTransaction[]> {

@@ -79,7 +79,11 @@ function controller(provider: unknown = providerMock) {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.NODE_ENV = 'test';
-  providerMock.listAccounts.mockResolvedValue(ACCOUNTS);
+  // O provider real devolve as contas do item pedido; o dublê imita isso para
+  // que a contagem reflita o filtro por item.
+  providerMock.listAccounts.mockImplementation(async (_userId?: string, itemId?: string) =>
+    itemId ? ACCOUNTS.filter((account) => account.itemId === itemId) : ACCOUNTS
+  );
   providerMock.itemStatus.mockResolvedValue({ status: 'UPDATED', executionStatus: 'SUCCESS' });
   providerMock.createConsent.mockResolvedValue({
     externalId: 'item-1',
@@ -121,12 +125,12 @@ describe('POST /open-finance/connect-token', () => {
 });
 
 describe('POST /open-finance/connect-item', () => {
-  it('importa apenas as contas do item conectado', async () => {
-    providerMock.listAccounts.mockResolvedValue(ACCOUNTS);
-
+  it('busca as contas do item que acabou de nascer, não dos já vinculados', async () => {
     const result = await controller().connectItem(req, { itemId: 'item-1' });
 
-    // ACCOUNTS tem 3 contas, mas só 2 pertencem ao item-1.
+    // Sem o itemId explícito, a busca sairia de `bank_connections` (vazio) e o
+    // primeiro vínculo nunca seria importado.
+    expect(providerMock.listAccounts).toHaveBeenCalledWith('user-1', 'item-1');
     expect(result).toMatchObject({ accounts: 2, created: 2, synced: true });
     expect(syncMock.reconcileUser).toHaveBeenCalledWith('user-1', { trigger: 'daily' });
   });

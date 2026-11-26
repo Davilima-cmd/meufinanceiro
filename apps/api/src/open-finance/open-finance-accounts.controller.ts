@@ -127,9 +127,9 @@ export class OpenFinanceAccountsController {
     }
 
     // O item é a fonte da verdade: as contas vêm dele, não do corpo da requisição.
-    const accounts = (await pluggy.listAccounts(req.user.userId)).filter(
-      (account) => account.itemId === dto.itemId
-    );
+    // A lista vem do item recém-criado (ainda sem vínculo gravado), não dos
+    // itens já conectados: é justamente o primeiro vínculo que está nascendo.
+    const accounts = await pluggy.listAccounts(req.user.userId, dto.itemId);
     if (accounts.length === 0) {
       throw new BadRequestException(
         'O banco ainda está processando a autorização. Tente novamente em alguns instantes.'
