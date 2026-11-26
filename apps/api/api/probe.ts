@@ -1,22 +1,15 @@
 /**
- * Sonda de bootstrap instrumentada: módulo vazio vs. com `@nestjs/config` vs.
- * com HealthModule, com heartbeat para detectar bloqueio de event loop.
- * Cada etapa vira uma linha em `_probe_log`. Só diagnóstico.
+ * Sonda instrumentada: registra etapas em `_probe_log` antes de executá-las, para
+ * que um crash do processo deixe rastro do último passo alcançado.
+ * Só para diagnóstico; removida após o deploy validado.
  */
 import 'reflect-metadata';
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { NestFactory } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
-import { HealthModule } from '../src/health/health.module';
 
 const prisma = new PrismaClient();
 const run = `run-${Date.now()}`;
-let ticks = 0;
-let lastStep = 'start';
 
 async function log(step: string, detail: unknown = '') {
-  lastStep = step;
   try {
     await prisma.$executeRawUnsafe(
       'INSERT INTO _probe_log (run, step, detail) VALUES ($1, $2, $3)',
@@ -30,42 +23,41 @@ async function log(step: string, detail: unknown = '') {
 }
 
 export default async function handler(req: any, res: any) {
-  const variant = new URL(req.url, 'http://x').searchParams.get('v') ?? 'empty';
-
-  // Heartbeat: se o event loop travar, os ticks param de aparecer.
-  const timer = setInterval(() => {
-    ticks += 1;
-    void log(`tick ${ticks} (após ${lastStep})`);
-  }, 2000);
-  timer.unref?.();
+  const v = new URL(req.url, 'http://x').searchParams.get('v') ?? 'service';
+  await log('inicio', { v });
 
   try {
-    await log('inicio', { variant });
+    await log('typeof $use', typeof (PrismaClient.prototype as any).$use);
 
-    class EmptyModule {}
-    Module({})(EmptyModule);
+    const { EncryptionService } = await import('../src/encryption/encryption.service');
+    const { PrismaService } = await import('../src/prisma/prisma.service');
+    await log('prisma.service importado');
 
-    class ConfigOnlyModule {}
-    Module({ imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] })] })(
-      ConfigOnlyModule
-    );
+    const config = {
+      get: (key: string) => (key === 'ENCRYPTION_KEY' ? process.env.ENCRYPTION_KEY : undefined),
+    } as never;
+    const encryption = new EncryptionService(config);
+    encryption.onModuleInit();
+    await log('encryption pronta');
 
-    const target =
-      variant === 'config' ? ConfigOnlyModule : variant === 'health' ? HealthModule : EmptyModule;
-
-    await log('criando contexto', { variant });
-    const ctx = await NestFactory.createApplicationContext(target as never, { logger: false });
-    await log('contexto criado');
-    await ctx.close();
-    await log('contexto fechado');
+    if (v === 'ctor') {
+      const service = new PrismaService(encryption);
+      await log('PrismaService construído');
+      await service.$disconnect();
+    } else {
+      const client = new PrismaClient();
+      await log('client cru criado');
+      await client.$connect();
+      await log('client cru conectado');
+      await client.$disconnect();
+      await log('client cru desconectado');
+    }
   } catch (error) {
-    await log('erro', String((error as Error)?.message ?? error));
-  } finally {
-    clearInterval(timer);
+    await log('erro', String((error as Error)?.stack ?? error));
   }
 
   await log('fim');
   res.setHeader('content-type', 'application/json');
   res.statusCode = 200;
-  res.end(JSON.stringify({ run, ticks, lastStep }));
+  res.end(JSON.stringify({ run }));
 }
