@@ -4,6 +4,7 @@ import {
   applySensitiveFields,
   SENSITIVE_FIELDS,
   sensitiveFieldsExtension,
+  sensitiveFieldsFor,
 } from '../../src/prisma/sensitive-fields.extension';
 
 const KEY = Buffer.alloc(32, 7).toString('base64');
@@ -188,6 +189,27 @@ describe('sensitiveFieldsExtension', () => {
     expect(typeof (extension.query.$allModels as { $allOperations: unknown }).$allOperations).toBe(
       'function'
     );
+  });
+
+  it('resolve o modelo no formato que o Prisma envia (PascalCase)', async () => {
+    // Regressão: o Prisma informa `Consent`/`BankConnection` (nome do DMMF), não
+    // o nome camelCase do cliente. Comparar direto desativava a cifra em silêncio.
+    expect(sensitiveFieldsFor('Consent')).toEqual(['externalId']);
+    expect(sensitiveFieldsFor('BankConnection')).toEqual(['providerAccountId']);
+    expect(sensitiveFieldsFor('consent')).toEqual(['externalId']);
+    expect(sensitiveFieldsFor('User')).toBeUndefined();
+    expect(sensitiveFieldsFor(undefined)).toBeUndefined();
+
+    const args = { data: { userId: 'u-1', provider: 'bank', externalId: 'ext-1' } };
+    let cipher: string | undefined;
+
+    await applySensitiveFields('Consent', 'create', args as never, encryption, async (next) => {
+      cipher = (next as { data: { externalId: string } }).data.externalId;
+      return {};
+    });
+
+    expect(cipher).toMatch(/^enc:/);
+    expect(encryption.decrypt(cipher as string)).toBe('ext-1');
   });
 
   it('mapeia os dois modelos com campo sensível', () => {

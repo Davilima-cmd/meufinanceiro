@@ -14,13 +14,19 @@ export const SENSITIVE_FIELDS: Record<string, readonly string[]> = {
 };
 
 /**
- * Registro das últimas chamadas recebidas pela extension.
+ * Resolve os campos sensíveis de um modelo.
  *
- * Existe para diagnosticar o ambiente publicado: a cifragem depende de o Prisma
- * entregar `model` no formato esperado, e o nome do modelo muda entre formatos
- * (`Consent` no DMMF, `consent` na extension). Custoso apenas na leitura.
+ * O Prisma informa o nome do modelo em PascalCase (`Consent`, `BankConnection`) —
+ * o nome do DMMF, não o do cliente —, então a busca é case-insensitive. Comparar
+ * direto com a chave em camelCase deixaria a cifragem inativa sem erro nenhum.
  */
-export const extensionCalls: Array<{ model?: string; operation: string; cifrou: boolean }> = [];
+export function sensitiveFieldsFor(model: string | undefined): readonly string[] | undefined {
+  if (!model) return undefined;
+  const key = Object.keys(SENSITIVE_FIELDS).find(
+    (candidate) => candidate.toLowerCase() === model.toLowerCase()
+  );
+  return key ? SENSITIVE_FIELDS[key] : undefined;
+}
 
 /** Operações em que os dados de entrada precisam ser cifrados antes do banco. */
 const WRITE_OPERATIONS = new Set(['create', 'createMany', 'update', 'updateMany', 'upsert']);
@@ -100,14 +106,7 @@ export async function applySensitiveFields<Result>(
   encryption: EncryptionService,
   run: (args: QueryArgs) => Promise<Result>
 ): Promise<Result> {
-  const fields = model ? SENSITIVE_FIELDS[model] : undefined;
-  if (extensionCalls.length < 50) {
-    extensionCalls.push({
-      model,
-      operation,
-      cifrou: Boolean(fields) && WRITE_OPERATIONS.has(operation),
-    });
-  }
+  const fields = sensitiveFieldsFor(model);
   if (!fields) {
     return run(args);
   }
