@@ -48,6 +48,7 @@ export function accessFromShares(shares: ActiveShare[]): {
  */
 export function visibleAccountsWhere(userId: string) {
   return {
+    deletedAt: null,
     OR: [
       { userId },
       {
@@ -66,6 +67,7 @@ export function visibleAccountsWhere(userId: string) {
  */
 export function visibleTransactionsWhere(userId: string) {
   return {
+    deletedAt: null,
     OR: [
       { userId },
       {

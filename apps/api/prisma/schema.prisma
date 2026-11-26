@@ -39,6 +39,9 @@ model User {
   syncJobs            SyncJob[]
   auditLogs           AuditLog[]
   passwordResets      PasswordReset[]
+  allocations         Allocation[]
+  recurrences         Recurrence[]
+  netWorthItems       NetWorthItem[]
 
   @@map("users")
 }
@@ -117,6 +120,9 @@ model FinancialAccount {
   currency    String   @default("BRL") @db.VarChar(16)
   balanceCents Decimal  @default(0) @db.Decimal(20, 0)
   isActive    Boolean  @default(true)
+  /// Exclusão lógica: a conta sai das telas e dos totais, mas o histórico
+  /// continua no banco (registro financeiro não se apaga sem deixar rastro).
+  deletedAt   DateTime?
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())
 
@@ -124,9 +130,11 @@ model FinancialAccount {
   shares     AccountShare[]
   connections BankConnection[]
   transactions Transaction[]
+  recurrences  Recurrence[]
 
   @@map("financial_accounts")
   @@index([userId])
+  @@index([deletedAt])
 }
 
 model BankConnection {
@@ -166,6 +174,66 @@ model Consent {
   @@index([userId])
 }
 
+/// Modelo de lançamento recorrente (aluguel, assinatura, salário).
+///
+/// O modelo não é o lançamento: ele descreve "todo mês, nesse dia, esse valor".
+/// Uma rotina gera os lançamentos do mês corrente até `nextRunAt`, sempre com
+/// `status: 'pending'` — recorrente é conta a pagar/receber até alguém liquidar.
+model Recurrence {
+  id           String   @id @default(cuid()) @db.VarChar(255)
+  userId       String   @db.VarChar(255)
+  accountId    String   @db.VarChar(255)
+  categoryId   String?  @db.VarChar(255)
+  description  String   @db.VarChar(255)
+  /// Valor em centavos, com sinal (negativo = despesa), como nos lançamentos.
+  amountCents  Decimal  @db.Decimal(20, 0)
+  type         String   @db.VarChar(16)
+  /// `monthly` por enquanto; `weekly`/`yearly` entram sem migração nova.
+  frequency    String   @default("monthly") @db.VarChar(16)
+  /// Dia do mês (1–28) em que o lançamento é criado.
+  dayOfMonth   Int      @default(1)
+  /// Último dia já gerado: evita duplicar ao rodar a rotina duas vezes.
+  nextRunAt    DateTime
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  FinancialAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@map("recurrences")
+  @@index([userId])
+  @@index([nextRunAt])
+}
+
+/// Rateio de um lançamento entre duas pessoas do casal.
+///
+/// Cada linha é a parte de **um** participante. A soma das partes é sempre
+/// exatamente o valor do lançamento: a diferença de arredondamento é distribuída
+/// em centavos nas primeiras partes, nunca "sumindo".
+model Allocation {
+  id            String   @id @default(cuid()) @db.VarChar(255)
+  transactionId String   @db.VarChar(255)
+  /// Quem deve esta parte (pode ser o próprio dono do lançamento).
+  userId        String   @db.VarChar(255)
+  /// Parte em centavos, sempre positiva: o rateio divide o valor absoluto.
+  shareCents    Decimal  @db.Decimal(20, 0)
+  /// `equal` ou `proportional`, para o histórico mostrar como foi dividido.
+  mode          String   @db.VarChar(16)
+  /// Peso/percentual usado no modo proporcional (nulo no igualitário).
+  percentBasis  Float?
+  settledAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("allocations")
+  @@unique([transactionId, userId])
+  @@index([userId])
+}
+
 model Transaction {
   id           String   @id @default(cuid()) @db.VarChar(255)
   accountId    String   @db.VarChar(255)
@@ -188,15 +256,20 @@ model Transaction {
   paidAt       DateTime?
   /// Vencimento, para contas a pagar/receber.
   dueDate      DateTime?
+  /// Exclusão lógica: o lançamento some das listas e dos totais, mas o
+  /// registro permanece auditável (e o saldo já foi estornado na exclusão).
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   account FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  allocations Allocation[]
 
   @@map("transactions")
   @@index([userId])
+  @@index([deletedAt])
   @@index([accountId])
   @@index([date])
   @@index([competenceDate])
@@ -216,6 +289,7 @@ model Category {
   user       User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   budgets Budget[]
+  recurrences Recurrence[]
 
   @@map("categories")
   @@index([userId])
@@ -249,9 +323,54 @@ model FinancialGoal {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions GoalContribution[]
 
   @@map("financial_goals")
   @@index([userId])
+}
+
+/// Item de patrimônio declarado à mão: bem (carro, imóvel) ou dívida
+/// (financiamento, empréstimo).
+///
+/// Contas financeiras já entram no patrimônio pelo saldo; isto cobre o que não
+/// é conta — e o que **tira** patrimônio, que é a dívida. Sem o passivo, o
+/// "quanto eu tenho" da tela vira ficção.
+model NetWorthItem {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  userId      String   @db.VarChar(255)
+  name        String   @db.VarChar(128)
+  /// `asset` (bem) ou `liability` (dívida).
+  kind        String   @db.VarChar(16)
+  /// Sempre positivo: o sinal vem do `kind`, não do número.
+  valueCents  Decimal  @db.Decimal(20, 0)
+  note        String?  @db.VarChar(255)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("net_worth_items")
+  @@index([userId])
+}
+
+/// Histórico de aportes de uma meta.
+///
+/// Antes o progresso era um número solto (`currentCents`) que alguém editava à
+/// mão: não dava para saber quando entrou, quanto entrou nem voltar atrás. Cada
+/// aporte é uma linha; `currentCents` passa a ser a soma deles.
+model GoalContribution {
+  id          String   @id @default(cuid()) @db.VarChar(255)
+  goalId      String   @db.VarChar(255)
+  /// Pode ser negativo: resgate da meta.
+  amountCents Decimal  @db.Decimal(20, 0)
+  note        String?  @db.VarChar(255)
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  goal FinancialGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@map("goal_contributions")
+  @@index([goalId, occurredAt])
 }
 
 model WebhookEvent {

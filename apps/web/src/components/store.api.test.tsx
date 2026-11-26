@@ -22,11 +22,16 @@ const { apiMock, snapshotMock } = vi.hoisted(() => ({
     deleteBudget: vi.fn(),
     createGoal: vi.fn(),
     updateGoal: vi.fn(),
+    getGoalContributions: vi.fn(),
+    addGoalContribution: vi.fn(),
     deleteGoal: vi.fn(),
     setShareLevel: vi.fn(),
     invitePartner: vi.fn(),
     acceptPartnership: vi.fn(),
     revokePartnership: vi.fn(),
+    logout: vi.fn(),
+    authStatus: vi.fn(),
+    setToken: vi.fn(),
   },
   snapshotMock: vi.fn(),
 }));
@@ -81,6 +86,13 @@ beforeEach(() => {
   apiMock.invitePartner.mockResolvedValue({ id: 'partner-1' });
   apiMock.acceptPartnership.mockResolvedValue({ id: 'partner-1' });
   apiMock.revokePartnership.mockResolvedValue({ revoked: true });
+  apiMock.logout.mockResolvedValue({ revoked: true });
+  apiMock.authStatus.mockResolvedValue({
+    authenticated: true,
+    user: { id: 'user-1', name: 'Davi', email: 'davi@ex.com' },
+    sessionId: 'sess-1',
+    sessions: 1,
+  });
   snapshotMock.mockResolvedValue(apiSnapshot);
 });
 
@@ -216,6 +228,35 @@ describe('FinanceProvider (modo API)', () => {
     expect(result.current.syncError).toBe('Aceite uma parceria antes de compartilhar contas');
   });
 
+  it('sair no modo API revoga a sessão no servidor', async () => {
+    const result = await renderApiSession();
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+
+    // Sem isso o JWT continuaria valendo por até 1h depois do "sair".
+    expect(apiMock.logout).toHaveBeenCalled();
+    expect(result.current.session).toBeNull();
+  });
+
+  it('sessão revogada em outro aparelho derruba o painel no carregamento', async () => {
+    // Token guardado, mas a API responde 401 no `GET /auth/status`.
+    apiMock.authStatus.mockRejectedValue(
+      Object.assign(new Error('Sessão encerrada. Entre novamente.'), { isUnauthorized: true })
+    );
+    window.localStorage.setItem(
+      'mf.session.v1',
+      JSON.stringify({ mode: 'api', user: { id: 'user-1', name: 'Davi', email: 'davi@ex.com' } })
+    );
+
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+
+    await waitFor(() => expect(result.current.session).toBeNull());
+    expect(result.current.syncError).toMatch(/sessão/i);
+  });
+
   it('salvar orçamento usa a API (criando ou atualizando)', async () => {
     const result = await renderApiSession();
     let failure: string | null = null;
@@ -234,5 +275,66 @@ describe('FinanceProvider (modo API)', () => {
       periodStart: '2026-11-01',
       periodEnd: '2026-11-30',
     });
+  });
+
+  it('aporte em meta vai para o endpoint de aportes (histórico no servidor)', async () => {
+    snapshotMock.mockResolvedValue({
+      ...apiSnapshot,
+      goals: [
+        {
+          id: 'goal-1',
+          name: 'Viagem',
+          targetCents: '100000',
+          currentCents: '1000',
+          dueDate: null,
+        },
+      ],
+    });
+    apiMock.addGoalContribution.mockResolvedValue({ id: 'goal-1' });
+
+    const result = await renderApiSession();
+    // Depois do aporte o store relê o snapshot do servidor: é a resposta dele
+    // que manda, não uma soma feita no navegador.
+    snapshotMock.mockResolvedValue({
+      ...apiSnapshot,
+      goals: [
+        {
+          id: 'goal-1',
+          name: 'Viagem',
+          targetCents: '100000',
+          currentCents: '6000',
+          dueDate: null,
+        },
+      ],
+    });
+    await waitFor(() =>
+      expect(result.current.snapshot.goals.some((goal) => goal.id === 'goal-1')).toBe(true)
+    );
+
+    await act(async () => {
+      await result.current.contributeGoal('goal-1', '5000', 'Salário');
+    });
+
+    expect(apiMock.addGoalContribution).toHaveBeenCalledWith('goal-1', {
+      amountCents: '5000',
+      note: 'Salário',
+    });
+    const goal = result.current.snapshot.goals.find((item) => item.id === 'goal-1');
+    expect(goal?.currentCents).toBe('6000');
+  });
+
+  it('histórico da meta consulta o servidor no modo API', async () => {
+    apiMock.getGoalContributions.mockResolvedValue([
+      { id: 'c-1', amountCents: '1000', note: null, occurredAt: '2026-11-01T12:00:00Z' },
+    ]);
+
+    const result = await renderApiSession();
+    let rows: unknown[] = [];
+    await act(async () => {
+      rows = await result.current.goalHistory('goal-1');
+    });
+
+    expect(apiMock.getGoalContributions).toHaveBeenCalledWith('goal-1');
+    expect(rows).toHaveLength(1);
   });
 });

@@ -71,7 +71,7 @@ describe('OpenFinanceController', () => {
       accountId: 'acct-1',
     });
     expect(prismaMock.financialAccount.findFirst).toHaveBeenCalledWith({
-      where: { id: 'acct-1', userId: 'user-1' },
+      where: { id: 'acct-1', userId: 'user-1', deletedAt: null },
       select: { id: true },
     });
     expect(prismaMock.bankConnection.create).toHaveBeenCalledWith({

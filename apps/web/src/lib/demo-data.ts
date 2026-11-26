@@ -560,6 +560,25 @@ export function buildDemoSnapshot(today = todayISO()): FinanceSnapshot {
       email: DEMO_PARTNER.email,
       status: 'accepted',
     },
+    // Patrimônio fora das contas: o dado de demonstração também mostra a
+    // dívida, senão a tela de patrimônio nasceria vazia.
+    netWorthItems: [
+      { id: 'nw-car', name: 'Carro', kind: 'asset', valueCents: '4800000', note: 'Onix 2022' },
+      {
+        id: 'nw-loan',
+        name: 'Financiamento do carro',
+        kind: 'liability',
+        valueCents: '3150000',
+        note: '24 parcelas restantes',
+      },
+      {
+        id: 'nw-reserve',
+        name: 'Reserva de emergência (CDB)',
+        kind: 'asset',
+        valueCents: '1200000',
+        note: null,
+      },
+    ],
     settings: {
       theme: 'dark',
       hideValues: false,

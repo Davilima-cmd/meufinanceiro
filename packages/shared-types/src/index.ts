@@ -44,6 +44,16 @@ export type MfaDisableResponse = { mfaEnabled: boolean; user: ApiUser };
 /** DTO de verificação de código TOTP (segundo fator no login). */
 export type MfaVerifyRequest = { code: string };
 
+/** Resposta de `GET /auth/status`: valida a sessão e devolve o usuário. */
+export type AuthStatus = {
+  authenticated: true;
+  user: ApiUser;
+  /** Id da sessão do token usado nesta requisição, quando houver. */
+  sessionId: string | null;
+  /** Quantas sessões abertas o usuário tem (contando esta). */
+  sessions: number;
+};
+
 /** Resposta da geração do QR code de configuração do MFA. */
 export type MfaQrCodeResponse = {
   /** URL otpauth://totp/... a ser lida pelo app autenticador (Google Authenticator etc.). */
@@ -166,6 +176,32 @@ export type ApiGoal = {
   updatedAt: string;
 };
 
+/** Item de patrimônio declarado à mão (bem ou dívida). */
+export type ApiNetWorthItem = {
+  id: string;
+  name: string;
+  kind: 'asset' | 'liability';
+  valueCents: string;
+  note: string | null;
+};
+
+/** Patrimônio: contas + bens − dívidas. */
+export type ApiNetWorthSummary = {
+  accountsTotalCents: string;
+  assetsCents: string;
+  liabilitiesCents: string;
+  netCents: string;
+  items: ApiNetWorthItem[];
+};
+
+/** Aporte (ou resgate, valor negativo) no histórico de uma meta. */
+export type ApiGoalContribution = {
+  id: string;
+  amountCents: string;
+  note: string | null;
+  occurredAt: string;
+};
+
 /** DTO de entrada para criar um lançamento. */
 export type CreateTransactionDto = {
   accountId: string;
@@ -251,6 +287,8 @@ export type ApiSharingOverview = {
   partner: { id: string; name: string } | null;
   accounts: Array<{ id: string; name: string; balanceCents: string; level: ShareLevel }>;
   levels: ShareLevel[];
+  /** Convites recebidos e ainda pendentes (quem convidou e o id da parceria). */
+  invites: Array<{ id: string; from: { id: string; name: string } }>;
 };
 
 /** Conta que o parceiro compartilhou, já com o que o usuário pode ver. */

@@ -4,11 +4,14 @@ import {
   type ApiBudget,
   type ApiCategory,
   type ApiGoal,
+  type ApiNetWorthSummary,
+  type ApiSharedAccount,
   type ApiSharingOverview,
   type ApiTransaction,
 } from './api';
 import type {
   AccountType,
+  FinanceAccount,
   FinanceSnapshot,
   FinancePartner,
   FinanceTransaction,
@@ -142,26 +145,87 @@ export function mapApiSnapshot(
       dueDate: goal.dueDate ? goal.dueDate.slice(0, 10) : null,
     })),
     partner: partnerFromSnapshot(accounts, user, sharing),
+    invites: sharing?.invites ?? [],
     settings: { theme: 'dark', hideValues: false, partnerName: 'Parceiro' },
   };
 }
 
+/**
+ * Contas que o parceiro compartilhou, vindas do endpoint dedicado
+ * (`GET /sharing/accounts`).
+ *
+ * A lista usa o mesmo `level`/`access` que a API decidiu, em vez de o front
+ * deduzir permissão — é isso que impede a tela de oferecer uma ação que o
+ * servidor vai recusar.
+ */
+export function mapSharedAccounts(rows: ApiSharedAccount[], offset = 0): FinanceAccount[] {
+  return rows.map((row, index) => ({
+    id: row.account.id,
+    name: row.account.name,
+    institution: row.account.institution ?? null,
+    type: 'manual',
+    currency: 'BRL',
+    balanceCents: String(row.account.balanceCents),
+    shareLevel: row.level,
+    ownerId: row.owner.id,
+    ownerName: row.owner.name,
+    access: {
+      canSeeBalance: row.canSeeBalance,
+      canSeeTransactions: row.canSeeTransactions,
+      readOnly: row.readOnly,
+    },
+    color: DEFAULT_COLORS[(offset + index) % DEFAULT_COLORS.length],
+    isActive: row.account.isActive,
+    isMine: false,
+  }));
+}
+
 export async function fetchApiSnapshot(): Promise<FinanceSnapshot> {
-  const [accounts, transactions, categories, budgets, goals, sharing] = await Promise.all([
-    api.getAccounts(),
-    api.getTransactions(),
-    api.getCategories(),
-    api.getBudgets().catch(() => [] as ApiBudget[]),
-    api.getGoals().catch(() => [] as ApiGoal[]),
-    // Compartilhamento é complementar: falhar aqui não pode derrubar a tela.
-    api.getSharing().catch(() => null),
-  ]);
+  const [accounts, transactions, categories, budgets, goals, sharing, sharedAccounts, netWorth] =
+    await Promise.all([
+      api.getAccounts(),
+      api.getTransactions(),
+      api.getCategories(),
+      api.getBudgets().catch(() => [] as ApiBudget[]),
+      api.getGoals().catch(() => [] as ApiGoal[]),
+      // Compartilhamento é complementar: falhar aqui não pode derrubar a tela.
+      api.getSharing().catch(() => null),
+      // Fonte própria das contas recebidas: garante que elas aparecem mesmo se
+      // `GET /accounts` falhar ou vier de um cache antigo.
+      api.getSharedAccounts().catch(() => [] as ApiSharedAccount[]),
+      // Patrimônio é complementar: sem ele a tela mostra só o saldo das contas.
+      api.getNetWorth().catch(() => null as ApiNetWorthSummary | null),
+    ]);
+  // O usuário vem do `GET /auth/status` (dono da verdade): a cópia no
+  // `localStorage` pode estar velha ou ausente, e o id errado faria o app tratar
+  // as próprias contas como compartilhadas (somente leitura).
+  const status = await api.authStatus().catch(() => null);
   const stored = localStorage.getItem('mf.session.api');
   const parsed = stored ? (JSON.parse(stored) as { user?: { id: string; name: string } }) : null;
   const user: FinanceUser = {
-    id: parsed?.user?.id ?? 'api-user',
-    name: parsed?.user?.name ?? 'Você',
-    email: '',
+    id: status?.user.id ?? parsed?.user?.id ?? 'api-user',
+    name: status?.user.name ?? parsed?.user?.name ?? 'Você',
+    email: status?.user.email ?? '',
   };
-  return mapApiSnapshot(user, accounts, transactions, categories, budgets, goals, sharing);
+  // Une as duas fontes: `GET /accounts` já traz as compartilhadas, mas o
+  // endpoint dedicado é a verdade sobre nível e permissão. Quem vem de lá
+  // sobrescreve o item equivalente.
+  const received = mapSharedAccounts(sharedAccounts.filter((row) => row.level !== 'private'));
+  const receivedById = new Map(received.map((account) => [account.id, account]));
+  const allAccounts = accounts.map((account) => receivedById.get(account.id) ?? account);
+  for (const account of received) {
+    if (!allAccounts.some((item) => item.id === account.id)) allAccounts.push(account);
+  }
+
+  const snapshot = mapApiSnapshot(
+    user,
+    allAccounts as typeof accounts,
+    transactions,
+    categories,
+    budgets,
+    goals,
+    sharing
+  );
+
+  return { ...snapshot, netWorthItems: netWorth?.items ?? [] };
 }

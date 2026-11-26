@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { SharingService } from './sharing.service';
-import { InvitePartnerDto, SetShareLevelDto } from './dto/sharing.dto';
+import { AcceptPartnershipDto, InvitePartnerDto, SetShareLevelDto } from './dto/sharing.dto';
 import { AuditAction, AuditLog } from '../audit/audit-log.decorator';
 
 interface AuthenticatedRequest extends Request {
@@ -33,8 +33,8 @@ export class SharingController {
 
   @Post('accept')
   @AuditLog(AuditAction.PARTNERSHIP_ACCEPT)
-  async accept(@Req() req: AuthenticatedRequest) {
-    return this.sharing.accept(req.user.userId);
+  async accept(@Req() req: AuthenticatedRequest, @Body() dto: AcceptPartnershipDto) {
+    return this.sharing.accept(req.user.userId, dto.partnershipId);
   }
 
   @Delete()

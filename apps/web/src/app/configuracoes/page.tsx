@@ -88,7 +88,7 @@ export default function SettingsPage() {
               <strong>{hasConfiguredApi() ? API_BASE : 'padrão local'}</strong>
             </div>
             <div className="entity-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="button button-ghost" onClick={signOut} type="button">
+              <button className="button button-ghost" onClick={() => void signOut()} type="button">
                 Sair
               </button>
               {session?.mode === 'demo' ? (

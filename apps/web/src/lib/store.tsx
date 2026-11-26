@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import type { ApiGoalContribution } from '@meufinanceiro/shared-types';
 import { buildDemoSnapshot, DEMO_USER } from './demo-data';
 import { fetchApiSnapshot } from './api-snapshot';
 import { api } from './api';
@@ -18,6 +19,7 @@ import type {
   FinanceAccount,
   FinanceCategory,
   FinanceGoal,
+  NetWorthItemKind,
   FinanceSnapshot,
   FinanceTransaction,
   FinanceUser,
@@ -41,7 +43,7 @@ type FinanceContextValue = {
   isDemo: boolean;
   startDemo: () => void;
   startApiSession: (user: FinanceUser) => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   resetDemo: () => void;
   refresh: () => Promise<void>;
   /**
@@ -71,14 +73,24 @@ type FinanceContextValue = {
     targetCents: string;
     dueDate: string | null;
   }) => Promise<string | null>;
-  contributeGoal: (id: string, amountCents: string) => Promise<string | null>;
+  contributeGoal: (id: string, amountCents: string, note?: string) => Promise<string | null>;
+  /** Histórico de aportes da meta (modo API consulta o servidor). */
+  goalHistory: (id: string) => Promise<ApiGoalContribution[]>;
+  addNetWorthItem: (input: {
+    name: string;
+    kind: NetWorthItemKind;
+    valueCents: string;
+    note?: string;
+  }) => Promise<string | null>;
+  updateNetWorthItemValue: (id: string, valueCents: string) => Promise<string | null>;
+  deleteNetWorthItem: (id: string) => Promise<string | null>;
   deleteGoal: (id: string) => Promise<string | null>;
   setHideValues: (value: boolean) => void;
   toggleTheme: () => void;
   setShareLevel: (accountId: string, level: ShareLevel) => Promise<string | null>;
   /** Convida alguém pelo e-mail; no modo API a parceria nasce pendente. */
   invitePartner: (email: string) => Promise<string | null>;
-  acceptPartnership: () => Promise<string | null>;
+  acceptPartnership: (partnershipId?: string) => Promise<string | null>;
   revokePartnership: () => Promise<string | null>;
 };
 
@@ -124,6 +136,67 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const sessionRef = useRef<Session | null>(null);
 
+  /** Limpa o estado local da sessão sem falar com a rede. */
+  const forceSignOut = useCallback((message?: string) => {
+    sessionRef.current = null;
+    setSession(null);
+    saveStored(SESSION_KEY, null);
+    saveStored(DEMO_SNAPSHOT_KEY, null);
+    saveStored('mf.session.api', null);
+    setSnapshot(buildDemoSnapshot());
+    api.setToken(null);
+    setSyncError(message ?? null);
+  }, []);
+
+  /**
+   * Sai da conta. No modo API o token também é revogado no servidor — sem isso,
+   * "sair" só apagava o token do navegador e o JWT continuava valendo até
+   * expirar (quem tivesse uma cópia seguia entrando).
+   */
+  const signOut = useCallback(async () => {
+    const wasApi = sessionRef.current?.mode === 'api';
+    forceSignOut();
+    if (wasApi) {
+      // Best-effort: se a rede falhar, o estado local já saiu da sessão.
+      await api.logout().catch(() => undefined);
+    }
+  }, [forceSignOut]);
+
+  /**
+   * Confere no servidor se o token guardado ainda vale.
+   *
+   * Sessão revogada (logout em outro aparelho, troca de senha) responde `401`:
+   * limpamos o estado e voltamos para o login, em vez de exibir dados que não
+   * vão poder ser salvos.
+   */
+  const ensureSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const status = await api.authStatus();
+      const user: FinanceUser = {
+        id: status.user.id,
+        name: status.user.name,
+        email: status.user.email,
+      };
+      const nextSession: Session = { mode: 'api', user };
+      sessionRef.current = nextSession;
+      setSession(nextSession);
+      saveStored(SESSION_KEY, nextSession);
+      return true;
+    } catch (error) {
+      const unauthorized =
+        error instanceof Error &&
+        'isUnauthorized' in error &&
+        (error as { isUnauthorized?: boolean }).isUnauthorized === true;
+      if (unauthorized) {
+        forceSignOut('Sua sessão expirou ou foi encerrada. Entre novamente.');
+      } else {
+        // Falha de rede não invalida a sessão: seguimos com o que está guardado.
+        return true;
+      }
+      return false;
+    }
+  }, [forceSignOut]);
+
   useEffect(() => {
     const storedSession = loadStored<Session>(SESSION_KEY);
     const storedSnapshot = loadStored<FinanceSnapshot>(DEMO_SNAPSHOT_KEY);
@@ -138,6 +211,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     if (storedSession?.mode === 'api') {
       void (async () => {
+        // A sessão guardada pode ter sido revogada em outro aparelho (logout,
+        // troca de senha): vale perguntar ao servidor antes de mostrar o painel.
+        const stillValid = await ensureSession();
+        if (!stillValid) return;
         try {
           const remote = await fetchApiSnapshot();
           setSnapshot(remote);
@@ -146,6 +223,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
       })();
     }
+    // Roda uma vez, na hidratação: `ensureSession` é estável (useCallback sem
+    // dependências mutáveis) e não deve reexecutar a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const updateSnapshot = useCallback((updater: (current: FinanceSnapshot) => FinanceSnapshot) => {
@@ -197,15 +277,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     } finally {
       setSyncing(false);
     }
-  }, []);
-
-  const signOut = useCallback(() => {
-    sessionRef.current = null;
-    setSession(null);
-    saveStored(SESSION_KEY, null);
-    saveStored(DEMO_SNAPSHOT_KEY, null);
-    saveStored('mf.session.api', null);
-    setSnapshot(buildDemoSnapshot());
   }, []);
 
   const resetDemo = useCallback(() => {
@@ -550,8 +621,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [mutate]
   );
 
+  /**
+   * Aporte em uma meta.
+   *
+   * No modo API o valor vai para `/financial-goals/:id/contributions`: o
+   * servidor é quem soma e guarda o histórico, então dois aparelhos não
+   * sobrescrevem o saldo um do outro. No modo demonstração, soma local.
+   */
   const contributeGoal = useCallback(
-    (id: string, amountCents: string) => {
+    (id: string, amountCents: string, note?: string) => {
       const goal = snapshot.goals.find((item) => item.id === id) ?? null;
       const nextCents = goal ? (BigInt(goal.currentCents) + BigInt(amountCents)).toString() : '0';
       return mutate(
@@ -561,10 +639,85 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             item.id === id ? { ...item, currentCents: nextCents } : item
           ),
         }),
-        () => api.updateGoal(id, { currentCents: nextCents })
+        () => api.addGoalContribution(id, { amountCents, note })
       );
     },
     [mutate, snapshot.goals]
+  );
+
+  /**
+   * Histórico de aportes. No modo demonstração não existe servidor: devolvemos
+   * o próprio saldo como um único aporte, para a tela não ficar vazia.
+   */
+  const goalHistory = useCallback(
+    async (id: string): Promise<ApiGoalContribution[]> => {
+      if (sessionRef.current?.mode !== 'api') {
+        const goal = snapshot.goals.find((item) => item.id === id);
+        if (!goal || BigInt(goal.currentCents) === 0n) return [];
+        return [
+          {
+            id: `demo-${id}`,
+            amountCents: goal.currentCents,
+            note: 'Saldo atual (demonstração)',
+            occurredAt: goal.dueDate ?? new Date().toISOString().slice(0, 10),
+          },
+        ];
+      }
+      try {
+        return await api.getGoalContributions(id);
+      } catch {
+        return [];
+      }
+    },
+    [snapshot.goals]
+  );
+
+  /** Bem ou dívida: entra no patrimônio, não no caixa. */
+  const addNetWorthItem = useCallback(
+    (input: { name: string; kind: NetWorthItemKind; valueCents: string; note?: string }) =>
+      mutate(
+        (current) => ({
+          ...current,
+          netWorthItems: [
+            ...(current.netWorthItems ?? []),
+            {
+              id: createId('nw'),
+              name: input.name.trim() || (input.kind === 'asset' ? 'Bem' : 'Dívida'),
+              kind: input.kind,
+              valueCents: input.valueCents,
+              note: input.note ?? null,
+            },
+          ],
+        }),
+        () => api.createNetWorthItem(input)
+      ),
+    [mutate]
+  );
+
+  const updateNetWorthItemValue = useCallback(
+    (id: string, valueCents: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          netWorthItems: (current.netWorthItems ?? []).map((item) =>
+            item.id === id ? { ...item, valueCents } : item
+          ),
+        }),
+        () => api.updateNetWorthItem(id, { valueCents })
+      ),
+    [mutate]
+  );
+
+  const deleteNetWorthItem = useCallback(
+    (id: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          netWorthItems: (current.netWorthItems ?? []).filter((item) => item.id !== id),
+        }),
+        () => api.deleteNetWorthItem(id)
+      ),
+    [mutate]
   );
 
   const deleteGoal = useCallback(
@@ -635,13 +788,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
 
   const acceptPartnership = useCallback(
-    () =>
+    (partnershipId?: string) =>
       mutate(
         (current) => ({
           ...current,
           partner: current.partner ? { ...current.partner, status: 'accepted' } : current.partner,
         }),
-        () => api.acceptPartnership()
+        () => api.acceptPartnership(partnershipId)
       ),
     [mutate]
   );
@@ -688,6 +841,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteBudget,
       addGoal,
       contributeGoal,
+      goalHistory,
+      addNetWorthItem,
+      updateNetWorthItemValue,
+      deleteNetWorthItem,
       deleteGoal,
       setHideValues,
       toggleTheme,
@@ -719,6 +876,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteBudget,
       addGoal,
       contributeGoal,
+      goalHistory,
+      addNetWorthItem,
+      updateNetWorthItemValue,
+      deleteNetWorthItem,
       deleteGoal,
       setHideValues,
       toggleTheme,

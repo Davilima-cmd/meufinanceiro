@@ -31,7 +31,7 @@ export class SharingService {
    * parceiro e nível de cada conta do usuário.
    */
   async overview(userId: string) {
-    const [asOwner, asPartner, shares, accounts] = await Promise.all([
+    const [asOwner, asPartner, shares, accounts, invites] = await Promise.all([
       this.prisma.partnership.findFirst({ where: { userId } }),
       this.prisma.partnership.findFirst({ where: { partnerId: userId } }),
       this.prisma.accountShare.findMany({
@@ -39,9 +39,15 @@ export class SharingService {
         select: { accountId: true, sharedWithId: true, level: true },
       }),
       this.prisma.financialAccount.findMany({
-        where: { userId },
+        where: { userId, deletedAt: null },
         select: { id: true, name: true, balanceCents: true },
         orderBy: { createdAt: 'asc' },
+      }),
+      // Convites que chegaram para mim e ainda não foram aceitos.
+      this.prisma.partnership.findMany({
+        where: { partnerId: userId, status: 'pending' },
+        select: { id: true, user: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
       }),
     ]);
 
@@ -75,6 +81,14 @@ export class SharingService {
         }
       ),
       levels: SHARE_LEVELS,
+      /**
+       * Pedidos pendentes **recebidos**. Sem isso a tela não tinha como mostrar
+       * "Ana quer ser sua parceira" — só um botão genérico de aceitar.
+       */
+      invites: invites.map((invite: { id: string; user: { id: string; name: string } }) => ({
+        id: invite.id,
+        from: { id: invite.user.id, name: invite.user.name },
+      })),
     };
   }
 
@@ -115,10 +129,18 @@ export class SharingService {
     return { ...partnership, partner: { id: target.id, name: target.name, email: target.email } };
   }
 
-  /** Aceita o convite. Só quem foi convidado pode aceitar. */
-  async accept(userId: string) {
+  /**
+   * Aceita um convite. Só quem foi convidado pode aceitar — o filtro por
+   * `partnerId` garante isso; aceitar sem `partnershipId` pega o mais recente.
+   */
+  async accept(userId: string, partnershipId?: string) {
     const pending = await this.prisma.partnership.findFirst({
-      where: { partnerId: userId, status: 'pending' },
+      where: {
+        partnerId: userId,
+        status: 'pending',
+        ...(partnershipId ? { id: partnershipId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
     });
     if (!pending) throw new NotFoundException('Nenhum convite pendente para você.');
     return this.prisma.partnership.update({
@@ -194,7 +216,13 @@ export class SharingService {
   /** Contas que o parceiro compartilhou com o usuário, com o nível de cada uma. */
   async visibleAccounts(userId: string) {
     const rows = await this.prisma.accountShare.findMany({
-      where: { sharedWithId: userId, revokedAt: null, level: { in: ['FULL', 'BALANCE_ONLY'] } },
+      where: {
+        sharedWithId: userId,
+        revokedAt: null,
+        level: { in: ['FULL', 'BALANCE_ONLY'] },
+        // Conta excluída logicamente deixa de ser compartilhada.
+        account: { deletedAt: null },
+      },
       select: {
         level: true,
         account: {

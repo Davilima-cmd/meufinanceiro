@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { centsToString, decimalOperand, type DecimalLike } from '../common/money';
 import { readOnlyAccountError, visibleTransactionsWhere } from '../common/account-access';
+import { AccountAccessService } from '../common/account-access.service';
 import type { CreateTransactionDto, UpdateTransactionDto } from './dto/transaction.dto';
 
 /**
@@ -26,7 +27,10 @@ import type { CreateTransactionDto, UpdateTransactionDto } from './dto/transacti
  */
 @Injectable()
 export class TransactionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: AccountAccessService
+  ) {}
 
   /**
    * Histórico visível: os próprios lançamentos mais os das contas que o
@@ -41,6 +45,7 @@ export class TransactionsService {
     return this.prisma.transaction.findMany({
       where: {
         ...visibleTransactionsWhere(userId),
+        deletedAt: null,
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.overdue ? { status: 'pending', dueDate: { lt: now } } : {}),
       },
@@ -70,7 +75,7 @@ export class TransactionsService {
     select: Record<string, boolean>
   ): Promise<T & { account: { userId: string } }> {
     const row = (await this.prisma.transaction.findFirst({
-      where: { id },
+      where: { id, deletedAt: null },
       select: { ...select, account: { select: { userId: true } } } as never,
     })) as unknown as (T & { account: { userId: string } }) | null;
 
@@ -96,13 +101,9 @@ export class TransactionsService {
       throw new BadRequestException('Despesa deve ter valor negativo.');
     }
 
-    const account = await this.prisma.financialAccount.findFirst({
-      where: { id: dto.accountId },
-      select: { id: true, userId: true },
-    });
-    if (!account) throw new NotFoundException('Conta não encontrada');
-    // Escrever na conta do parceiro não existe em nenhum nível de compartilhamento.
-    if (account.userId !== userId) throw readOnlyAccountError();
+    // Regra centralizada: `404` se não existe/não é visível, `403` se é do outro.
+    await this.access.assertWritable(userId, dto.accountId);
+    const account = { id: dto.accountId };
 
     if (dto.categoryId) {
       const category = await this.prisma.category.findFirst({
@@ -191,11 +192,15 @@ export class TransactionsService {
           },
         });
       }
-      const result = await tx.transaction.deleteMany({
+      // Exclusão lógica: o valor volta ao saldo, mas a linha fica no banco para
+      // auditoria (regra 23 da especificação). `deletedAt` a esconde das listas.
+      const result = await tx.transaction.updateMany({
         where: {
           id: { in: (siblings as Array<{ id: string }>).map((row) => row.id) },
           userId,
+          deletedAt: null,
         },
+        data: { deletedAt: new Date() },
       });
       return { deleted: result.count };
     });

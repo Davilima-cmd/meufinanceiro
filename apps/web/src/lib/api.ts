@@ -8,9 +8,13 @@ import {
   type ApiCategory,
   type ApiErrorBody,
   type ApiGoal,
+  type ApiNetWorthItem,
+  type ApiNetWorthSummary,
+  type ApiGoalContribution,
   type ApiTransaction,
   type ApiUser,
   type AuthResponse,
+  type AuthStatus,
   type ConnectConnectionDto,
   type CreateAccountDto,
   type CreateTransactionDto,
@@ -32,11 +36,15 @@ export type {
   ApiCategory,
   ApiBudget,
   ApiGoal,
+  ApiGoalContribution,
+  ApiNetWorthItem,
+  ApiNetWorthSummary,
   ApiBankConnection,
   ApiSharingOverview,
   ApiSharedAccount,
   ShareLevel,
   AuthResponse,
+  AuthStatus,
   RegisterDto,
   LoginDto,
   CreateAccountDto,
@@ -100,6 +108,16 @@ type RequestOptions = {
 
 /** Cliente de API com interceptor automático de bearer token. O token é lido do
  * localStorage a cada requisição, então não depende de hidratação prévia do contexto. */
+const CSRF_COOKIE = 'mf_csrf';
+const CSRF_HEADER = 'X-CSRF-Token';
+
+/** Valor do cookie CSRF (legível pelo JS, ao contrário do cookie de sessão). */
+function csrfFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 class ApiClient {
   private onUnauthorized?: () => void;
 
@@ -138,11 +156,21 @@ class ApiClient {
       allHeaders['Authorization'] = `Bearer ${token}`;
     }
 
+    // Sessão em cookie `HttpOnly` + double submit: o valor CSRF vem do cookie
+    // legível e vai no header, que um site de terceiro não consegue montar.
+    const csrf = csrfFromCookie();
+    if (csrf && method !== 'GET' && method !== 'HEAD') {
+      allHeaders[CSRF_HEADER] = csrf;
+    }
+
     let res: Response;
     try {
       res = await fetch(`${API_BASE}${path}`, {
         method,
         headers: allHeaders,
+        // Sem `include` o navegador não envia nem grava o cookie de sessão
+        // quando a API está em outro domínio.
+        credentials: 'include',
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (err) {
@@ -254,8 +282,11 @@ class ApiClient {
     return this.request<unknown>('/sharing/invite', { method: 'POST', body: { email } });
   }
 
-  async acceptPartnership(): Promise<unknown> {
-    return this.request<unknown>('/sharing/accept', { method: 'POST' });
+  async acceptPartnership(partnershipId?: string): Promise<unknown> {
+    return this.request<unknown>('/sharing/accept', {
+      method: 'POST',
+      body: partnershipId ? { partnershipId } : {},
+    });
   }
 
   async revokePartnership(): Promise<unknown> {
@@ -318,6 +349,35 @@ class ApiClient {
     });
   }
 
+  /* Patrimônio — bens e dívidas declarados à mão */
+
+  async getNetWorth(): Promise<ApiNetWorthSummary> {
+    return this.request<ApiNetWorthSummary>('/net-worth');
+  }
+
+  async createNetWorthItem(dto: {
+    name: string;
+    kind: 'asset' | 'liability';
+    valueCents: string;
+    note?: string;
+  }): Promise<ApiNetWorthItem> {
+    return this.request<ApiNetWorthItem>('/net-worth/items', { method: 'POST', body: dto });
+  }
+
+  async updateNetWorthItem(
+    id: string,
+    dto: { name?: string; kind?: 'asset' | 'liability'; valueCents?: string; note?: string }
+  ): Promise<{ id: string; updated: true }> {
+    return this.request<{ id: string; updated: true }>(`/net-worth/items/${id}`, {
+      method: 'PATCH',
+      body: dto,
+    });
+  }
+
+  async deleteNetWorthItem(id: string): Promise<{ deleted: number }> {
+    return this.request<{ deleted: number }>(`/net-worth/items/${id}`, { method: 'DELETE' });
+  }
+
   async getGoals(): Promise<ApiGoal[]> {
     return this.request<ApiGoal[]>('/financial-goals');
   }
@@ -341,6 +401,27 @@ class ApiClient {
     return this.request<ApiGoal>(`/financial-goals/${id}`, {
       method: 'PATCH',
       body: dto,
+    });
+  }
+
+  /** Aportes da meta: é o histórico que explica o saldo atual. */
+  async getGoalContributions(id: string): Promise<ApiGoalContribution[]> {
+    return this.request<ApiGoalContribution[]>(`/financial-goals/${id}/contributions`);
+  }
+
+  async addGoalContribution(
+    id: string,
+    dto: { amountCents: string; note?: string; occurredAt?: string }
+  ): Promise<ApiGoal> {
+    return this.request<ApiGoal>(`/financial-goals/${id}/contributions`, {
+      method: 'POST',
+      body: dto,
+    });
+  }
+
+  async removeGoalContribution(id: string, contributionId: string): Promise<ApiGoal> {
+    return this.request<ApiGoal>(`/financial-goals/${id}/contributions/${contributionId}`, {
+      method: 'DELETE',
     });
   }
 
@@ -419,6 +500,23 @@ class ApiClient {
       body: dto,
       token: sessionToken,
     });
+  }
+
+  /** Encerra a sessão no servidor (o JWT deixa de valer imediatamente). */
+  async logout(): Promise<{ revoked: boolean }> {
+    return this.request<{ revoked: boolean }>('/auth/logout', { method: 'POST' });
+  }
+
+  /** Encerra todas as sessões do usuário, inclusive a atual. */
+  async logoutAll(): Promise<{ revoked: number; sessions: number }> {
+    return this.request<{ revoked: number; sessions: number }>('/auth/logout-all', {
+      method: 'POST',
+    });
+  }
+
+  /** Valida a sessão no servidor e devolve o usuário atual. */
+  async authStatus(): Promise<AuthStatus> {
+    return this.request<AuthStatus>('/auth/status');
   }
 
   async mfaDisable(): Promise<MfaDisableResponse> {

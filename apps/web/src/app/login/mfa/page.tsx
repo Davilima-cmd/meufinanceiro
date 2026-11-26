@@ -28,10 +28,11 @@ export default function MfaLoginPage() {
       const { api } = await import('@/lib/api');
       const result: AuthResponse = await withTimeout(api.mfaVerify({ code }, tempToken), 8000);
       if (!result.token) throw new Error('Resposta inválida da API.');
-      api.setToken(result.token);
+      // O token temporário só serviu para o segundo fator; a sessão definitiva
+      // chegou no cookie `HttpOnly`, inacessível ao JavaScript.
       sessionStorage.removeItem('mf.mfa.temp');
       sessionStorage.removeItem('mf.mfa.email');
-      localStorage.setItem('mf.session.api', JSON.stringify({ token: result.token }));
+      localStorage.setItem('mf.session.api', JSON.stringify({}));
       router.push('/api');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Código inválido.');

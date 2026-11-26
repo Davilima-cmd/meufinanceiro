@@ -3,6 +3,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { resolveJwtSecret } from './jwt-secret';
+import { SessionService } from './session.service';
+import { readSessionCookie } from './session-cookie';
 
 /**
  * Escopo do token JWT.
@@ -21,13 +23,24 @@ export type TokenScope = 'full' | 'mfa_pending';
 export type JwtPayload = {
   sub: string;
   scope?: TokenScope;
+  /** Id da sessão (`sessions.id`). Tokens antigos, sem `sid`, são recusados. */
+  sid?: string;
 };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly sessions: SessionService
+  ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // Aceita o bearer (mobile, integrações) ou o cookie `HttpOnly` que a web
+      // usa — nesse caso o JWT nunca fica exposto ao JavaScript da página.
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (request: { headers?: { cookie?: string } } | null) =>
+          request ? readSessionCookie(request as never) : null,
+      ]),
       secretOrKey: resolveJwtSecret(config.get<string>('JWT_SECRET')),
     });
   }
@@ -40,6 +53,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         payload.scope === 'mfa_pending' ? 'Verificação de segundo fator pendente' : 'Token inválido'
       );
     }
-    return { userId: payload.sub };
+
+    // Sessão revogada (logout, troca de senha, exclusão da conta) para de valer
+    // imediatamente, sem esperar o token expirar.
+    await this.sessions.assertActive(payload.sid, payload.sub);
+
+    return { userId: payload.sub, sessionId: payload.sid };
   }
 }

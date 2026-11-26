@@ -177,6 +177,69 @@ export function buildTrend(
   });
 }
 
+/**
+ * Regime de caixa × regime de competência.
+ *
+ * Caixa: o mês em que o dinheiro passou (ou vai passar) — `paidAt`/`date`.
+ * Competência: o mês a que o gasto pertence — `competenceDate`. Aluguel de
+ * dezembro pago em janeiro é despesa de dezembro na competência e de janeiro
+ * no caixa; sem essa distinção, o fechamento do mês nunca bate.
+ */
+export type AccountingBasis = 'cash' | 'accrual';
+
+export type BasisTotals = {
+  basis: AccountingBasis;
+  monthKey: string;
+  incomeCents: bigint;
+  expenseCents: bigint;
+  netCents: bigint;
+  settledCount: number;
+  pendingCount: number;
+};
+
+/** Data que o regime usa para decidir em que mês o lançamento entra. */
+export function basisDate(transaction: FinanceTransaction, basis: AccountingBasis): string {
+  if (basis === 'accrual') {
+    return (transaction.competenceDate ?? transaction.date).slice(0, 10);
+  }
+  return (transaction.paidAt?.slice(0, 10) ?? transaction.date).slice(0, 10);
+}
+
+export function basisTotals(
+  snapshot: FinanceSnapshot,
+  monthKey: string,
+  ownerId: string,
+  basis: AccountingBasis
+): BasisTotals {
+  const accounts = visibleAccounts(snapshot, ownerId);
+  const visible = coverage(snapshot.transactions, accounts).visible.filter(
+    (transaction) => monthKeyOf(basisDate(transaction, basis)) === monthKey
+  );
+
+  const settled = visible.filter(isSettled);
+  const pending = visible.filter(isPending);
+  // Transferência não é receita nem despesa: é dinheiro mudando de bolso.
+  const incomes = settled.filter(
+    (item) => toCents(item.amountCents) > 0n && item.type !== 'transfer'
+  );
+  const expenses = settled.filter(
+    (item) => toCents(item.amountCents) < 0n && item.type !== 'transfer'
+  );
+
+  const incomeCents = sumCents(incomes.map((item) => item.amountCents));
+  const expenseCents = -sumCents(expenses.map((item) => item.amountCents));
+
+  return {
+    basis,
+    monthKey,
+    incomeCents,
+    expenseCents,
+    netCents: incomeCents - expenseCents,
+    settledCount: settled.length,
+    pendingCount: pending.length,
+  };
+}
+
 export function buildOverview(
   snapshot: FinanceSnapshot,
   monthKey: string,

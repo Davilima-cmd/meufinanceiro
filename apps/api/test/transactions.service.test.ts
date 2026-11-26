@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { TransactionsService } from '../src/transactions/transactions.service';
+import { AccountAccessService } from '../src/common/account-access.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const prismaMock = {
@@ -23,6 +24,7 @@ const txMock = {
   transaction: {
     create: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
     deleteMany: vi.fn(),
   },
   financialAccount: {
@@ -31,7 +33,9 @@ const txMock = {
 };
 
 function service() {
-  return new TransactionsService(prismaMock);
+  // A autorização é testada em `account-access.service.test.ts`; aqui ela roda
+  // de verdade, contra o mesmo prisma mockado.
+  return new TransactionsService(prismaMock, new AccountAccessService(prismaMock as never));
 }
 
 const baseDto = {
@@ -205,7 +209,7 @@ describe('TransactionsService — remoção e estorno', () => {
       { id: 'tx-1', accountId: 'acc-1', amountCents: { toString: () => '-50000' }, status: 'paid' },
       { id: 'tx-2', accountId: 'acc-2', amountCents: { toString: () => '50000' }, status: 'paid' },
     ]);
-    (txMock.transaction.deleteMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 2 });
+    (txMock.transaction.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 2 });
 
     const result = await service().remove('user-1', 'tx-1');
 
@@ -218,8 +222,14 @@ describe('TransactionsService — remoção e estorno', () => {
       where: { id: 'acc-2' },
       data: { balanceCents: { decrement: '50000' } },
     });
-    expect(txMock.transaction.deleteMany).toHaveBeenCalledWith({
-      where: { id: { in: ['tx-1', 'tx-2'] }, userId: 'user-1' },
+    // Exclusão lógica: as duas pontas ganham `deletedAt` em vez de sumirem.
+    expect(txMock.transaction.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['tx-1', 'tx-2'] },
+        userId: 'user-1',
+        deletedAt: null,
+      },
+      data: { deletedAt: expect.any(Date) },
     });
   });
 
@@ -385,12 +395,12 @@ describe('TransactionsService — liquidação', () => {
 
   it('remover um pendente não devolve valor ao saldo', async () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pending);
-    (txMock.transaction.deleteMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+    (txMock.transaction.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
 
     await service().remove('user-1', 'tx-1');
 
     expect(txMock.financialAccount.update).not.toHaveBeenCalled();
-    expect(txMock.transaction.deleteMany).toHaveBeenCalled();
+    expect(txMock.transaction.updateMany).toHaveBeenCalled();
   });
 
   it('editar um liquidado reaplica só a diferença no saldo', async () => {

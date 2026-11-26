@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `main` mais as branches de trabalho (`arena/**`): antes, push numa branch
+    # de trabalho não rodava nada e o erro só aparecia na hora do merge.
+    branches: [main, 'arena/**']
   pull_request:
 
 permissions:

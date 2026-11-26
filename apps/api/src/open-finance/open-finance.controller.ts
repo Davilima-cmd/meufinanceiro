@@ -60,7 +60,8 @@ export class OpenFinanceController {
     // A conta vinculada precisa pertencer ao usuário autenticado: sem esta
     // checagem, um usuário poderia apontar a conexão para a conta de outro.
     const account = await this.prisma.financialAccount.findFirst({
-      where: { id: dto.accountId, userId: req.user.userId },
+      // Conta excluída logicamente não aceita conexão nova.
+      where: { id: dto.accountId, userId: req.user.userId, deletedAt: null },
       select: { id: true },
     });
     if (!account) {

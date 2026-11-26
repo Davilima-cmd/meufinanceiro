@@ -18,6 +18,7 @@ import {
   todayISO,
 } from '@/lib/format';
 import { isReadOnlyAccount } from '@/lib/account-access';
+import { exportRows, fileNameFor, mimeFor, toCsv, toJson, type ExportFormat } from '@/lib/export';
 import { useFinance } from '@/lib/store';
 import type { TransactionType } from '@/lib/types';
 
@@ -101,30 +102,23 @@ export default function TransactionsPage() {
     return { income, expense, net: income - expense, pending };
   }, [filtered]);
 
-  function exportCsv() {
-    const header = ['Data', 'Descrição', 'Categoria', 'Conta', 'Tipo', 'Valor (centavos)'];
-    const lines = filtered.map((transaction) => {
-      const category = transaction.categoryId
-        ? (categoryById.get(transaction.categoryId)?.name ?? '')
-        : '';
-      const account = accountById.get(transaction.accountId)?.name ?? '';
-      return [
-        transaction.date,
-        transaction.description,
-        category,
-        account,
-        transaction.type,
-        transaction.amountCents,
-      ]
-        .map((field) => `"${String(field).replace(/"/g, '""')}"`)
-        .join(',');
+  /** Exporta o que está filtrado na tela, em CSV (Excel) ou JSON. */
+  function exportTransactions(format: ExportFormat) {
+    const rows = exportRows(
+      filtered,
+      (id) => (id ? (categoryById.get(id)?.name ?? '') : ''),
+      (id) => accountById.get(id)?.name ?? ''
+    );
+    const body = format === 'csv' ? toCsv(rows) : toJson(rows);
+    // O `\uFEFF` faz o Excel reconhecer o arquivo como UTF-8: sem ele, "Salário"
+    // chega como "SalÃ¡rio".
+    const blob = new Blob([format === 'csv' ? `\uFEFF${body}` : body], {
+      type: mimeFor(format),
     });
-    const csv = [header.join(','), ...lines].join('\n');
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `lancamentos-${monthKey}.csv`;
+    link.download = fileNameFor(format, monthKey);
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -163,8 +157,19 @@ export default function TransactionsPage() {
                 →
               </button>
             </div>
-            <button className="button button-ghost" onClick={exportCsv} type="button">
+            <button
+              className="button button-ghost"
+              onClick={() => exportTransactions('csv')}
+              type="button"
+            >
               Exportar CSV
+            </button>
+            <button
+              className="button button-ghost"
+              onClick={() => exportTransactions('json')}
+              type="button"
+            >
+              Exportar JSON
             </button>
             <button
               className="button button-primary"

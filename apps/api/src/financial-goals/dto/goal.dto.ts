@@ -42,3 +42,19 @@ export class UpdateGoalDto {
   @IsDateString()
   dueDate?: string;
 }
+
+/** Aporte em uma meta: valor positivo entra, negativo resgata. */
+export class GoalContributionDto {
+  @IsString()
+  @Matches(/^-?\d{1,19}$/, { message: 'amountCents deve ser um inteiro em centavos' })
+  amountCents: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 255)
+  note?: string;
+
+  @IsOptional()
+  @IsDateString()
+  occurredAt?: string;
+}

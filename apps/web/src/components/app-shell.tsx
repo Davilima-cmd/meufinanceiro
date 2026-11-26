@@ -36,6 +36,13 @@ const NAV: NavItem[] = [
     icon: <Icon path="M4 7h16M4 12h10M4 17h13" />,
   },
   {
+    href: '/vencimentos',
+    label: 'Vencimentos',
+    icon: (
+      <Icon path="M7 3v3m10-3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm4 8h2m4 0h2m-8 4h2" />
+    ),
+  },
+  {
     href: '/contas',
     label: 'Contas',
     icon: (
@@ -46,6 +53,11 @@ const NAV: NavItem[] = [
     href: '/orcamentos',
     label: 'Orçamentos',
     icon: <Icon path="M12 3v18M5 8h9a3 3 0 0 1 0 6H7a3 3 0 0 0 0 6h10" />,
+  },
+  {
+    href: '/patrimonio',
+    label: 'Patrimônio',
+    icon: <Icon path="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />,
   },
   {
     href: '/metas',
@@ -158,7 +170,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
             <button
               className="icon-button"
-              onClick={signOut}
+              onClick={() => void signOut()}
               title="Sair"
               type="button"
               aria-label="Sair"

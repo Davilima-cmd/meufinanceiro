@@ -64,6 +64,8 @@ export class BudgetsController {
       where: {
         userId,
         type: 'expense',
+        // Lançamento excluído logicamente não consome orçamento.
+        deletedAt: null,
         date: { gte: minStart, lte: maxEnd },
       },
     });

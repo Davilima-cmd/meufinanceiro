@@ -1,21 +1,44 @@
 'use client';
 
 import { useState } from 'react';
+import type { ApiGoalContribution } from '@meufinanceiro/shared-types';
 import { AppShell } from '@/components/app-shell';
 import { DateField } from '@/components/date-field';
 import { useDialog } from '@/components/dialog';
 import { Badge, Card, EmptyState, Money, PageHeader, ProgressBar } from '@/components/ui';
-import { centsFromInput, daysUntil, formatBRL, toCents, todayISO } from '@/lib/format';
+import { centsFromInput, daysUntil, formatBRL, formatDay, toCents, todayISO } from '@/lib/format';
 import { useFinance } from '@/lib/store';
 
 export default function GoalsPage() {
-  const { snapshot, addGoal, contributeGoal, deleteGoal } = useFinance();
+  const { snapshot, addGoal, contributeGoal, deleteGoal, goalHistory } = useFinance();
   const dialog = useDialog();
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
   const [contributions, setContributions] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  // Histórico só é buscado quando a pessoa abre; sem isso a tela faria uma
+  // requisição por meta em cada visita.
+  const [openHistory, setOpenHistory] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, ApiGoalContribution[]>>({});
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  async function toggleHistory(goalId: string) {
+    if (openHistory === goalId) {
+      setOpenHistory(null);
+      return;
+    }
+    setOpenHistory(goalId);
+    setHistoryLoading(true);
+    const rows = await goalHistory(goalId);
+    setHistory((current) => ({ ...current, [goalId]: rows }));
+    setHistoryLoading(false);
+  }
+
+  function noteFor(goalId: string): string {
+    return notes[goalId] ?? '';
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -136,19 +159,41 @@ export default function GoalsPage() {
                       placeholder="Aporte R$"
                       value={contributions[goal.id] ?? ''}
                     />
+                    <input
+                      aria-label={`Observação do aporte em ${goal.name}`}
+                      className="input"
+                      onChange={(event) =>
+                        setNotes((current) => ({ ...current, [goal.id]: event.target.value }))
+                      }
+                      placeholder="De onde veio? (opcional)"
+                      value={noteFor(goal.id)}
+                    />
                     <button
                       className="button button-ghost"
                       onClick={() => {
                         const value = centsFromInput(contributions[goal.id] ?? '');
                         if (value <= 0n) return;
-                        void contributeGoal(goal.id, value.toString()).then((failure) => {
+                        void contributeGoal(
+                          goal.id,
+                          value.toString(),
+                          noteFor(goal.id).trim() || undefined
+                        ).then((failure) => {
                           if (failure) setError(failure);
+                          else setHistory((current) => ({ ...current, [goal.id]: [] }));
                         });
                         setContributions((current) => ({ ...current, [goal.id]: '' }));
+                        setNotes((current) => ({ ...current, [goal.id]: '' }));
                       }}
                       type="button"
                     >
                       Guardar
+                    </button>
+                    <button
+                      className="button button-ghost"
+                      onClick={() => void toggleHistory(goal.id)}
+                      type="button"
+                    >
+                      {openHistory === goal.id ? 'Ocultar histórico' : 'Histórico'}
                     </button>
                     <button
                       aria-label={`Excluir ${goal.name}`}
@@ -170,6 +215,35 @@ export default function GoalsPage() {
                       ✕
                     </button>
                   </div>
+                  {openHistory === goal.id ? (
+                    <div className="goal-history">
+                      {historyLoading && !history[goal.id] ? (
+                        <span className="account-sub">Carregando histórico…</span>
+                      ) : (history[goal.id] ?? []).length === 0 ? (
+                        <span className="account-sub">
+                          Nenhum aporte registrado ainda. Cada “Guardar” entra aqui.
+                        </span>
+                      ) : (
+                        <ul className="list">
+                          {(history[goal.id] ?? []).map((entry) => (
+                            <li className="list-row" key={entry.id}>
+                              <div className="row-copy">
+                                <strong>{entry.note ?? 'Aporte'}</strong>
+                                <small>{formatDay(entry.occurredAt.slice(0, 10))}</small>
+                              </div>
+                              <div className="row-end">
+                                <span
+                                  className={`row-amount ${entry.amountCents.startsWith('-') ? 'is-negative' : 'is-positive'}`}
+                                >
+                                  <Money value={entry.amountCents} signed />
+                                </span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
                 </article>
               );
             })}

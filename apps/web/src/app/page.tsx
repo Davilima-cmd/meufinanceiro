@@ -6,7 +6,8 @@ import { AppShell } from '@/components/app-shell';
 import { BalanceSparkline, Donut, FlowChart } from '@/components/charts';
 import { TransactionDialog } from '@/components/transaction-dialog';
 import { Badge, Card, Money, PageHeader, ProgressBar } from '@/components/ui';
-import { buildOverview } from '@/lib/analytics';
+import { basisTotals, buildOverview, visibleAccounts } from '@/lib/analytics';
+import { billingItems, billingSummary, reminderText } from '@/lib/billing';
 import {
   currentMonthKey,
   daysUntil,
@@ -27,6 +28,19 @@ export default function DashboardPage() {
     () => buildOverview(snapshot, monthKey, ownerId),
     [snapshot, monthKey, ownerId]
   );
+
+  // O mesmo mês em dois regimes: caixa (quando o dinheiro passou) e
+  // competência (a que mês o gasto pertence). É a diferença que explica por que
+  // o fechamento do mês "não bate" quando aluguel de dezembro é pago em janeiro.
+  const cash = useMemo(
+    () => basisTotals(snapshot, monthKey, ownerId, 'cash'),
+    [snapshot, monthKey, ownerId]
+  );
+  const accrual = useMemo(
+    () => basisTotals(snapshot, monthKey, ownerId, 'accrual'),
+    [snapshot, monthKey, ownerId]
+  );
+  const basisGapCents = cash.netCents - accrual.netCents;
 
   const monthTransactions = overview.visibleTransactions;
   const categoryById = useMemo(
@@ -53,6 +67,17 @@ export default function DashboardPage() {
       return acc;
     }, []);
   }, [settledTransactions]);
+
+  // Lembrete de vencimentos: atrasados e o que vence hoje/em breve. Conta a
+  // pagar não entra no saldo, então precisa de um aviso próprio no painel.
+  const dueReminder = useMemo(() => {
+    const accountIds = new Set(visibleAccounts(snapshot, ownerId).map((account) => account.id));
+    const items = billingItems(
+      snapshot.transactions.filter((transaction) => accountIds.has(transaction.accountId))
+    );
+    const summary = billingSummary(items);
+    return { summary, text: reminderText(summary) };
+  }, [snapshot, ownerId]);
 
   const hiddenTransactions = snapshot.accounts.filter(
     (account) => account.shareLevel !== 'FULL'
@@ -103,6 +128,15 @@ export default function DashboardPage() {
       />
 
       <div className="stack">
+        {dueReminder.text ? (
+          <Link className="notice notice-warning" href="/vencimentos">
+            <strong>Vencimentos: {dueReminder.text}</strong>
+            <span>
+              <Money value={dueReminder.summary.urgentCents} /> precisando de atenção — ver a lista
+            </span>
+          </Link>
+        ) : null}
+
         <section className="hero">
           <div className="hero-balance">
             <span className="label">Saldo consolidado (contas visíveis)</span>
@@ -159,6 +193,48 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        <Card>
+          <div className="card-heading">
+            <div>
+              <h2>Caixa × competência</h2>
+              <p>
+                Caixa é quando o dinheiro passou; competência é o mês a que o lançamento pertence.
+              </p>
+            </div>
+          </div>
+          <div className="stat-grid">
+            <div className="stat">
+              <span className="stat-label">Resultado de caixa</span>
+              <strong
+                className={`stat-value ${cash.netCents >= 0n ? 'is-positive' : 'is-negative'}`}
+              >
+                <Money value={cash.netCents} signed />
+              </strong>
+              <span className="stat-hint">recebido/pago em {formatMonth(monthKey)}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Resultado de competência</span>
+              <strong
+                className={`stat-value ${accrual.netCents >= 0n ? 'is-positive' : 'is-negative'}`}
+              >
+                <Money value={accrual.netCents} signed />
+              </strong>
+              <span className="stat-hint">lançamentos de {formatMonth(monthKey)}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Diferença</span>
+              <strong className="stat-value">
+                <Money value={basisGapCents} signed />
+              </strong>
+              <span className="stat-hint">
+                {basisGapCents === 0n
+                  ? 'os dois regimes batem neste mês'
+                  : 'valores pagos em outro mês ou ainda pendentes'}
+              </span>
+            </div>
+          </div>
+        </Card>
 
         <div className="stat-grid">
           <div className="stat">

@@ -114,7 +114,9 @@ describe('FinanceProvider (modo demonstração)', () => {
         date: '2026-11-25',
       });
     });
-    act(() => result.current.signOut());
+    await act(async () => {
+      await result.current.signOut();
+    });
 
     await waitFor(() => expect(result.current.session).toBeNull());
     expect(result.current.snapshot.transactions).toHaveLength(totalComAjustes);

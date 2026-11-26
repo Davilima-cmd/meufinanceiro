@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AccountsController } from '../src/accounts/accounts.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { AccountAccessService } from '../src/common/account-access.service';
 
 /** Conta com histórico não pode ser apagada; o caminho correto é arquivar. */
 
@@ -18,14 +19,15 @@ const prismaMock = {
 } as unknown as PrismaService;
 
 const txMock = {
-  financialAccount: { create: vi.fn() },
-  transaction: { create: vi.fn() },
+  financialAccount: { create: vi.fn(), update: vi.fn() },
+  transaction: { create: vi.fn(), updateMany: vi.fn() },
+  accountShare: { updateMany: vi.fn() },
 };
 
 const req = { user: { userId: 'user-1' } } as never;
 
 function controller() {
-  return new AccountsController(prismaMock);
+  return new AccountsController(prismaMock, new AccountAccessService(prismaMock as never));
 }
 
 beforeEach(() => {
@@ -81,6 +83,7 @@ describe('AccountsController — arquivar e excluir', () => {
     });
     (prismaMock.financialAccount.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'acc-1',
+      userId: 'user-1',
       name: 'Carteira',
       institution: null,
       type: 'manual',
@@ -101,30 +104,46 @@ describe('AccountsController — arquivar e excluir', () => {
   });
 
   it('recusa arquivar conta de outro usuário', async () => {
-    (prismaMock.financialAccount.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({
-      count: 0,
+    // `assertWritable` consulta a conta antes: invisível/inábil → 403/404.
+    (prismaMock.financialAccount.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      userId: 'user-2',
     });
     await expect(controller().update(req, 'acc-x', { isActive: false })).rejects.toBeInstanceOf(
-      NotFoundException
+      ForbiddenException
     );
+    expect(prismaMock.financialAccount.updateMany).not.toHaveBeenCalled();
   });
 
-  it('recusa excluir conta com lançamentos', async () => {
+  it('excluir conta é exclusão lógica: marca deletedAt e esconde o histórico', async () => {
     (prismaMock.financialAccount.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'acc-1',
+      userId: 'user-1',
     });
-    (prismaMock.transaction.count as ReturnType<typeof vi.fn>).mockResolvedValue(3);
 
-    await expect(controller().remove(req, 'acc-1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller().remove(req, 'acc-1')).resolves.toEqual({ deleted: 1 });
+
+    // Nada é apagado do banco: conta, lançamentos e compartilhamentos ganham
+    // marca de exclusão na mesma transação.
+    expect(txMock.financialAccount.update).toHaveBeenCalledWith({
+      where: { id: 'acc-1' },
+      data: { deletedAt: expect.any(Date), isActive: false },
+    });
+    expect(txMock.transaction.updateMany).toHaveBeenCalledWith({
+      where: { accountId: 'acc-1', deletedAt: null },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(txMock.accountShare.updateMany).toHaveBeenCalledWith({
+      where: { accountId: 'acc-1', revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
     expect(prismaMock.financialAccount.delete).not.toHaveBeenCalled();
   });
 
-  it('exclui conta sem histórico', async () => {
+  it('exclui conta mesmo com histórico (antes era recusado)', async () => {
     (prismaMock.financialAccount.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 'acc-1',
+      userId: 'user-1',
     });
-    (prismaMock.transaction.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
-    (prismaMock.financialAccount.delete as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     await expect(controller().remove(req, 'acc-1')).resolves.toEqual({ deleted: 1 });
   });
@@ -132,5 +151,6 @@ describe('AccountsController — arquivar e excluir', () => {
   it('não exclui conta inexistente ou de outro dono', async () => {
     (prismaMock.financialAccount.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     await expect(controller().remove(req, 'acc-x')).rejects.toBeInstanceOf(NotFoundException);
+    expect(txMock.financialAccount.update).not.toHaveBeenCalled();
   });
 });

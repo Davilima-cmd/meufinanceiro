@@ -100,6 +100,9 @@ export class SyncService {
         where: {
           providerId: { in: providerIds },
           userId,
+          // `deletedAt` entra: um lançamento apagado pelo usuário não deve ser
+          // recriado pela sincronização seguinte (o provedor continua mandando).
+          deletedAt: null,
         },
         select: { providerId: true },
       });

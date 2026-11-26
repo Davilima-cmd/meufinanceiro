@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -15,7 +14,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 import { centsToString, type DecimalLike } from '../common/money';
-import { accessFromShares, visibleAccountsWhere } from '../common/account-access';
+import { accessFromShares } from '../common/account-access';
+import { AccountAccessService } from '../common/account-access.service';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -62,7 +62,10 @@ function toJson(account: AccountRow) {
 @Controller('accounts')
 @UseGuards(AuthGuard('jwt'))
 export class AccountsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: AccountAccessService
+  ) {}
 
   /**
    * Contas que o usuário enxerga: as próprias e as compartilhadas com ele.
@@ -75,7 +78,7 @@ export class AccountsController {
   async list(@Req() req: AuthenticatedRequest) {
     const userId = req.user.userId;
     const accounts: AccountRow[] = await this.prisma.financialAccount.findMany({
-      where: visibleAccountsWhere(userId),
+      where: this.access.listAccountsWhere(userId),
       orderBy: { createdAt: 'desc' },
       select: ACCOUNT_SELECT,
     });
@@ -158,6 +161,9 @@ export class AccountsController {
     @Param('id') id: string,
     @Body() dto: UpdateAccountDto
   ) {
+    // Só o dono edita/arquiva; conta compartilhada responde `403`.
+    await this.access.assertWritable(req.user.userId, id);
+
     const result = await this.prisma.financialAccount.updateMany({
       where: { id, userId: req.user.userId },
       data: {
@@ -178,26 +184,37 @@ export class AccountsController {
   }
 
   /**
-   * Remove a conta somente quando ela não tem histórico. Com lançamentos, a
-   * operação correta é arquivar (`PATCH { isActive: false }`), para não apagar
-   * movimentações financeiras.
+   * Exclusão lógica da conta.
+   *
+   * Antes havia `DELETE` físico, recusado quando a conta tinha histórico — o
+   * usuário ficava sem saída (não dava para excluir nem para arquivar de vez).
+   * Agora a conta some das telas e dos totais (`deletedAt`), o histórico
+   * permanece no banco e o caminho continua sendo "arquivar" para quem só
+   * quer esconder sem excluir.
    */
   @Delete(':id')
   async remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    const account = await this.prisma.financialAccount.findFirst({
-      where: { id, userId: req.user.userId },
-      select: { id: true },
+    await this.access.assertWritable(req.user.userId, id);
+
+    const now = new Date();
+    // `.catch(() => undefined)` não: as duas escritas precisam ser atômicas,
+    // senão a conta some e os lançamentos ficam visíveis na tela de parceiro.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financialAccount.update({
+        where: { id },
+        data: { deletedAt: now, isActive: false },
+      });
+      await tx.transaction.updateMany({
+        where: { accountId: id, deletedAt: null },
+        data: { deletedAt: now },
+      });
+      // Compartilhamento de conta excluída não deve continuar valendo.
+      await tx.accountShare.updateMany({
+        where: { accountId: id, revokedAt: null },
+        data: { revokedAt: now },
+      });
     });
-    if (!account) throw new NotFoundException('Conta não encontrada');
 
-    const movements = await this.prisma.transaction.count({ where: { accountId: id } });
-    if (movements > 0) {
-      throw new BadRequestException(
-        'Conta com lançamentos não pode ser excluída. Arquive a conta para manter o histórico.'
-      );
-    }
-
-    await this.prisma.financialAccount.delete({ where: { id } });
     return { deleted: 1 };
   }
 }

@@ -6,5 +6,5 @@
     "jsx": "react-native",
     "noEmit": true
   },
-  "include": ["App.tsx", "app.config.ts"]
+  "include": ["App.tsx", "app.config.ts", "src/FinanceApp.tsx", "src/lib/**/*.ts"]
 }

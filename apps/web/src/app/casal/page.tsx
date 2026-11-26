@@ -20,21 +20,15 @@ const LEVEL_LABEL: Record<ShareLevel, string> = {
  * o nível de cada conta diretamente.
  */
 export default function CouplePage() {
-  const {
-    snapshot,
-    session,
-    isDemo,
-    setShareLevel,
-    invitePartner,
-    acceptPartnership,
-    revokePartnership,
-  } = useFinance();
+  const { snapshot, session, setShareLevel, invitePartner, acceptPartnership, revokePartnership } =
+    useFinance();
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const ownerId = session?.user.id ?? '';
 
+  const invites = snapshot.invites ?? [];
   const mine = snapshot.accounts.filter((account) => isOwnAccount(account, ownerId));
   const partnerAccounts = snapshot.accounts.filter((account) => !isOwnAccount(account, ownerId));
   const jointVisible = snapshot.accounts.filter((account) => account.shareLevel !== 'private');
@@ -84,10 +78,10 @@ export default function CouplePage() {
     flash('Convite enviado. A parceria libera o compartilhamento quando for aceita.');
   }
 
-  async function handleAccept() {
+  async function handleAccept(partnershipId: string) {
     setError('');
     setBusy(true);
-    const failure = await acceptPartnership();
+    const failure = await acceptPartnership(partnershipId);
     setBusy(false);
     if (failure) {
       setError(failure);
@@ -184,16 +178,6 @@ export default function CouplePage() {
                     Desfazer parceria
                   </button>
                 ) : null}
-                {!isDemo && snapshot.partner ? (
-                  <button
-                    className="button button-ghost"
-                    disabled={busy}
-                    onClick={handleAccept}
-                    type="button"
-                  >
-                    Aceitar convite recebido
-                  </button>
-                ) : null}
               </div>
               {error ? (
                 <p className="field-hint" role="alert" style={{ color: 'var(--danger, #ef4444)' }}>
@@ -201,6 +185,30 @@ export default function CouplePage() {
                 </p>
               ) : null}
             </form>
+
+            {invites.length > 0 ? (
+              <div className="stack" style={{ gap: 8, marginTop: 16 }}>
+                <strong style={{ fontSize: 13 }}>Convites recebidos</strong>
+                {invites.map((invite) => (
+                  <div className="share-item" key={invite.id}>
+                    <span className="row-copy">
+                      <strong>{invite.from.name}</strong>
+                      <small>quer compartilhar as contas com você</small>
+                    </span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="button button-primary"
+                        disabled={busy}
+                        onClick={() => handleAccept(invite.id)}
+                        type="button"
+                      >
+                        Aceitar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <div className="stack" style={{ gap: 10, marginTop: 16 }}>
               <div className="mini-stat">
                 <span>Saldo das contas compartilhadas</span>

@@ -29,12 +29,25 @@ export class AuthService {
     }
   }
 
-  generateToken(userId: string): string {
-    return this.jwt.sign({ sub: userId, scope: 'full' });
-  }
-
   generateTempToken(userId: string): string {
     return this.jwt.sign({ sub: userId, scope: 'mfa_pending' }, { expiresIn: '5m' });
+  }
+
+  /** Dados públicos do usuário (sem senha/segredo de MFA). */
+  async profile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        mfaEnabled: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+    return user;
   }
 
   async register(dto: { email: string; name: string; password: string }) {

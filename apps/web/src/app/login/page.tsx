@@ -88,14 +88,12 @@ export default function LoginPage() {
         router.push('/login/mfa');
         return;
       }
-      if (!result.token || !result.user) {
+      if (!result.user) {
         throw new Error('Resposta de login inválida.');
       }
-      api.setToken(result.token);
-      localStorage.setItem(
-        'mf.session.api',
-        JSON.stringify({ token: result.token, user: result.user })
-      );
+      // A sessão web vive no cookie `HttpOnly` que a API acabou de gravar: o
+      // token não é guardado no `localStorage`, então um XSS não o alcança.
+      localStorage.setItem('mf.session.api', JSON.stringify({ user: result.user }));
       router.push('/api');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível entrar agora.';

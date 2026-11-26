@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildDemoSnapshot, DEMO_USER } from '@/lib/demo-data';
 import {
+  basisTotals,
   buildOverview,
   coverage,
   isSettled,
@@ -176,5 +177,53 @@ describe('analytics — realizado x projetado', () => {
     expect(depois.expenseCents).toBe(antes.expenseCents);
     expect(depois.pendingExpenseCents).toBe(antes.pendingExpenseCents);
     expect(depois.projectedNetCents).toBe(antes.projectedNetCents);
+  });
+});
+
+describe('basisTotals (caixa × competência)', () => {
+  it('aluguel de dezembro pago em janeiro cai em meses diferentes', () => {
+    const snapshot = {
+      accounts: [
+        {
+          id: 'acc-1',
+          name: 'Corrente',
+          institution: null,
+          type: 'checking' as const,
+          currency: 'BRL',
+          balanceCents: '0',
+          shareLevel: 'private' as const,
+          ownerId: 'user-1',
+          ownerName: 'Davi',
+          color: '#000',
+          isActive: true,
+        },
+      ],
+      categories: [],
+      transactions: [
+        {
+          id: 'tx-1',
+          accountId: 'acc-1',
+          categoryId: null,
+          description: 'Aluguel',
+          amountCents: '-150000',
+          type: 'expense' as const,
+          origin: 'manual' as const,
+          date: '2027-01-05',
+          competenceDate: '2026-12-10',
+          status: 'paid' as const,
+          paidAt: '2027-01-05T12:00:00Z',
+          createdAt: '2026-12-01T12:00:00Z',
+        },
+      ],
+      budgets: [],
+      goals: [],
+      partner: null,
+      settings: { theme: 'dark' as const, hideValues: false, partnerName: 'Parceiro' },
+    };
+
+    expect(basisTotals(snapshot, '2026-12', 'user-1', 'accrual').expenseCents).toBe(150000n);
+    expect(basisTotals(snapshot, '2026-12', 'user-1', 'cash').expenseCents).toBe(0n);
+    expect(basisTotals(snapshot, '2027-01', 'user-1', 'cash').expenseCents).toBe(150000n);
+    expect(basisTotals(snapshot, '2027-01', 'user-1', 'accrual').expenseCents).toBe(0n);
   });
 });

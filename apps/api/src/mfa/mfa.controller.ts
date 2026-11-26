@@ -5,14 +5,18 @@ import {
   Body,
   UseGuards,
   Req,
+  Res,
   Query,
   NotFoundException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtService } from '@nestjs/jwt';
 import { MfaService } from './mfa.service';
 import { EnableMfaDto, VerifyMfaDto } from './dto/mfa.dto';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
+import { SessionService } from '../auth/session.service';
+import { csrfTokenFor, setSessionCookies } from '../auth/session-cookie';
 import QRCode from 'qrcode';
 
 interface AuthenticatedRequest extends Request {
@@ -23,7 +27,8 @@ interface AuthenticatedRequest extends Request {
 export class MfaController {
   constructor(
     private readonly mfaService: MfaService,
-    private readonly jwt: JwtService
+    private readonly jwt: JwtService,
+    private readonly sessions: SessionService
   ) {}
 
   /** Retorna o QR code (data URL) e a URL otpauth para um segredo TOTP. */
@@ -59,13 +64,25 @@ export class MfaController {
    * token temporário não é aceito em nenhuma outra rota.
    */
   @Post('verify')
+  // 6 dígitos são 1 milhão de combinações, mas o código vale 30s: limite curto
+  // impede varredura dentro da janela.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(AuthGuard('mfa-session'))
-  async verify(@Req() req: AuthenticatedRequest, @Body() dto: VerifyMfaDto) {
+  async verify(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: VerifyMfaDto,
+    @Res({ passthrough: true })
+    res: {
+      cookie(name: string, value: string, options?: Record<string, unknown>): unknown;
+    }
+  ) {
     const valid = await this.mfaService.validateMFA(req.user.userId, dto.token);
     if (!valid) {
       throw new NotFoundException('Token TOTP inválido');
     }
-    const token = this.jwt.sign({ sub: req.user.userId, scope: 'full' });
+    // A sessão de verdade só nasce depois do segundo fator.
+    const { token } = await this.sessions.create(req.user.userId);
+    setSessionCookies(res, token, csrfTokenFor(token));
     return { token };
   }
 

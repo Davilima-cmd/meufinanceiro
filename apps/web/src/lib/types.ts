@@ -104,6 +104,17 @@ export type FinanceSettings = {
   partnerName: string;
 };
 
+export type NetWorthItemKind = 'asset' | 'liability';
+
+/** Bem ou dívida declarado à mão, fora das contas financeiras. */
+export type NetWorthItem = {
+  id: string;
+  name: string;
+  kind: NetWorthItemKind;
+  valueCents: string;
+  note: string | null;
+};
+
 export type FinanceSnapshot = {
   accounts: FinanceAccount[];
   categories: FinanceCategory[];
@@ -111,6 +122,10 @@ export type FinanceSnapshot = {
   budgets: FinanceBudget[];
   goals: FinanceGoal[];
   partner: FinancePartner | null;
+  /** Bens e dívidas declarados à mão (patrimônio além das contas). */
+  netWorthItems?: NetWorthItem[];
+  /** Convites recebidos e ainda pendentes (parceria ainda não aceita). */
+  invites?: Array<{ id: string; from: { id: string; name: string } }>;
   settings: FinanceSettings;
 };
 
