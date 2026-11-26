@@ -1,16 +1,22 @@
 /**
- * Sonda instrumentada do bootstrap: registra cada etapa em `_probe_log` antes de
- * executá-la, para que um crash deixe rastro do último passo alcançado.
- * `?kind=context` cria só o contexto Nest (sem HTTP); `?kind=http` cria o app
- * completo com o adaptador Express. Só diagnóstico.
+ * Sonda de bootstrap instrumentada: módulo vazio vs. com `@nestjs/config` vs.
+ * com HealthModule, com heartbeat para detectar bloqueio de event loop.
+ * Cada etapa vira uma linha em `_probe_log`. Só diagnóstico.
  */
 import 'reflect-metadata';
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
+import { HealthModule } from '../src/health/health.module';
 
 const prisma = new PrismaClient();
 const run = `run-${Date.now()}`;
+let ticks = 0;
+let lastStep = 'start';
 
 async function log(step: string, detail: unknown = '') {
+  lastStep = step;
   try {
     await prisma.$executeRawUnsafe(
       'INSERT INTO _probe_log (run, step, detail) VALUES ($1, $2, $3)',
@@ -19,51 +25,47 @@ async function log(step: string, detail: unknown = '') {
       typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 700)
     );
   } catch {
-    // canal de log best-effort
+    // best-effort
   }
 }
 
 export default async function handler(req: any, res: any) {
-  const params = new URL(req.url, 'http://x').searchParams;
-  const kind = params.get('kind') ?? 'context';
-  await log('start', { kind });
+  const variant = new URL(req.url, 'http://x').searchParams.get('v') ?? 'empty';
+
+  // Heartbeat: se o event loop travar, os ticks param de aparecer.
+  const timer = setInterval(() => {
+    ticks += 1;
+    void log(`tick ${ticks} (após ${lastStep})`);
+  }, 2000);
+  timer.unref?.();
 
   try {
-    const { Module } = await import('@nestjs/common');
-    const { ConfigModule } = await import('@nestjs/config');
-    const { NestFactory } = await import('@nestjs/core');
-    const { HealthModule } = await import('../src/health/health.module');
-    await log('imports ok');
+    await log('inicio', { variant });
 
-    class ProbeModule {}
-    Module({
-      imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }), HealthModule],
-    })(ProbeModule);
-    await log('module decorated');
+    class EmptyModule {}
+    Module({})(EmptyModule);
 
-    if (kind === 'context') {
-      await log('creating context');
-      const ctx = await NestFactory.createApplicationContext(ProbeModule as never, {
-        logger: false,
-      });
-      await log('context created');
-      await ctx.close();
-      await log('context closed');
-    } else {
-      await log('creating http app');
-      const app = await NestFactory.create(ProbeModule as never, { logger: false });
-      await log('http app created');
-      await app.init();
-      await log('http app init ok');
-      await app.close();
-      await log('http app closed');
-    }
+    class ConfigOnlyModule {}
+    Module({ imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] })] })(
+      ConfigOnlyModule
+    );
+
+    const target =
+      variant === 'config' ? ConfigOnlyModule : variant === 'health' ? HealthModule : EmptyModule;
+
+    await log('criando contexto', { variant });
+    const ctx = await NestFactory.createApplicationContext(target as never, { logger: false });
+    await log('contexto criado');
+    await ctx.close();
+    await log('contexto fechado');
   } catch (error) {
-    await log('error', String((error as Error)?.message ?? error));
+    await log('erro', String((error as Error)?.message ?? error));
+  } finally {
+    clearInterval(timer);
   }
 
-  await log('done');
+  await log('fim');
   res.setHeader('content-type', 'application/json');
   res.statusCode = 200;
-  res.end(JSON.stringify({ run }));
+  res.end(JSON.stringify({ run, ticks, lastStep }));
 }
