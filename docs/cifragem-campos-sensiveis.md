@@ -1,8 +1,8 @@
 # Cifragem de campos sensíveis: alternativas avaliadas
 
-Os campos `Consent.externalId` e `BankConnection.providerAccountId` precisam ficar cifrados em
-repouso. Hoje isso é feito **explicitamente** nos pontos de leitura e escrita, porque o Prisma
-removeu o middleware global (`$use`) — ver `apps/api/src/prisma/prisma.service.ts`.
+Os campos `Consent.externalId` e `BankConnection.providerAccountId` ficam cifrados em repouso por
+uma **Client Extension** do Prisma (`apps/api/src/prisma/sensitive-fields.extension.ts`), aplicada
+no `PrismaModule`. O middleware global (`$use`) que fazia isso foi removido no Prisma 6.14.
 
 Este documento registra as alternativas, o que cada uma custa e por que a escolhida foi a atual.
 Serve para reavaliar a decisão quando o código crescer.
@@ -22,15 +22,15 @@ Serve para reavaliar a decisão quando o código crescer.
 
 | #   | Abordagem                                     | Onde a regra vive | Falha se alguém esquecer? | Serve para buscar/indexar o campo? | Custo agora |
 | --- | --------------------------------------------- | ----------------- | ------------------------- | ---------------------------------- | ----------- |
-| 1   | **Explícito no serviço (atual)**              | call site         | Sim                       | Não                                | feito       |
-| 2   | Client Extension (`$extends` query/result)    | infraestrutura    | Não                       | Não (só cifra o que passa)         | médio       |
+| 1   | Explícito no serviço                          | call site         | Sim                       | Não                                | feito       |
+| 2   | **Client Extension (`$extends`) — em uso**    | infraestrutura    | Não                       | Não (só cifra o que passa)         | feito       |
 | 3   | Tipo "branded" + helpers                      | tipo + call site  | Sim, mas em compile time  | Não                                | baixo       |
 | 4   | Cifra no banco (`pgcrypto`/`supabase_vault`)  | banco             | Não                       | Sim (com hash/índice)              | médio-alto  |
 | 5   | Banco cofre separado (`supabase_vault`)       | banco + app       | Não                       | Não (só referência)                | alto        |
 | 6   | Mascarar no DTO (só não devolver em claro)    | borda HTTP        | Sim                       | Não                                | muito baixo |
 | 7   | Hash determinístico (busca) + cifra (leitura) | call site         | Sim                       | Sim                                | médio       |
 
-## 1. Explícito no serviço (o que está no código)
+## 1. Explícito no serviço (foi o paliativo após o bug)
 
 `PrismaService.encryptSensitive` / `decryptSensitive`, chamados pelo controller que toca o campo.
 
@@ -135,13 +135,30 @@ Guarda `hash = HMAC(pepper, valor)` (indexável, único) **e** `valor_cifrado`.
 - **Contra**: duas colunas, migração manual, e o hash precisa de pepper versionado (mesma disciplina
   de rotação da chave).
 
+## O que foi implementado (opção 2)
+
+`sensitiveFieldsExtension()` é aplicada no `PrismaModule` sobre o cliente devolvido por
+`PrismaService`, então **todo** ponto que recebe `PrismaService` por injeção já escreve cifrado e lê
+em claro — inclusive fora dos controllers. A cifra/decifra fica em `applySensitiveFields`, testada
+isoladamente.
+
+Duas armadilhas encontradas ao validar em produção, ambas com teste de regressão:
+
+1. **O nome do modelo chega em PascalCase.** O Prisma entrega `model: "Consent"`, não `"consent"` —
+   comparar direto com a chave camelCase deixava a extensão ativa mas sem casar modelo nenhum, e os
+   campos eram gravados em texto plano sem erro algum. `sensitiveFieldsFor` normaliza a comparação.
+2. **`upsert` não traz os dados em `args.data`.** Os valores vêm em `args.create`/`args.update`,
+   então a cifra percorre os três formatos (e as listas de `createMany`).
+
+Validação em produção: gravou `enc:…` no banco e devolveu o valor em claro na API.
+
 ## Recomendação
 
-- **Agora**: manter 1 (explícito) e **corrigir o `@@unique`** — trocar por hash determinístico (7)
-  na mesma migração que já vai mexer no schema para status/liquidação. Sem isso a unicidade de
-  conexão bancária é ficção.
-- **Ao subir para Prisma 7**: migrar para 2 (Client Extension), que passa a ser obrigatório e
-  resolve o "esqueceram de cifrar".
+- **Agora**: **corrigir o `@@unique`** de `BankConnection` — trocar por hash determinístico (7) na
+  mesma migração que já vai mexer no schema para status/liquidação. Sem isso a unicidade de conexão
+  bancária é ficção, porque o mesmo `providerAccountId` gera ciphertexts diferentes (IV aleatório).
+- **Ao subir para Prisma 7**: a extensão continua valendo (`$extends` é o mecanismo oficial de lá);
+  revisar apenas a assinatura de `$allOperations`.
 - **Se aparecer requisito de auditoria/compliance**: 5 (vault) para o segredo e 4 (pgcrypto) para o
   restante.
 
