@@ -1,28 +1,51 @@
 /**
- * Sonda do app Nest completo: sobe a aplicação (como a função principal) e
- * devolve o erro de inicialização, se houver. Só para diagnosticar produção.
+ * Sonda do app Nest em etapas (`?step=import|create|init`): isola em qual passo
+ * a inicialização quebra. Só para diagnosticar o ambiente publicado.
  */
+function describe(error: unknown) {
+  const err = error as { name?: string; message?: string; stack?: string };
+  return {
+    name: err?.name ?? typeof error,
+    message: String(err?.message ?? error)
+      .replace(/:\/\/[^@\s/]*@/g, '://***@')
+      .slice(0, 700),
+    stack: String(err?.stack ?? '')
+      .replace(/:\/\/[^@\s/]*@/g, '://***@')
+      .slice(0, 900),
+  };
+}
+
 export default async function handler(req: any, res: any) {
-  const steps: Record<string, unknown> = { node: process.version };
+  const step = new URL(req.url, 'http://x').searchParams.get('step') ?? 'init';
+  const out: Record<string, unknown> = { step };
+
   res.setHeader('content-type', 'application/json');
   res.statusCode = 200;
 
   try {
-    const { createApp } = await import('../src/bootstrap');
-    steps.importBootstrap = 'ok';
-    const app = await createApp();
-    steps.createApp = 'ok';
+    const mod = await import('../src/bootstrap');
+    out.import = 'ok';
+
+    if (step === 'import') {
+      out.exports = Object.keys(mod);
+      res.end(JSON.stringify(out));
+      return;
+    }
+
+    const app = await mod.createApp();
+    out.createApp = 'ok';
+
+    if (step === 'create') {
+      res.end(JSON.stringify(out));
+      return;
+    }
+
     await app.init();
-    steps.init = 'ok';
-    await app.close();
+    out.init = 'ok';
+    out.routes = 'ok';
   } catch (error) {
-    const err = error as { message?: string; stack?: string; name?: string };
-    steps.failed = err?.name ?? 'Error';
-    steps.detail = (err?.message ?? String(error))
-      .replace(/:\/\/[^@\s/]*@/g, '://***@')
-      .slice(0, 1200);
-    steps.stack = (err?.stack ?? '').replace(/:\/\/[^@\s/]*@/g, '://***@').slice(0, 2000);
+    out.error = describe(error);
   }
 
-  res.end(JSON.stringify(steps, null, 2));
+  res.end(JSON.stringify(out));
 }
