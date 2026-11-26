@@ -76,6 +76,9 @@ export default async function handler(_req: any, res: any) {
     out.pendenteCriado = pending.status;
     out.pendenteStatus = /"status":"([^"]+)"/.exec(pending.text)?.[1];
 
+    const accountsRightAfterAccount = await call('/accounts', { headers: auth });
+    out.saldoAposConta = /"balanceCents":"(-?\d+)"/.exec(accountsRightAfterAccount.text)?.[1];
+
     const accountsAfterCreate = await call('/accounts', { headers: auth });
     out.saldoSoComPago = /"balanceCents":"(-?\d+)"/.exec(accountsAfterCreate.text)?.[1];
 

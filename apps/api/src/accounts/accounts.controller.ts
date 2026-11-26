@@ -92,6 +92,11 @@ export class AccountsController {
             type: initial > 0n ? 'income' : 'expense',
             origin: 'manual',
             date: new Date(),
+            // O saldo inicial já é caixa: nasce liquidado, senão o saldo da
+            // conta (derivado do histórico) começaria zerado.
+            competenceDate: new Date(),
+            status: 'paid',
+            paidAt: new Date(),
           },
         });
       }

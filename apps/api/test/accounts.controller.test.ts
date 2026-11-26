@@ -62,6 +62,8 @@ describe('AccountsController — saldo inicial', () => {
         amountCents: '-25000',
         type: 'expense',
         description: 'Saldo inicial',
+        // Nasce liquidado: o saldo da conta é derivado do que já é caixa.
+        status: 'paid',
       }),
     });
   });
