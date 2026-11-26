@@ -24,6 +24,33 @@ confirmação ponta a ponta.
 **Falha esperada se algo estiver errado:** escrita devolvendo `403` significa
 `X-CSRF-Token` ausente/divergente; `401` ao recarregar significa cookie não enviado.
 
+### 1.1 Escrita funciona (era o 403 ao criar conta)
+
+Web e API ficam em domínios diferentes: o cookie `mf_csrf` pertence ao domínio da API e a página
+**não** consegue lê-lo. Por isso a API devolve `csrfToken` no login e em `GET /auth/status`, e o
+cliente guarda o valor só em memória.
+
+1. **Recarregue a página** (F5) logado e crie um lançamento. Deve salvar normalmente.
+2. Repita com uma conta nova, uma meta e um aporte.
+
+Se voltar `403` com "token CSRF ausente ou inválido", o `csrfToken` não chegou ao cliente — olhe a
+resposta de `GET /auth/status` na aba Network: o campo deve estar preenchido.
+
+## 1.2 Conta bancária vem do Open Finance (5 min)
+
+A tela **Contas** agora separa dois caminhos: **Vincular conta bancária** (a conta nasce dos dados
+da instituição) e **Conta manual** (espécie, carteira, banco sem integração).
+
+1. Em **Contas** → **Buscar contas para vincular**.
+2. Hoje, em produção, a resposta é `available: false` com a explicação de que a integração ainda
+   não está liberada — **isso é o esperado** enquanto o provedor real não está integrado; o sandbox
+   é recusado de propósito para não criar conta com saldo fictício.
+3. Em desenvolvimento (`pnpm dev`, sem `NODE_ENV=production`), o mesmo botão lista duas contas de
+   sandbox. **Vincular** deve criar a conta com o nome, instituição e saldo do provedor, importar
+   3 lançamentos e marcar a linha como "Já vinculada" na consulta seguinte.
+4. Chamar `POST /open-finance/link-account` com um `providerAccountId` inexistente deve responder
+   `404`; a mesma conta duas vezes, `409`.
+
 ## 2. Sessão revogada em outro aparelho (3 min)
 
 1. Entre no notebook e no celular com a **mesma** conta.
