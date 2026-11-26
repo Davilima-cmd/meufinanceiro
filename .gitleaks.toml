@@ -19,6 +19,16 @@ paths = [
   '''(?i)pnpm-lock\.yaml$''',
 ]
 
+# Valores que são variáveis de ambiente ou placeholders óbvios não são
+# segredos: os scripts de operação montam a URL com `${PASS}`, `${ROLE}` etc.
+[[allowlists]]
+description = "Placeholders de variável de ambiente e credenciais de exemplo"
+regexes = [
+  '''\$\{[A-Za-z_][A-Za-z0-9_]*\}''',
+  '''(?i)(senha|password|usuario|username|example|exemplo|placeholder)''',
+  '''(?i)localhost''',
+]
+
 [[rules]]
 id = "generic-api-key"
 description = "Generic API Key pattern"
