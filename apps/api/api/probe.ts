@@ -10,10 +10,8 @@ const PASS = USERINFO?.split(':')[1] ?? PASSWORD;
 const REF = 'lowevmopfcwafuzfcvqr';
 
 const CANDIDATES = [
-  `postgresql://${ROLE}.${REF}:${PASS}@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`,
   `postgresql://${ROLE}.${REF}:${PASS}@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`,
-  `postgresql://${ROLE}.${REF}:${PASS}@aws-1-sa-east-1.pooler.supabase.com:5432/postgres`,
-  `postgresql://${ROLE}:${PASS}@db.${REF}.supabase.co:5432/postgres`,
+  `postgresql://${ROLE}.${REF}:${PASS}@aws-0-sa-east-1.pooler.supabase.com:5432/postgres`,
 ];
 
 export default async function handler(_req: any, res: any) {
