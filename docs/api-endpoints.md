@@ -239,6 +239,28 @@ sincronização/reconciliação | — | `200 { id, status }` |
 
 Status de conexão: `active`, `awaiting_authorization`, `expired`, `error`, `disconnected`.
 
+#### Vincular conta bancária (o caminho para conta de banco)
+
+Conta bancária **não é digitada no app**: ela nasce do que a instituição informa. `POST /accounts`
+continua existindo, mas serve para conta manual (dinheiro em espécie, carteira, banco sem
+integração).
+
+| Método | Endpoint | Descrição | Corpo | Resposta |
+|--------|----------|-----------|-------|----------|
+| GET | `/open-finance/available-accounts` | Contas da instituição disponíveis para vincular | — | `200 { provider, available, accounts[], reason? }` |
+| POST | `/open-finance/link-account` | Cria a conta com os dados do provedor e a deixa vinculada | `{ provider, providerAccountId, shareLevel? }` | `201 { account, connectionId, synced }` |
+
+- O `providerAccountId` é **conferido contra a lista real do provedor**; id desconhecido responde
+  `404`. O antigo `POST /open-finance/connections` aceitava qualquer id e permitia vincular uma
+  conta manual arbitrária sem consultar a instituição.
+- Nome, instituição, tipo, moeda e saldo vêm do provedor; o histórico é importado na hora pela
+  reconciliação (`synced: false` quando a sincronização falha — o vínculo continua valendo e a
+  próxima varredura tenta de novo).
+- Conta já vinculada responde `409`. Tudo é gravado em transação: conta, consentimento e conexão.
+- `available: false` significa que o provedor real não está integrado naquele ambiente (produção
+  hoje). Nesse caso `link-account` responde `400` e **o sandbox nunca é usado para criar conta
+  real** — o provedor expõe `kind: 'sandbox' | 'live'` justamente para impedir isso.
+
 Exemplo de conexão:
 
 ```json

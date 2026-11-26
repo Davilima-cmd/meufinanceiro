@@ -63,9 +63,18 @@ desenvolvimento, não segredos reais. Nunca substituí-los por valores reais no 
   `POST /auth/logout-all` todas; trocar a senha revoga todas. Token antigo **sem** `sid` é rejeitado
   com `401` — não existe caminho para token "eterno".
 - **Cookie `HttpOnly` + CSRF.** A web recebe `mf_session` (`HttpOnly`, `Secure` em produção,
-  `SameSite=Lax`) e `mf_csrf` (legível). Toda escrita exige `X-CSRF-Token` igual ao cookie; o
-  `CsrfGuard` isenta `GET`/`HEAD`/`OPTIONS` e requisições com `Authorization: Bearer` (que não
-  carregam cookie ambiente, logo não sofrem CSRF). O JWT **não** é mais gravado em `localStorage`.
+  `SameSite=None`, porque web e API ficam em domínios diferentes) e `mf_csrf` (legível **no
+  domínio da API**). Toda escrita exige `X-CSRF-Token` igual ao cookie; o `CsrfGuard` isenta
+  `GET`/`HEAD`/`OPTIONS` e requisições com `Authorization: Bearer` (que não carregam cookie
+  ambiente, logo não sofrem CSRF). O JWT **não** é gravado em `localStorage`.
+  - **Como a web obtém o valor.** O cookie `mf_csrf` pertence ao domínio da API, portanto
+    `document.cookie` da página **não** o enxerga. O valor vai no corpo de `/auth/login`,
+    `/auth/mfa/verify` e `GET /auth/status` (leitura same-origin-only) e o cliente o guarda só em
+    memória. Como o token é `sha256("csrf:" + sessionId)` e não derivado do JWT, `/auth/status` o
+    recalcula a cada carga da página — recarregar o app não quebra a escrita. Sem isso, toda
+    escrita autenticada por cookie respondia `403`.
+  - Regressões cobertas por `apps/api/test/csrf.cross-domain.test.ts` e
+    `apps/web/src/lib/csrf.test.ts`.
 - **Autorização centralizada.** `AccountAccessService` (`apps/api/src/common/account-access.service.ts`)
   é a única fonte de verdade para "posso ver / posso escrever": `assertVisible` responde `404` e
   `assertWritable` responde `403` quando a conta é de outra pessoa. Serviços de lançamento, conta,
