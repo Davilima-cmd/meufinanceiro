@@ -95,7 +95,7 @@ Configure pelo menos estas variáveis (valores de exemplo impedem o deploy):
 | `DATABASE_URL`         | `postgres://postgres:senha@localhost:5432/meufinanceiro` | URL de conexão do Prisma (aplicação)          |
 | `DATABASE_URL_DIRECT`  | `postgres://postgres:senha@localhost:5432/meufinanceiro` | URL direta (usada pelas migrations)           |
 | `JWT_SECRET`           | `openssl rand -base64 32`                                | Segredo para assinar tokens JWT               |
-| `ENCRYPTION_KEY`       | `openssl rand -hex 32`                                   | Chave AES-256-GCM para campos sensíveis       |
+| `ENCRYPTION_KEY`       | `openssl rand -base64 32` (base64 de 32 bytes)           | Chave AES-256-GCM para campos sensíveis       |
 | `TOTP_ISSUER`          | `Meu Financeiro`                                         | Emissor exibido nos apps autenticadores (MFA) |
 | `NODE_ENV`             | `development`                                            | `development` ou `production`                 |
 | `API_PORT`             | `3001`                                                   | Porta da API no container/host                |
@@ -106,7 +106,7 @@ Gere os segredos com:
 
 ```sh
 openssl rand -base64 32   # JWT_SECRET
-openssl rand -hex 32      # ENCRYPTION_KEY
+openssl rand -base64 32   # ENCRYPTION_KEY (a API exige exatamente 32 bytes em base64)
 ```
 
 ### Script de deploy
@@ -268,7 +268,10 @@ Resumo dos principais itens:
   ficar público (ou use um domínio próprio, que a proteção não cobre).
 - **Banco no Supabase** (PostgreSQL 17, região `sa-east-1`): use a URL direta para migrations
   (`DATABASE_URL_DIRECT`) e a URL do pooler para a aplicação (`DATABASE_URL`), com
-  `?pgbouncer=true&connection_limit=1`. O Supabase é usado **apenas** como Postgres: autenticação e
+  `?pgbouncer=true&connection_limit=1`. O host do pooler é
+  `aws-0-<região>.pooler.supabase.com` com usuário `<papel>.<project_ref>` — trocar só o número
+  (`aws-1-…`) devolve `ENOTFOUND` para o tenant; a URL direta `db.<ref>.supabase.co` não é
+  alcançável a partir das funções da Vercel. O Supabase é usado **apenas** como Postgres: autenticação e
   autorização continuam no NestJS. O schema `public` já está no formato esperado pelo Prisma
   (camelCase + `hide_values`), com as duas migrations aplicadas e registradas em
   `_prisma_migrations`, além das 8 categorias de sistema do `prisma/seed.ts`. Para conferir:
@@ -290,8 +293,18 @@ Resumo dos principais itens:
     Amazon Linux da Vercel.
   - `NODE_ENV=production` **não** deve existir como variável de build (derruba o `tsc`); se
     precisar, configure só para runtime.
+  - **Pacotes `@nestjs/*` em CommonJS**: o bundle da Vercel faz `require()` do build CommonJS, e as
+    versões ESM-only quebram em runtime com `ERR_REQUIRE_ESM` (nunca no build nem no typecheck). O
+    projeto fixa `@nestjs/config@4`, `@nestjs/jwt@11` e `@nestjs/passport@11`; antes de subir
+    qualquer um deles, confira se o `package.json` do pacote continua sem `"type": "module"`.
+  - **Cifragem de campos sensíveis é explícita**: o Prisma 6 removeu o middleware `$use`, então
+    `Consent.externalId` e `BankConnection.providerAccountId` passam por
+    `PrismaService.encryptSensitive`/`decryptSensitive` nos controllers que os tocam. Um middleware
+    removido falharia silencioso e gravaria esses campos em texto plano.
   - O projeto está com _Deployment Protection → Vercel Authentication_ ligado, então o domínio
     responde com o login da Vercel até a proteção ser desligada ou um domínio próprio ser usado.
+  - `GET https://meufinanceiro-api-davi-lima2.vercel.app/api/health` responde
+    `{"status":"ok","db":"ok"}`; 503 significa que a função subiu mas não alcançou o Postgres.
 - **API em outro host Node** (Render, Azure): variáveis de `.env.example`,
   `pnpm --filter @meufinanceiro/api build`, `prisma generate` + `prisma migrate deploy` no deploy e
   `node dist/main.js` para iniciar (imagens em `apps/api/Dockerfile*`). No plano gratuito do Render
