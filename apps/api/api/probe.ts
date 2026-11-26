@@ -1,11 +1,11 @@
 /**
- * Sonda instrumentada: grava cada etapa em `_probe_log` antes de executá-la, de
- * modo que um crash do processo ainda deixa rastro do último passo alcançado.
- * Só para diagnóstico; removida após o deploy validado.
+ * Sonda instrumentada do bootstrap: registra cada etapa em `_probe_log` antes de
+ * executá-la, para que um crash deixe rastro do último passo alcançado.
+ * `?kind=context` cria só o contexto Nest (sem HTTP); `?kind=http` cria o app
+ * completo com o adaptador Express. Só diagnóstico.
  */
+import 'reflect-metadata';
 import { PrismaClient } from '@prisma/client';
-import { HealthModule } from '../src/health/health.module';
-import { AppModule } from '../src/app.module';
 
 const prisma = new PrismaClient();
 const run = `run-${Date.now()}`;
@@ -24,32 +24,40 @@ async function log(step: string, detail: unknown = '') {
 }
 
 export default async function handler(req: any, res: any) {
-  const m = new URL(req.url, 'http://x').searchParams.get('m') ?? 'health';
-  await log('start', { m });
+  const params = new URL(req.url, 'http://x').searchParams;
+  const kind = params.get('kind') ?? 'context';
+  await log('start', { kind });
 
   try {
-    await log('importing nest');
     const { Module } = await import('@nestjs/common');
     const { ConfigModule } = await import('@nestjs/config');
     const { NestFactory } = await import('@nestjs/core');
-    await log('nest imported');
+    const { HealthModule } = await import('../src/health/health.module');
+    await log('imports ok');
 
     class ProbeModule {}
     Module({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }),
-        ...(m === 'health' ? [HealthModule] : []),
-        ...(m === 'app' ? [AppModule] : []),
-      ],
+      imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env'] }), HealthModule],
     })(ProbeModule);
     await log('module decorated');
 
-    const app = await NestFactory.create(ProbeModule as never, { logger: false });
-    await log('app created');
-    await app.init();
-    await log('app init ok');
-    await app.close();
-    await log('app closed');
+    if (kind === 'context') {
+      await log('creating context');
+      const ctx = await NestFactory.createApplicationContext(ProbeModule as never, {
+        logger: false,
+      });
+      await log('context created');
+      await ctx.close();
+      await log('context closed');
+    } else {
+      await log('creating http app');
+      const app = await NestFactory.create(ProbeModule as never, { logger: false });
+      await log('http app created');
+      await app.init();
+      await log('http app init ok');
+      await app.close();
+      await log('http app closed');
+    }
   } catch (error) {
     await log('error', String((error as Error)?.message ?? error));
   }
