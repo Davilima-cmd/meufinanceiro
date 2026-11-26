@@ -63,6 +63,16 @@ type FinanceContextValue = {
     provider: string;
     providerAccountId: string;
   }) => Promise<string | null>;
+  /**
+   * Abre o fluxo de consentimento do Open Finance e importa as contas do banco.
+   *
+   * `openWidget` recebe o token do widget e devolve o `itemId` criado (ou
+   * `null` se o usuário fechar). A UI é quem monta o widget; o store só cuida
+   * de pedir o token, registrar o item e recarregar o snapshot.
+   */
+  connectBank: (
+    openWidget: (connectToken: string) => Promise<string | null>
+  ) => Promise<string | null>;
   deleteAccount: (id: string) => Promise<string | null>;
   addCategory: (input: {
     name: string;
@@ -528,6 +538,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const connectBank = useCallback(
+    async (
+      openWidget: (connectToken: string) => Promise<string | null>
+    ): Promise<string | null> => {
+      if (sessionRef.current?.mode !== 'api') {
+        return 'Conectar banco exige uma conta real. Você está no modo demonstração.';
+      }
+      try {
+        const { accessToken } = await api.getConnectToken();
+        const itemId = await openWidget(accessToken);
+        if (!itemId) return null; // usuário fechou o widget: não é erro.
+        await api.connectItem(itemId);
+        const remoteSnapshot = await fetchApiSnapshot();
+        setSnapshot(remoteSnapshot);
+        setSyncError(null);
+        return null;
+      } catch (error) {
+        const message = errorMessage(error);
+        setSyncError(message);
+        return message;
+      }
+    },
+    []
+  );
+
   const deleteAccount = useCallback(
     (id: string) =>
       mutate(
@@ -878,6 +913,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       deleteTransaction,
       addAccount,
       linkBankAccount,
+      connectBank,
       deleteAccount,
       addCategory,
       deleteCategory,
@@ -932,6 +968,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       invitePartner,
       acceptPartnership,
       revokePartnership,
+      connectBank,
     ]
   );
 

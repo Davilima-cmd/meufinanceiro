@@ -13,11 +13,45 @@ export interface ProviderTransaction {
   date: Date;
 }
 
+export type ProviderConnection = {
+  provider: string;
+  providerAccountId: string;
+  /** Item/conexão no provedor; o Pluggy pagina lançamentos por conta, não por item. */
+  providerItemId?: string | null;
+};
+
 export abstract class BankProviderAdapter {
-  abstract fetchTransactions(connection: {
-    provider: string;
-    providerAccountId: string;
-  }): Promise<ProviderTransaction[]>;
+  abstract fetchTransactions(connection: ProviderConnection): Promise<ProviderTransaction[]>;
+}
+
+/**
+ * Adaptador do Pluggy (Open Finance real).
+ *
+ * O provedor devolve valor em reais (decimal); convertemos para centavos
+ * inteiros aqui, no único ponto onde isso acontece. `providerId` é o id do
+ * lançamento no provedor — é ele que garante a idempotência da reconciliação
+ * (reexecutar não duplica).
+ */
+export class PluggyBankProviderAdapter extends BankProviderAdapter {
+  async fetchTransactions(connection: ProviderConnection): Promise<ProviderTransaction[]> {
+    const { PluggyClient } = await import('../open-finance/pluggy.client');
+    const client = PluggyClient.fromEnv();
+    const remote = await client.listTransactions(connection.providerAccountId);
+
+    return remote.map((transaction) => {
+      const cents = Math.round(Number(transaction.amount) * 100);
+      const isTransfer = /transfer|ted|doc/i.test(
+        transaction.category ?? transaction.description ?? ''
+      );
+      return {
+        providerId: transaction.id,
+        description: transaction.description?.trim() || 'Lançamento importado',
+        amountCents: Number.isFinite(cents) ? cents : 0,
+        type: isTransfer ? 'transfer' : cents >= 0 ? 'income' : 'expense',
+        date: new Date(transaction.date),
+      };
+    });
+  }
 }
 
 /**

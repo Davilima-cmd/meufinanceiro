@@ -247,8 +247,36 @@ integração).
 
 | Método | Endpoint | Descrição | Corpo | Resposta |
 |--------|----------|-----------|-------|----------|
+| POST | `/open-finance/connect-token` | Token de curta duração (30 min) para abrir o widget de consentimento | — | `200 { provider, accessToken, widgetUrl }` |
+| POST | `/open-finance/connect-item` | Registra o item devolvido pelo widget e importa as contas dele | `{ itemId }` | `201 { itemId, status, accounts, created, skipped, synced }` |
 | GET | `/open-finance/available-accounts` | Contas da instituição disponíveis para vincular | — | `200 { provider, available, accounts[], reason? }` |
 | POST | `/open-finance/link-account` | Cria a conta com os dados do provedor e a deixa vinculada | `{ provider, providerAccountId, shareLevel? }` | `201 { account, connectionId, synced }` |
+
+#### Como o vínculo real acontece (Open Finance via Pluggy)
+
+O consentimento do Open Finance **só nasce dentro do widget do agregador** — o usuário escolhe o
+banco e autoriza no ambiente do banco. Nós nunca vemos nem guardamos senha bancária; o
+`PLUGGY_CLIENT_SECRET` fica no servidor e o navegador recebe apenas o token do widget.
+
+1. `POST /open-finance/connect-token` → a web abre o widget (`pluggy-connect`) com esse token.
+2. O widget devolve um `itemId` (`onSuccess`).
+3. `POST /open-finance/connect-item` → lemos as contas do item **na API do provedor** (nada vem do
+   corpo além do `itemId`), gravamos `bank_connections.providerItemId` e importamos o histórico
+   pela reconciliação. Contas já vinculadas são contadas em `skipped`, nunca duplicadas.
+
+Detalhes que importam na operação:
+
+- `PLUGGY_CLIENT_ID` + `PLUGGY_CLIENT_SECRET` definidos = provedor real ativo. Sem eles, o app usa
+  o sandbox (fora de produção) e `connect-token` responde `400` explicando o que falta.
+- `OPEN_FINANCE_WEBHOOK_URL` (opcional) é repassado ao provedor no token; com ele o item é
+  sincronizado por aviso do provedor, em vez de só na varredura diária.
+- Lançamentos vêm de `GET /v2/transactions` (paginação por cursor). O endpoint antigo por página
+  está depreciado, responde `410` para aplicações novas e sai do ar em **2026-12-31**.
+- Valores chegam em **reais** (decimal) e são convertidos para **centavos inteiros** uma única vez,
+  com arredondamento explícito (`Math.round(amount * 100)`); `amount` negativo = débito.
+- Status do item: `UPDATING`, `UPDATED`, `LOGIN_ERROR`, `OUTDATED`, `WAITING_USER_INPUT`.
+  `LOGIN_ERROR`/`OUTDATED` em `connect-item` responde `400` pedindo novo consentimento, em vez de
+  criar um vínculo quebrado.
 
 - O `providerAccountId` é **conferido contra a lista real do provedor**; id desconhecido responde
   `404`. O antigo `POST /open-finance/connections` aceitava qualquer id e permitia vincular uma
@@ -260,10 +288,10 @@ integração).
 - `available: false` significa que o provedor real não está integrado naquele ambiente. Nesse caso
   `link-account` responde `400` e **o sandbox nunca é usado para criar conta real por padrão** — o
   provedor expõe `kind: 'sandbox' | 'live'` justamente para impedir isso.
-- Para testar o fluxo ponta a ponta antes de contratar um provedor, defina
-  `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true`: o sandbox passa a responder e a criar contas de teste
-  (provedor `sandbox`, fáceis de identificar e excluir). Sem essa variável, produção continua
-  bloqueando — saldo fictício não vira conta real.
+- Para testar o fluxo sem credenciais reais, defina `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true` (apenas
+  homologação): o sandbox passa a responder e a criar contas de teste (provedor `sandbox`, fáceis de
+  identificar e excluir). **Em produção, com credenciais do Pluggy configuradas, remova essa
+  variável** — saldo fictício não vira conta real.
 
 Exemplo de conexão:
 

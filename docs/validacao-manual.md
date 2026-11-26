@@ -41,16 +41,21 @@ resposta de `GET /auth/status` na aba Network: o campo deve estar preenchido.
 A tela **Contas** agora separa dois caminhos: **Vincular conta bancária** (a conta nasce dos dados
 da instituição) e **Conta manual** (espécie, carteira, banco sem integração).
 
-1. Em **Contas** → **Buscar contas para vincular**.
-2. Em produção o sandbox está liberado por `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true` (só para
-   teste): a lista mostra contas do provedor fictício. **As contas criadas por esse caminho têm
-   saldo e lançamentos inventados** — use para validar o fluxo e apague depois. Para voltar a
-   bloquear, remova a variável e redeploye; o provedor real ainda não está integrado.
-3. Em desenvolvimento (`pnpm dev`, sem `NODE_ENV=production`), o mesmo botão lista duas contas de
-   sandbox. **Vincular** deve criar a conta com o nome, instituição e saldo do provedor, importar
-   3 lançamentos e marcar a linha como "Já vinculada" na consulta seguinte.
-4. Chamar `POST /open-finance/link-account` com um `providerAccountId` inexistente deve responder
+1. Em **Contas** → **Conectar banco (Open Finance)**.
+2. O widget do agregador abre pedindo a instituição. Autorize um banco seu (o consentimento é dado
+   no ambiente do banco; o app nunca vê sua senha bancária).
+3. Ao concluir, a tela deve mostrar "Banco conectado" e as contas do banco aparecem com **nome,
+   instituição, tipo e saldo reais**, já com o histórico importado. Recarregue a página: os dados
+   continuam lá (não é mock).
+4. Se o banco estiver em processamento, a API responde pedindo para tentar de novo em instantes —
+   não é erro de configuração.
+5. Chamar `POST /open-finance/link-account` com um `providerAccountId` inexistente deve responder
    `404`; a mesma conta duas vezes, `409`.
+
+Sem `PLUGGY_CLIENT_ID`/`PLUGGY_CLIENT_SECRET`, o passo 2 responde `400` dizendo o que falta — é o
+esperado: sem credenciais do agregador não existe consentimento real. Para testar a tela sem banco,
+libere o sandbox com `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true` em **homologação** e apague as contas
+criadas (`provider = sandbox`); em produção esse caminho deve ficar desligado.
 
 ## 2. Sessão revogada em outro aparelho (3 min)
 

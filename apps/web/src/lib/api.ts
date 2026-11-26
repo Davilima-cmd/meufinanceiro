@@ -529,6 +529,32 @@ class ApiClient {
     return this.request('/open-finance/link-account', { method: 'POST', body: dto });
   }
 
+  /**
+   * Token de curta duração para abrir o widget de consentimento do Open Finance.
+   *
+   * O `clientSecret` do agregador fica no servidor; o navegador recebe só este
+   * token (30 min). É aqui que o usuário autoriza o banco — sem isso não existe
+   * vínculo real, só sandbox.
+   */
+  async getConnectToken(): Promise<{ provider: string; accessToken: string; widgetUrl: string }> {
+    return this.request('/open-finance/connect-token', { method: 'POST' });
+  }
+
+  /**
+   * Registra o item devolvido pelo widget e importa as contas dele.
+   *
+   * O corpo leva apenas o `itemId`; saldo, tipo e nome vêm do provedor.
+   */
+  async connectItem(itemId: string): Promise<{
+    itemId: string;
+    status: string;
+    accounts: number;
+    created: number;
+    synced: boolean;
+  }> {
+    return this.request('/open-finance/connect-item', { method: 'POST', body: { itemId } });
+  }
+
   async revokeConnection(id: string): Promise<ApiBankConnection> {
     return this.request<ApiBankConnection>(`/open-finance/connections/${id}/revoke`, {
       method: 'PATCH',

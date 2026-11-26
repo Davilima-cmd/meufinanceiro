@@ -16,6 +16,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../sync/sync.service';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 import { OPEN_FINANCE_PROVIDER, OpenFinanceProvider } from './open-finance.provider';
+import { PluggyOpenFinanceProvider } from './pluggy.provider';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -36,6 +37,14 @@ class LinkAccountDto {
   @IsOptional()
   @IsIn(['private', 'BALANCE_ONLY', 'FULL'])
   shareLevel?: 'private' | 'BALANCE_ONLY' | 'FULL';
+}
+
+/** Item devolvido pelo widget de consentimento do provedor. */
+class ConnectItemDto {
+  /** `itemId`/`id` reportado pelo widget (`onSuccess`). */
+  @IsString()
+  @Length(1, 255)
+  itemId: string;
 }
 
 /**
@@ -64,6 +73,145 @@ export class OpenFinanceAccountsController {
   ) {}
 
   /**
+   * Token de curta duração para o widget de consentimento do provedor.
+   *
+   * O `clientSecret` do provedor nunca sai do servidor: a web recebe só este
+   * token (30 min, escopo restrito) e abre o widget. É o caminho que o Open
+   * Finance exige — o consentimento é dado pelo usuário dentro do app do banco.
+   */
+  @Post('connect-token')
+  async connectToken(@Req() req: AuthenticatedRequest) {
+    const pluggy = this.asPluggy();
+    if (!pluggy) {
+      throw new BadRequestException(
+        'Conexão bancária real não está configurada. Defina PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET.'
+      );
+    }
+    const webhookUrl = process.env.OPEN_FINANCE_WEBHOOK_URL?.trim() || undefined;
+    const { accessToken } = await pluggy.connectToken(req.user.userId, webhookUrl);
+    return {
+      provider: 'pluggy',
+      accessToken,
+      // A web carrega o widget deste CDN; expor a URL evita hardcode duplicado.
+      widgetUrl:
+        process.env.PLUGGY_CONNECT_URL ??
+        'https://cdn.pluggy.ai/pluggy-connect/v2.8.0/pluggy-connect.js',
+    };
+  }
+
+  /**
+   * Registra o item criado pelo widget e importa as contas dele.
+   *
+   * O widget devolve o `itemId`; a partir daí as contas são lidas pela API do
+   * provedor (com as nossas credenciais) e vinculadas ao usuário. Nenhum dado
+   * vem do corpo da requisição além do id — o resto é conferido no provedor.
+   */
+  @Post('connect-item')
+  @AuditLog(AuditAction.ACCOUNT_CONNECT)
+  async connectItem(@Req() req: AuthenticatedRequest, @Body() dto: ConnectItemDto) {
+    const pluggy = this.asPluggy();
+    if (!pluggy) {
+      throw new BadRequestException(
+        'Conexão bancária real não está configurada. Defina PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET.'
+      );
+    }
+
+    const item = await pluggy.itemStatus(dto.itemId).catch(() => null);
+    if (!item) {
+      throw new NotFoundException('Item não encontrado no provedor');
+    }
+    if (item.status === 'LOGIN_ERROR' || item.status === 'OUTDATED') {
+      throw new BadRequestException(
+        'O banco recusou a conexão. Refaça o consentimento informando as credenciais novamente.'
+      );
+    }
+
+    // O item é a fonte da verdade: as contas vêm dele, não do corpo da requisição.
+    const accounts = (await pluggy.listAccounts(req.user.userId)).filter(
+      (account) => account.itemId === dto.itemId
+    );
+    if (accounts.length === 0) {
+      throw new BadRequestException(
+        'O banco ainda está processando a autorização. Tente novamente em alguns instantes.'
+      );
+    }
+
+    const consent = await pluggy.createConsent(req.user.userId, dto.itemId);
+
+    // Um consentimento por item; as contas daquele item compartilham o registro.
+    const consentRow = await this.prisma.consent.create({
+      data: {
+        userId: req.user.userId,
+        provider: 'pluggy',
+        externalId: consent.externalId,
+        status: consent.status,
+        expiresAt: consent.expiresAt,
+      },
+      select: { id: true },
+    });
+
+    let created = 0;
+    let skipped = 0;
+    for (const account of accounts) {
+      const existing = await this.prisma.bankConnection.findFirst({
+        where: { provider: 'pluggy', providerAccountId: account.id },
+        select: { id: true, userId: true },
+      });
+      if (existing) {
+        // Já vinculada (inclusive por outro usuário): não duplicamos a conta.
+        skipped += 1;
+        continue;
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        const row = await tx.financialAccount.create({
+          data: {
+            userId: req.user.userId,
+            name: account.name,
+            institution: account.institution ?? null,
+            type: account.type,
+            currency: account.currency,
+            balanceCents: account.balanceCents,
+          },
+          select: { id: true },
+        });
+        await tx.bankConnection.create({
+          data: {
+            userId: req.user.userId,
+            accountId: row.id,
+            provider: 'pluggy',
+            providerAccountId: account.id,
+            providerItemId: dto.itemId,
+            status: 'active',
+            consentId: consentRow.id,
+            expiresAt: consent.expiresAt,
+          },
+        });
+      });
+      created += 1;
+    }
+
+    // Importa o histórico agora: conta sem lançamentos parece vazia, e o usuário
+    // conclui (errado) que a conexão não funcionou. Falha de sync não desfaz o
+    // vínculo — a próxima varredura tenta de novo.
+    const sync =
+      created > 0
+        ? await this.syncService
+            .reconcileUser(req.user.userId, { trigger: 'daily' })
+            .catch(() => null)
+        : null;
+
+    return {
+      itemId: dto.itemId,
+      status: item.status,
+      accounts: accounts.length,
+      created,
+      skipped,
+      synced: Boolean(sync),
+    };
+  }
+
+  /**
    * Contas disponíveis na instituição para vincular.
    *
    * Enquanto o provedor real não está integrado, em produção não há o que
@@ -72,7 +220,7 @@ export class OpenFinanceAccountsController {
    * oferecer uma tela que sempre falha.
    */
   @Get('available-accounts')
-  async availableAccounts() {
+  async availableAccounts(@Req() req: AuthenticatedRequest) {
     const live = this.providerLive();
     if (!live) {
       return {
@@ -85,7 +233,7 @@ export class OpenFinanceAccountsController {
       };
     }
 
-    const accounts = await this.provider.listAccounts();
+    const accounts = await this.provider.listAccounts(req.user.userId);
     // Uma conta já vinculada não deve aparecer de novo na lista.
     const linked = await this.prisma.bankConnection.findMany({
       where: { providerAccountId: { in: accounts.map((account) => account.id) } },
@@ -125,7 +273,7 @@ export class OpenFinanceAccountsController {
       );
     }
 
-    const available = await this.provider.listAccounts();
+    const available = await this.provider.listAccounts(req.user.userId);
     const remote = available.find((account) => account.id === dto.providerAccountId);
     if (!remote) {
       // 404 e não 400: o id informado não existe na instituição.
@@ -212,6 +360,14 @@ export class OpenFinanceAccountsController {
    * `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true` — e as contas criadas assim ficam
    * marcadas com o provedor `sandbox`, fáceis de identificar e remover.
    */
+  /** O provider só é Pluggy quando as credenciais estão configuradas. */
+  private asPluggy(): PluggyOpenFinanceProvider | null {
+    const candidate = this.provider as Partial<PluggyOpenFinanceProvider>;
+    return typeof candidate.connectToken === 'function'
+      ? (this.provider as PluggyOpenFinanceProvider)
+      : null;
+  }
+
   private providerLive(): boolean {
     if (this.provider.kind === 'live') return true;
     if (process.env.NODE_ENV !== 'production') return true;

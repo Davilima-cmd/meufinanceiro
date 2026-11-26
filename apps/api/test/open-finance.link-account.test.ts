@@ -92,7 +92,7 @@ beforeEach(() => {
 describe('GET /open-finance/available-accounts', () => {
   it('lista as contas do provedor e marca as já vinculadas', async () => {
     prismaMock.bankConnection.findMany.mockResolvedValue([{ providerAccountId: 'remote-1' }]);
-    const result = await controller().availableAccounts();
+    const result = await controller().availableAccounts(req);
 
     expect(result.available).toBe(true);
     expect(result.accounts[0]).toMatchObject({
@@ -107,7 +107,7 @@ describe('GET /open-finance/available-accounts', () => {
     process.env.NODE_ENV = 'production';
     const sandbox = { ...providerMock, kind: 'sandbox' } as unknown as OpenFinanceProvider;
 
-    const result = await controller(sandbox).availableAccounts();
+    const result = await controller(sandbox).availableAccounts(req);
 
     expect(result.available).toBe(false);
     expect(result.accounts).toEqual([]);

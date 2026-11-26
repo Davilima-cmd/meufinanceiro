@@ -19,7 +19,8 @@ const ACCOUNT_TYPES: Array<{ value: AccountType; label: string }> = [
 ];
 
 export default function AccountsPage() {
-  const { snapshot, session, addAccount, linkBankAccount, deleteAccount } = useFinance();
+  const { snapshot, session, addAccount, linkBankAccount, connectBank, deleteAccount } =
+    useFinance();
   const dialog = useDialog();
   const [name, setName] = useState('');
   const [institution, setInstitution] = useState('');
@@ -30,6 +31,11 @@ export default function AccountsPage() {
   const [available, setAvailable] = useState<ApiAvailableAccountsResponse | null>(null);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
   const [linking, setLinking] = useState<string | null>(null);
+
+  // O token do widget é pedido no clique (vale 30 min); não fica parado no
+  // navegador esperando o usuário decidir.
+  const [connecting, setConnecting] = useState(false);
+  const [connectNotice, setConnectNotice] = useState<string | null>(null);
 
   const isApi = session?.mode === 'api';
 
@@ -60,6 +66,33 @@ export default function AccountsPage() {
       setError(failure);
       return;
     }
+    void loadAvailable();
+  }
+
+  /**
+   * Conectar banco de verdade: token → widget de consentimento → item →
+   * importação das contas e do histórico. Nada é digitado no app.
+   */
+  async function handleConnectBank() {
+    setError('');
+    setConnectNotice(null);
+    setConnecting(true);
+    const failure = await connectBank(async (token) => {
+      const { openConnectWidget } = await import('@/components/connect-bank');
+      const result = await openConnectWidget({ connectToken: token });
+      if (result.error) {
+        setError(result.error);
+        return null;
+      }
+      return result.itemId;
+    });
+    setConnecting(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    setConnectNotice('Banco conectado. As contas e os lançamentos já estão sendo importados.');
+    setAvailable(null);
     void loadAvailable();
   }
 
@@ -235,18 +268,34 @@ export default function AccountsPage() {
               O vínculo com bancos exige uma conta real. No modo demonstração, use &ldquo;Conta
               manual&rdquo; abaixo.
             </p>
-          ) : available === null ? (
-            <div className="page-actions">
-              <button
-                className="button button-primary"
-                disabled={loadingAvailable}
-                onClick={() => void loadAvailable()}
-                type="button"
-              >
-                {loadingAvailable ? 'Consultando instituições…' : 'Buscar contas para vincular'}
-              </button>
+          ) : (
+            <div className="stack">
+              <p className="account-sub">
+                Você autoriza o banco pelo Open Finance e nós importamos saldo e lançamentos. Sua
+                senha do banco é digitada no ambiente do banco, nunca aqui.
+              </p>
+              <div className="page-actions">
+                <button
+                  className="button button-primary"
+                  disabled={connecting}
+                  onClick={() => void handleConnectBank()}
+                  type="button"
+                >
+                  {connecting ? 'Abrindo autorização do banco…' : 'Conectar banco (Open Finance)'}
+                </button>
+                <button
+                  className="button"
+                  disabled={loadingAvailable}
+                  onClick={() => void loadAvailable()}
+                  type="button"
+                >
+                  {loadingAvailable ? 'Consultando…' : 'Ver contas já autorizadas'}
+                </button>
+              </div>
+              {connectNotice ? <p className="account-sub">{connectNotice}</p> : null}
             </div>
-          ) : !available.available ? (
+          )}
+          {!isApi ? null : available === null ? null : !available.available ? (
             <p className="account-sub">
               {available.reason ??
                 'A integração automática com bancos ainda não está liberada neste ambiente.'}

@@ -5,6 +5,8 @@ export interface OpenFinanceAccount {
   type: string;
   currency: string;
   balanceCents: string;
+  /** Item/conexão a que a conta pertence no provedor (Pluggy usa itemId). */
+  itemId?: string;
 }
 
 export interface OpenFinanceTransaction {
@@ -31,9 +33,9 @@ export interface OpenFinanceProvider {
    */
   readonly kind: 'sandbox' | 'live';
   /** Contas disponíveis na instituição, para o usuário escolher o que vincular. */
-  listAccounts(): Promise<OpenFinanceAccount[]>;
-  listTransactions(): Promise<OpenFinanceTransaction[]>;
-  createConsent(userId?: string): Promise<OpenFinanceConsent>;
+  listAccounts(userId?: string): Promise<OpenFinanceAccount[]>;
+  listTransactions(accountId?: string): Promise<OpenFinanceTransaction[]>;
+  createConsent(userId?: string, itemId?: string): Promise<OpenFinanceConsent>;
 }
 
 export const OPEN_FINANCE_PROVIDER = 'OPEN_FINANCE_PROVIDER';
