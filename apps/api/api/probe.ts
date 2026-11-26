@@ -1,46 +1,28 @@
 /**
- * Sonda de conectividade: tenta variações de host/usuário do pooler do Supabase
- * com o client Prisma já gerado e devolve qual combinação conecta. Existe apenas
- * para diagnosticar o ambiente publicado; remover quando o acesso estabilizar.
+ * Sonda do app Nest completo: sobe a aplicação (como a função principal) e
+ * devolve o erro de inicialização, se houver. Só para diagnosticar produção.
  */
-const PASSWORD = (process.env.DATABASE_URL ?? '').replace(/^.*:\/\/(?:[^@]*)@/, '').split('@')[0];
-const [USERINFO] = (process.env.DATABASE_URL ?? '').split('://')[1]?.split('@') ?? [];
-const ROLE = USERINFO?.split(':')[0]?.split('.')[0] ?? 'app_api';
-const PASS = USERINFO?.split(':')[1] ?? PASSWORD;
-const REF = 'lowevmopfcwafuzfcvqr';
-
-const CANDIDATES = [
-  `postgresql://${ROLE}.${REF}:${PASS}@aws-0-sa-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`,
-  `postgresql://${ROLE}.${REF}:${PASS}@aws-0-sa-east-1.pooler.supabase.com:5432/postgres`,
-];
-
-export default async function handler(_req: any, res: any) {
-  const { PrismaClient } = await import('@prisma/client');
-  const results: Array<Record<string, unknown>> = [];
-
-  for (const url of CANDIDATES) {
-    const label = url.replace(/:\/\/[^@]*@/, '://***@');
-    const client = new PrismaClient({ datasources: { db: { url } } });
-    try {
-      await client.$queryRaw`SELECT 1`;
-      results.push({ url: label, ok: true });
-    } catch (error) {
-      results.push({
-        url: label,
-        ok: false,
-        detail: (error instanceof Error ? error.message : String(error))
-          .replace(/:\/\/[^@\s/]*@/g, '://***@')
-          .split('\n')
-          .filter(Boolean)
-          .pop()
-          ?.slice(0, 200),
-      });
-    } finally {
-      await client.$disconnect().catch(() => undefined);
-    }
-  }
-
+export default async function handler(req: any, res: any) {
+  const steps: Record<string, unknown> = { node: process.version };
   res.setHeader('content-type', 'application/json');
   res.statusCode = 200;
-  res.end(JSON.stringify({ role: ROLE, hasPass: Boolean(PASS), results }, null, 2));
+
+  try {
+    const { createApp } = await import('../src/bootstrap');
+    steps.importBootstrap = 'ok';
+    const app = await createApp();
+    steps.createApp = 'ok';
+    await app.init();
+    steps.init = 'ok';
+    await app.close();
+  } catch (error) {
+    const err = error as { message?: string; stack?: string; name?: string };
+    steps.failed = err?.name ?? 'Error';
+    steps.detail = (err?.message ?? String(error))
+      .replace(/:\/\/[^@\s/]*@/g, '://***@')
+      .slice(0, 1200);
+    steps.stack = (err?.stack ?? '').replace(/:\/\/[^@\s/]*@/g, '://***@').slice(0, 2000);
+  }
+
+  res.end(JSON.stringify(steps, null, 2));
 }
