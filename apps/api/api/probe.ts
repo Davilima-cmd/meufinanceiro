@@ -1,80 +1,47 @@
 /**
- * Sonda temporária: valida em produção que a Client Extension de cifragem está
- * ativa (grava um BankConnection pela API e confere o valor no banco pelo cliente
- * estendido). Removida assim que o deploy for validado.
+ * Sonda temporária: descobre se a Client Extension de cifragem está sendo
+ * aplicada ao cliente injetado pelo Nest. Grava um consentimento pelo cliente
+ * de DI e lê o valor bruto no banco. Removida após o diagnóstico.
  */
 import 'reflect-metadata';
 import { createApp } from '../src/bootstrap';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 export default async function handler(req: any, res: any) {
   const out: Record<string, unknown> = {};
   const email = `probe+${Date.now()}@exemplo.test`;
-  const providerAccountId = `acc-${Date.now()}`;
+  const externalId = `diag-${Date.now()}`;
 
   try {
     const app = await createApp();
-    await app.listen(0);
-    const { port } = app.getHttpServer().address() as { port: number };
-    const base = `http://127.0.0.1:${port}/api`;
+    await app.init();
+    const prisma = app.get(PrismaService);
 
-    const call = async (path: string, init?: RequestInit) => {
-      const response = await fetch(`${base}${path}`, {
-        ...init,
-        headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-      });
-      const text = await response.text();
-      // `body` é truncado só para exibição; o texto integral fica em `raw`.
-      return { status: response.status, body: text.slice(0, 400), raw: text };
-    };
+    out.temExtends = typeof (prisma as any).$extends;
+    out.modelDelegates = typeof (prisma as any).consent;
+    out.temStores = 'constructor' in prisma;
 
-    await call('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ email, name: 'Probe', password: 'SenhaForte#2025' }),
+    const user = await prisma.user.create({
+      data: { email, name: 'Diag', password: 'x' },
     });
-    const login = await call('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password: 'SenhaForte#2025' }),
-    });
-    const token = /"token":"([^"]+)"/.exec(login.raw)?.[1];
-    const auth = { authorization: `Bearer ${token}` };
+    out.userCriado = Boolean(user?.id);
 
-    const account = await call('/accounts', {
-      method: 'POST',
-      headers: auth,
-      body: JSON.stringify({ name: 'Conta probe', type: 'checking' }),
+    await prisma.consent.create({
+      data: { userId: user.id, provider: 'diag', externalId },
     });
-    out.accountStatus = account.status;
-    const accountId = /"id":"([^"]+)"/.exec(account.raw)?.[1];
 
-    const connection = await call('/open-finance/connections', {
-      method: 'POST',
-      headers: auth,
-      body: JSON.stringify({ provider: 'probe', providerAccountId, accountId }),
-    });
-    out.connectionStatus = connection.status;
-    // Resposta da API deve voltar em claro (extension decifra na leitura).
-    out.temToken = Boolean(token);
-    out.accountId = Boolean(accountId);
-    out.respostaEmClaro = connection.raw.includes(providerAccountId);
-    out.resposta = connection.body.slice(0, 260);
-
-    const listed = await call('/open-finance/connections', { headers: auth });
-    out.listagemEmClaro = listed.raw.includes(providerAccountId);
-    out.listagemResposta = listed.body.slice(0, 260);
+    const rows = await prisma.$queryRaw<
+      Array<{ externalId: string }>
+    >`SELECT "externalId" FROM consents WHERE "userId" = ${user.id}`;
+    out.valorNoBanco = rows?.[0]?.externalId;
+    out.cifrado = String(rows?.[0]?.externalId ?? '').startsWith('enc:');
+    out.esperado = externalId;
 
     await app.close();
     out.ok = true;
   } catch (error) {
-    const err = error as { name?: string; message?: string; stack?: string };
-    out.error = {
-      name: err?.name,
-      message: String(err?.message ?? error)
-        .replace(/:\/\/[^@\s/]*@/g, '://***@')
-        .slice(0, 500),
-      stack: String(err?.stack ?? '')
-        .replace(/:\/\/[^@\s/]*@/g, '://***@')
-        .slice(0, 500),
-    };
+    const err = error as { name?: string; message?: string };
+    out.error = { name: err?.name, message: String(err?.message ?? error).slice(0, 600) };
   }
 
   res.setHeader('content-type', 'application/json');
