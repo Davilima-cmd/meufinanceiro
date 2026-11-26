@@ -18,6 +18,13 @@ export default async function handler(_req: any, res: any) {
     }
   } catch (error) {
     steps.query = 'error';
+    steps.target = (process.env.DATABASE_URL ?? '').replace(
+      /^(\w+:\/\/)([^@]*)@/,
+      (_m, scheme, userinfo) => {
+        const [user] = userinfo.split(':');
+        return `${scheme}${user}@`;
+      }
+    );
     steps.detail = (error instanceof Error ? error.message : String(error))
       .replace(/:\/\/[^@\s/]*@/g, '://***@')
       .slice(0, 600);
