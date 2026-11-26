@@ -141,13 +141,31 @@ describe('POST /open-finance/link-account', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('recusa vínculo pelo sandbox em produção (saldo fictício não vira conta real)', async () => {
+  it('recusa vínculo pelo sandbox em produção por padrão (saldo fictício não vira conta real)', async () => {
     process.env.NODE_ENV = 'production';
+    delete process.env.OPEN_FINANCE_SANDBOX_IN_PRODUCTION;
     const sandbox = { ...providerMock, kind: 'sandbox' } as unknown as OpenFinanceProvider;
 
     await expect(
       controller(sandbox).linkAccount(req, { provider: 'sandbox', providerAccountId: 'remote-1' })
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('permite o sandbox em produção quando liberado por variável de ambiente', async () => {
+    // Caminho para testar o fluxo ponta a ponta antes de contratar um provedor.
+    process.env.NODE_ENV = 'production';
+    process.env.OPEN_FINANCE_SANDBOX_IN_PRODUCTION = 'true';
+    const sandbox = { ...providerMock, kind: 'sandbox' } as unknown as OpenFinanceProvider;
+
+    try {
+      const result = await controller(sandbox).linkAccount(req, {
+        provider: 'sandbox',
+        providerAccountId: 'remote-1',
+      });
+      expect(result.connectionId).toBe('conn-1');
+    } finally {
+      delete process.env.OPEN_FINANCE_SANDBOX_IN_PRODUCTION;
+    }
   });
 
   it('falha na sincronização não desfaz o vínculo', async () => {

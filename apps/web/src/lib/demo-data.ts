@@ -586,3 +586,57 @@ export function buildDemoSnapshot(today = todayISO()): FinanceSnapshot {
     },
   };
 }
+
+/**
+ * Snapshot **vazio** para sessão de API.
+ *
+ * O app precisava de um estado inicial determinístico (servidor e cliente
+ * renderizam o mesmo HTML), e o caminho escolhido foi começar com os dados de
+ * demonstração. Isso vazou para produção: ao entrar na conta, a tela mostrava
+ * "Olá, Davi! R$ 34.776,00 · Ana Souza também usa este painel" enquanto a API
+ * carregava — e continuava mostrando para sempre se `fetchApiSnapshot` falhasse.
+ *
+ * Aqui o conteúdo fictício some: contas, lançamentos, metas e parceiro ficam
+ * vazios, e só as categorias do sistema permanecem (são o vocabulário real,
+ * igual ao que `seed.ts` cria no banco).
+ */
+export function buildEmptySnapshot(): FinanceSnapshot {
+  return {
+    accounts: [],
+    categories: [
+      {
+        id: 'csys_alimentacao',
+        name: 'Alimentação',
+        color: '#EF4444',
+        isSystem: true,
+        kind: 'expense',
+      },
+      {
+        id: 'csys_transporte',
+        name: 'Transporte',
+        color: '#3B82F6',
+        isSystem: true,
+        kind: 'expense',
+      },
+      { id: 'csys_moradia', name: 'Moradia', color: '#8B5CF6', isSystem: true, kind: 'expense' },
+      { id: 'csys_saude', name: 'Saúde', color: '#10B981', isSystem: true, kind: 'expense' },
+      { id: 'csys_educacao', name: 'Educação', color: '#F59E0B', isSystem: true, kind: 'expense' },
+      { id: 'csys_lazer', name: 'Lazer', color: '#EC4899', isSystem: true, kind: 'expense' },
+      { id: 'csys_salario', name: 'Salário', color: '#22C55E', isSystem: true, kind: 'income' },
+      {
+        id: 'csys_outras_receitas',
+        name: 'Outras receitas',
+        color: '#6B7280',
+        isSystem: true,
+        kind: 'income',
+      },
+    ],
+    transactions: [],
+    budgets: [],
+    goals: [],
+    partner: null,
+    netWorthItems: [],
+    invites: [],
+    settings: { theme: 'dark', hideValues: false, partnerName: '' },
+  };
+}

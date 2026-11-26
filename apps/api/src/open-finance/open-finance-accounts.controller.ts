@@ -202,9 +202,19 @@ export class OpenFinanceAccountsController {
     };
   }
 
-  /** O provedor disponível é real (não sandbox) ou estamos fora de produção. */
+  /**
+   * O provedor disponível é real, ou o sandbox foi liberado explicitamente.
+   *
+   * O sandbox devolve saldos e lançamentos **fictícios** (R$ 5.432,10 etc.). Em
+   * produção ele fica bloqueado por padrão: criar conta real com dinheiro
+   * inventado é pior do que não ter integração. Para testar o fluxo ponta a
+   * ponta antes de contratar um provedor, basta definir
+   * `OPEN_FINANCE_SANDBOX_IN_PRODUCTION=true` — e as contas criadas assim ficam
+   * marcadas com o provedor `sandbox`, fáceis de identificar e remover.
+   */
   private providerLive(): boolean {
     if (this.provider.kind === 'live') return true;
-    return process.env.NODE_ENV !== 'production';
+    if (process.env.NODE_ENV !== 'production') return true;
+    return process.env.OPEN_FINANCE_SANDBOX_IN_PRODUCTION === 'true';
   }
 }

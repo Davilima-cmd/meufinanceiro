@@ -29,6 +29,10 @@ import type {
  */
 
 function accountType(value: string): AccountType {
+  // `wallet` é o nome antigo de "carteira" no banco; a interface usa `cash`.
+  // Sem este mapeamento, conta importada/criada como wallet caía em `manual`.
+  const aliases: Record<string, AccountType> = { wallet: 'cash' };
+  if (aliases[value]) return aliases[value];
   const allowed: AccountType[] = ['checking', 'savings', 'credit', 'investment', 'cash', 'manual'];
   return allowed.includes(value as AccountType) ? (value as AccountType) : 'manual';
 }

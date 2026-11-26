@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { ApiGoalContribution } from '@meufinanceiro/shared-types';
-import { buildDemoSnapshot, DEMO_USER } from './demo-data';
+import { buildDemoSnapshot, buildEmptySnapshot, DEMO_USER } from './demo-data';
 import { fetchApiSnapshot } from './api-snapshot';
 import { api } from './api';
 import type {
@@ -215,6 +215,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (storedSnapshot && storedSession?.mode === 'demo') {
       setSnapshot(storedSnapshot);
     }
+    if (storedSession?.mode === 'api') {
+      // Sessão real: nada de demo, nem durante a hidratação.
+      setSnapshot(buildEmptySnapshot());
+    }
     setHydrated(true);
 
     if (storedSession?.mode === 'api') {
@@ -261,6 +265,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     sessionRef.current = nextSession;
     setSession(nextSession);
     saveStored(SESSION_KEY, nextSession);
+    // Zera o conteúdo fictício **antes** de buscar: a tela não pode mostrar
+    // dados de demonstração numa conta real, nem por meio segundo. Se a busca
+    // falhar, o usuário vê o painel vazio com o aviso de erro — não um extrato
+    // inventado de outra pessoa.
+    setSnapshot(buildEmptySnapshot());
     setSyncing(true);
     setSyncError(null);
     try {

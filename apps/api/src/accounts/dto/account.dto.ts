@@ -1,10 +1,19 @@
 import { IsBoolean, IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
 
+/**
+ * Tipos aceitos na criação de conta.
+ *
+ * `cash` estava faltando e a interface oferece "Dinheiro / carteira": escolher
+ * essa opção devolvia `400 type must be one of the following values`. A lista
+ * agora é a união do que o app oferece com o que já existia (`wallet` é o nome
+ * antigo de carteira e continua aceito para não quebrar registro existente).
+ */
 export const ACCOUNT_TYPES = [
   'manual',
   'checking',
   'savings',
   'wallet',
+  'cash',
   'investment',
   'credit',
 ] as const;
