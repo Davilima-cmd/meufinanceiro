@@ -87,7 +87,7 @@ export class SyncService {
     for (const connection of connections) {
       const providerTransactions: ProviderTransaction[] = await this.adapter.fetchTransactions({
         provider: connection.provider,
-        providerAccountId: this.prisma.decryptSensitive(connection.providerAccountId) ?? '',
+        providerAccountId: connection.providerAccountId,
       });
 
       if (providerTransactions.length === 0) continue;

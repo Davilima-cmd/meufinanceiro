@@ -17,20 +17,10 @@ const prismaMock = {
   webhookEvent: { create: vi.fn() },
 } as unknown as PrismaService;
 
-const cryptoMock = {
-  encryptSensitive: vi.fn((value: string | null) => (value === null ? null : `enc:${value}`)),
-  decryptSensitive: vi.fn((value: string | null) =>
-    typeof value === 'string' && value.startsWith('enc:') ? value.slice(4) : value
-  ),
-};
-
 const syncMock = { reconcileUser: vi.fn() } as any;
 
 function makeController() {
-  return new OpenFinanceController(
-    { ...(prismaMock as object), ...cryptoMock } as unknown as PrismaService,
-    syncMock
-  );
+  return new OpenFinanceController(prismaMock as unknown as PrismaService, syncMock);
 }
 
 const req = (userId = 'user-1') => ({ user: { userId } }) as any;
@@ -80,7 +70,7 @@ describe('OpenFinanceController', () => {
       data: {
         userId: 'user-1',
         provider: 'bank',
-        providerAccountId: 'enc:acc-1',
+        providerAccountId: 'acc-1',
         accountId: 'conta-1',
         status: 'active',
       },

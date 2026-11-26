@@ -50,16 +50,9 @@ const adapterMock = {
   fetchTransactions: vi.fn(),
 } as unknown as { fetchTransactions: ReturnType<typeof vi.fn> };
 
-const cryptoMock = {
-  encryptSensitive: vi.fn((value: string | null) => (value === null ? null : `enc:${value}`)),
-  decryptSensitive: vi.fn((value: string | null) =>
-    typeof value === 'string' && value.startsWith('enc:') ? value.slice(4) : value
-  ),
-};
-
 function makeService() {
   return new SyncService(
-    { ...(prismaMock as object), ...cryptoMock } as unknown as PrismaService,
+    prismaMock as unknown as PrismaService,
     adapterMock as unknown as BankProviderAdapter
   );
 }

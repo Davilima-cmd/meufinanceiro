@@ -36,21 +36,13 @@ const prismaMock = {
   webhookEvent: { create: ReturnType<typeof vi.fn> };
 };
 
-/** Cifragem é explícita no PrismaService; o mock só precisa ser reversível. */
-const cryptoMock = {
-  encryptSensitive: vi.fn((value: string | null) => (value === null ? null : `enc:${value}`)),
-  decryptSensitive: vi.fn((value: string | null) =>
-    typeof value === 'string' && value.startsWith('enc:') ? value.slice(4) : value
-  ),
-};
-
 const syncServiceMock = {
   reconcileUser: vi.fn(),
 } as unknown as { reconcileUser: ReturnType<typeof vi.fn> };
 
 function makeController() {
   return new OpenFinanceController(
-    { ...prismaMock, ...cryptoMock } as unknown as PrismaService,
+    prismaMock as unknown as PrismaService,
     syncServiceMock as unknown as SyncService
   );
 }
@@ -86,7 +78,7 @@ describe('OpenFinanceController', () => {
       data: {
         userId: 'user-1',
         provider: 'caju',
-        providerAccountId: 'enc:acc-123',
+        providerAccountId: 'acc-123',
         accountId: 'acct-1',
         status: 'active',
       },

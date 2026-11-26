@@ -40,16 +40,9 @@ const prismaMock = {
   transaction: { create: ReturnType<typeof vi.fn> };
 };
 
-const cryptoMock = {
-  encryptSensitive: vi.fn((value: string | null) => (value === null ? null : `enc:${value}`)),
-  decryptSensitive: vi.fn((value: string | null) =>
-    typeof value === 'string' && value.startsWith('enc:') ? value.slice(4) : value
-  ),
-};
-
 function makeController() {
   return new SandboxController(
-    { ...(prismaMock as object), ...cryptoMock } as unknown as PrismaService,
+    prismaMock as unknown as PrismaService,
     syncMock as unknown as SyncService,
     providerMock
   );
@@ -120,7 +113,7 @@ describe('SandboxController', () => {
         data: {
           userId: 'u-1',
           provider: 'sandbox',
-          externalId: 'enc:sandbox_consent_ext',
+          externalId: 'sandbox_consent_ext',
           status: 'active',
           expiresAt: new Date('2026-12-01T00:00:00-03:00'),
         },

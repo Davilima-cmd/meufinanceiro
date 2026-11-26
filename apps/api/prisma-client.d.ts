@@ -23,7 +23,7 @@ declare module '@prisma/client' {
     $transaction<T>(fn: (tx: any) => Promise<T>, options?: any): Promise<T>;
     $connect(): Promise<void>;
     $disconnect(): Promise<void>;
-    $use(middleware: unknown): void;
+    $extends(extension: unknown): any;
     [key: string]: any;
   }
 }
