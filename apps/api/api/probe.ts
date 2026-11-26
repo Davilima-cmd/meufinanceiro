@@ -6,6 +6,7 @@
 import 'reflect-metadata';
 import { createApp } from '../src/bootstrap';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { extensionCalls } from '../src/prisma/sensitive-fields.extension';
 
 export default async function handler(req: any, res: any) {
   const out: Record<string, unknown> = {};
@@ -36,6 +37,7 @@ export default async function handler(req: any, res: any) {
     out.valorNoBanco = rows?.[0]?.externalId;
     out.cifrado = String(rows?.[0]?.externalId ?? '').startsWith('enc:');
     out.esperado = externalId;
+    out.chamadas = extensionCalls;
 
     await app.close();
     out.ok = true;
