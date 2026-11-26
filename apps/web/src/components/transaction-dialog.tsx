@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { DateField } from '@/components/date-field';
 import { Select } from '@/components/dialog';
+import { isReadOnlyAccount } from '@/lib/account-access';
 import { useFinance } from '@/lib/store';
 import { centsFromInput, formatBRL, todayISO } from '@/lib/format';
 import type { TransactionType } from '@/lib/types';
@@ -15,12 +16,18 @@ type Props = {
 };
 
 export function TransactionDialog({ open, onClose, defaultType = 'expense', defaultDate }: Props) {
-  const { snapshot, addTransaction } = useFinance();
+  const { snapshot, session, addTransaction } = useFinance();
+  const userId = session?.user.id ?? '';
+  // Conta compartilhada é somente leitura: não pode ser escolhida para escrita.
+  const ownAccounts = useMemo(
+    () => snapshot.accounts.filter((account) => !isReadOnlyAccount(account, userId)),
+    [snapshot.accounts, userId]
+  );
   const [type, setType] = useState<TransactionType>(defaultType);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [accountId, setAccountId] = useState(snapshot.accounts[0]?.id ?? '');
-  const [transferAccountId, setTransferAccountId] = useState(snapshot.accounts[1]?.id ?? '');
+  const [accountId, setAccountId] = useState(ownAccounts[0]?.id ?? '');
+  const [transferAccountId, setTransferAccountId] = useState(ownAccounts[1]?.id ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState(defaultDate ?? todayISO());
@@ -169,11 +176,11 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
               <Select
                 label="Conta do lançamento"
                 onChange={setAccountId}
-                options={snapshot.accounts.map((account) => ({
+                options={ownAccounts.map((account) => ({
                   value: account.id,
                   label: account.name,
                   color: account.color,
-                  hint: account.shareLevel === 'private' ? undefined : 'compartilhada',
+                  hint: account.shareLevel === 'private' ? undefined : 'você compartilha',
                 }))}
                 value={accountId}
               />
@@ -202,7 +209,7 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
               <Select
                 label="Conta que recebe a transferência"
                 onChange={setTransferAccountId}
-                options={snapshot.accounts
+                options={ownAccounts
                   .filter((account) => account.id !== accountId)
                   .map((account) => ({
                     value: account.id,

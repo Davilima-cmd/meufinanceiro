@@ -17,6 +17,7 @@ import {
   toCents,
   todayISO,
 } from '@/lib/format';
+import { isReadOnlyAccount } from '@/lib/account-access';
 import { useFinance } from '@/lib/store';
 import type { TransactionType } from '@/lib/types';
 
@@ -38,10 +39,8 @@ export default function TransactionsPage() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const accounts = useMemo(
-    () => visibleAccounts(snapshot, session?.user.id ?? ''),
-    [snapshot, session?.user.id]
-  );
+  const userId = session?.user.id ?? '';
+  const accounts = useMemo(() => visibleAccounts(snapshot, userId), [snapshot, userId]);
   const { visible, hiddenAccounts } = useMemo(
     () => coverage(snapshot.transactions, accounts),
     [snapshot.transactions, accounts]
@@ -319,6 +318,9 @@ export default function TransactionsPage() {
                         ? categoryById.get(transaction.categoryId)
                         : null;
                       const account = accountById.get(transaction.accountId);
+                      // Lançamento em conta compartilhada é somente leitura: nada de
+                      // liquidar, cancelar ou excluir o que é do outro.
+                      const readOnly = account ? isReadOnlyAccount(account, userId) : false;
                       const status = transaction.status ?? 'paid';
                       const due = transaction.dueDate ?? transaction.date;
                       const overdue = status === 'pending' && due < todayISO();
@@ -378,7 +380,9 @@ export default function TransactionsPage() {
                             ) : null}
                           </td>
                           <td className="num">
-                            {status === 'pending' ? (
+                            {readOnly ? (
+                              <Badge tone="neutral">só leitura</Badge>
+                            ) : status === 'pending' ? (
                               <>
                                 <button
                                   aria-label={`Liquidar ${transaction.description}`}
@@ -412,25 +416,27 @@ export default function TransactionsPage() {
                                 </button>
                               </>
                             ) : null}
-                            <button
-                              aria-label={`Excluir ${transaction.description}`}
-                              className="icon-button"
-                              onClick={async () => {
-                                const confirmed = await dialog.confirm({
-                                  title: `Excluir “${transaction.description}”?`,
-                                  description:
-                                    status === 'paid'
-                                      ? 'O valor volta para o saldo da conta e deixa de contar nos totais do mês.'
-                                      : 'O pendente é apagado sem mexer no saldo, porque ainda não era caixa.',
-                                  confirmLabel: 'Excluir lançamento',
-                                });
-                                if (!confirmed) return;
-                                void deleteTransaction(transaction.id);
-                              }}
-                              type="button"
-                            >
-                              ✕
-                            </button>
+                            {readOnly ? null : (
+                              <button
+                                aria-label={`Excluir ${transaction.description}`}
+                                className="icon-button"
+                                onClick={async () => {
+                                  const confirmed = await dialog.confirm({
+                                    title: `Excluir “${transaction.description}”?`,
+                                    description:
+                                      status === 'paid'
+                                        ? 'O valor volta para o saldo da conta e deixa de contar nos totais do mês.'
+                                        : 'O pendente é apagado sem mexer no saldo, porque ainda não era caixa.',
+                                    confirmLabel: 'Excluir lançamento',
+                                  });
+                                  if (!confirmed) return;
+                                  void deleteTransaction(transaction.id);
+                                }}
+                                type="button"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );

@@ -75,7 +75,11 @@ type FinanceContextValue = {
   deleteGoal: (id: string) => Promise<string | null>;
   setHideValues: (value: boolean) => void;
   toggleTheme: () => void;
-  setShareLevel: (accountId: string, level: ShareLevel) => void;
+  setShareLevel: (accountId: string, level: ShareLevel) => Promise<string | null>;
+  /** Convida alguém pelo e-mail; no modo API a parceria nasce pendente. */
+  invitePartner: (email: string) => Promise<string | null>;
+  acceptPartnership: () => Promise<string | null>;
+  revokePartnership: () => Promise<string | null>;
 };
 
 const FinanceContext = createContext<FinanceContextValue | null>(null);
@@ -173,11 +177,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setSyncError(null);
     try {
       const remote = await fetchApiSnapshot();
-      setSnapshot({
-        ...remote,
-        partner: null,
-        settings: { theme: 'dark', hideValues: false, partnerName: 'Parceiro' },
-      });
+      setSnapshot(remote);
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : 'Falha ao sincronizar com a API.');
     } finally {
@@ -600,15 +600,67 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [updateSnapshot]);
 
   const setShareLevel = useCallback(
-    (accountId: string, level: ShareLevel) => {
-      updateSnapshot((current) => ({
-        ...current,
-        accounts: current.accounts.map((account) =>
-          account.id === accountId ? { ...account, shareLevel: level } : account
-        ),
-      }));
-    },
-    [updateSnapshot]
+    (accountId: string, level: ShareLevel) =>
+      mutate(
+        (current) => ({
+          ...current,
+          accounts: current.accounts.map((account) =>
+            account.id === accountId ? { ...account, shareLevel: level } : account
+          ),
+        }),
+        () => api.setShareLevel(accountId, level)
+      ),
+    [mutate]
+  );
+
+  /**
+   * No modo demonstração o convite é imediato (os dados são fictícios); na API
+   * vira um pedido pendente que só o outro aceita.
+   */
+  const invitePartner = useCallback(
+    (email: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          partner: {
+            id: createId('partner'),
+            name: email.split('@')[0] || 'Parceiro',
+            email,
+            status: 'pending',
+          },
+        }),
+        () => api.invitePartner(email)
+      ),
+    [mutate]
+  );
+
+  const acceptPartnership = useCallback(
+    () =>
+      mutate(
+        (current) => ({
+          ...current,
+          partner: current.partner ? { ...current.partner, status: 'accepted' } : current.partner,
+        }),
+        () => api.acceptPartnership()
+      ),
+    [mutate]
+  );
+
+  const revokePartnership = useCallback(
+    () =>
+      mutate(
+        (current) => ({
+          ...current,
+          partner: null,
+          accounts: current.accounts
+            .filter(
+              (account) => !account.ownerId || account.ownerId === sessionRef.current?.user.id
+            )
+            .map((account) => ({ ...account, shareLevel: 'private' as ShareLevel })),
+        }),
+        () => api.revokePartnership()
+      ),
+    [mutate]
   );
 
   const value = useMemo<FinanceContextValue>(
@@ -640,6 +692,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setHideValues,
       toggleTheme,
       setShareLevel,
+      invitePartner,
+      acceptPartnership,
+      revokePartnership,
     }),
     [
       session,
@@ -668,6 +723,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setHideValues,
       toggleTheme,
       setShareLevel,
+      invitePartner,
+      acceptPartnership,
+      revokePartnership,
     ]
   );
 

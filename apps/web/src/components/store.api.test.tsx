@@ -23,6 +23,10 @@ const { apiMock, snapshotMock } = vi.hoisted(() => ({
     createGoal: vi.fn(),
     updateGoal: vi.fn(),
     deleteGoal: vi.fn(),
+    setShareLevel: vi.fn(),
+    invitePartner: vi.fn(),
+    acceptPartnership: vi.fn(),
+    revokePartnership: vi.fn(),
   },
   snapshotMock: vi.fn(),
 }));
@@ -73,6 +77,10 @@ beforeEach(() => {
   apiMock.deleteTransaction.mockResolvedValue({ deleted: 1 });
   apiMock.createAccount.mockResolvedValue({ id: 'acc-2' });
   apiMock.createCategory.mockResolvedValue({ id: 'cat-2' });
+  apiMock.setShareLevel.mockResolvedValue({ id: 'share-1' });
+  apiMock.invitePartner.mockResolvedValue({ id: 'partner-1' });
+  apiMock.acceptPartnership.mockResolvedValue({ id: 'partner-1' });
+  apiMock.revokePartnership.mockResolvedValue({ revoked: true });
   snapshotMock.mockResolvedValue(apiSnapshot);
 });
 
@@ -168,6 +176,44 @@ describe('FinanceProvider (modo API)', () => {
       await result.current.deleteAccount('acc-1');
     });
     expect(apiMock.removeAccount).toHaveBeenCalledWith('acc-1');
+  });
+
+  it('mudar o nível de compartilhamento grava no servidor', async () => {
+    const result = await renderApiSession();
+    let failure: string | null = null;
+    await act(async () => {
+      failure = await result.current.setShareLevel('acc-1', 'FULL');
+    });
+
+    expect(failure).toBeNull();
+    expect(apiMock.setShareLevel).toHaveBeenCalledWith('acc-1', 'FULL');
+    // O estado exibido vem de novo do servidor, não de um atalho local.
+    expect(snapshotMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('convite de parceria vai para a API e não inventa vínculo ativo', async () => {
+    const result = await renderApiSession();
+    let failure: string | null = null;
+    await act(async () => {
+      failure = await result.current.invitePartner('ana@ex.com');
+    });
+
+    expect(failure).toBeNull();
+    expect(apiMock.invitePartner).toHaveBeenCalledWith('ana@ex.com');
+  });
+
+  it('recusa da API ao compartilhar vira mensagem na tela', async () => {
+    apiMock.setShareLevel.mockRejectedValue(
+      new Error('Aceite uma parceria antes de compartilhar contas')
+    );
+    const result = await renderApiSession();
+    let failure: string | null = null;
+    await act(async () => {
+      failure = await result.current.setShareLevel('acc-1', 'FULL');
+    });
+
+    expect(failure).toBe('Aceite uma parceria antes de compartilhar contas');
+    expect(result.current.syncError).toBe('Aceite uma parceria antes de compartilhar contas');
   });
 
   it('salvar orçamento usa a API (criando ou atualizando)', async () => {

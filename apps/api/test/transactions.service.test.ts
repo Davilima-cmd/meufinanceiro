@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { TransactionsService } from '../src/transactions/transactions.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -49,6 +49,7 @@ beforeEach(() => {
   );
   (prismaMock.financialAccount.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
     id: 'acc-1',
+    userId: 'user-1',
   });
   (txMock.transaction.create as ReturnType<typeof vi.fn>).mockImplementation(
     async ({ data }: { data: Record<string, unknown> }) => ({
@@ -146,8 +147,8 @@ describe('TransactionsService — transferência', () => {
 
   it('cria as duas pontas com o mesmo transferId e move o saldo', async () => {
     (prismaMock.financialAccount.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { id: 'acc-1' },
-      { id: 'acc-2' },
+      { id: 'acc-1', userId: 'user-1' },
+      { id: 'acc-2', userId: 'user-1' },
     ]);
 
     const result = (await service().create('user-1', transferDto)) as {
@@ -198,6 +199,7 @@ describe('TransactionsService — remoção e estorno', () => {
       amountCents: { toString: () => '-50000' },
       transferId: 'tr-1',
       status: 'paid',
+      account: { userId: 'user-1' },
     });
     (prismaMock.transaction.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: 'tx-1', accountId: 'acc-1', amountCents: { toString: () => '-50000' }, status: 'paid' },
@@ -233,6 +235,7 @@ describe('TransactionsService — remoção e estorno', () => {
       transferId: null,
       status: 'paid',
       competenceDate: new Date('2026-11-01'),
+      account: { userId: 'user-1' },
     });
 
     await service().reverse('user-1', 'tx-1');
@@ -258,6 +261,7 @@ describe('TransactionsService — remoção e estorno', () => {
       id: 'tx-1',
       transferId: 'tr-1',
       amountCents: { toString: () => '50000' },
+      account: { userId: 'user-1' },
     });
     await expect(service().reverse('user-1', 'tx-1')).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -291,6 +295,7 @@ describe('TransactionsService — liquidação', () => {
     amountCents: { toString: () => '-15000' },
     status: 'pending',
     transferId: null,
+    account: { userId: 'user-1' },
   };
 
   it('liquida um pendente aplicando o valor no saldo', async () => {
@@ -329,6 +334,7 @@ describe('TransactionsService — liquidação', () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...pending,
       status: 'paid',
+      account: { userId: 'user-1' },
     });
 
     await expect(service().settle('user-1', 'tx-1')).rejects.toBeInstanceOf(BadRequestException);
@@ -339,12 +345,14 @@ describe('TransactionsService — liquidação', () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...pending,
       status: 'canceled',
+      account: { userId: 'user-1' },
     });
     await expect(service().settle('user-1', 'tx-1')).rejects.toBeInstanceOf(BadRequestException);
 
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...pending,
       transferId: 'tr-1',
+      account: { userId: 'user-1' },
     });
     await expect(service().settle('user-1', 'tx-2')).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -369,6 +377,7 @@ describe('TransactionsService — liquidação', () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...pending,
       status: 'paid',
+      account: { userId: 'user-1' },
     });
 
     await expect(service().cancel('user-1', 'tx-1')).rejects.toBeInstanceOf(BadRequestException);
@@ -391,6 +400,7 @@ describe('TransactionsService — liquidação', () => {
       amountCents: { toString: () => '-15000' },
       status: 'paid',
       type: 'expense',
+      account: { userId: 'user-1' },
     });
     (txMock.transaction.update as ReturnType<typeof vi.fn>).mockImplementation(
       async ({ data }: { data: Record<string, unknown> }) => ({ id: 'tx-1', ...data })
@@ -411,6 +421,7 @@ describe('TransactionsService — liquidação', () => {
       amountCents: { toString: () => '-15000' },
       status: 'pending',
       type: 'expense',
+      account: { userId: 'user-1' },
     });
     (txMock.transaction.update as ReturnType<typeof vi.fn>).mockImplementation(
       async ({ data }: { data: Record<string, unknown> }) => ({ id: 'tx-1', ...data })
@@ -428,6 +439,7 @@ describe('TransactionsService — liquidação', () => {
       amountCents: { toString: () => '-15000' },
       status: 'canceled',
       type: 'expense',
+      account: { userId: 'user-1' },
     });
     await expect(service().update('user-1', 'tx-1', {})).rejects.toBeInstanceOf(
       BadRequestException
@@ -439,6 +451,7 @@ describe('TransactionsService — liquidação', () => {
       amountCents: { toString: () => '-15000' },
       status: 'paid',
       type: 'expense',
+      account: { userId: 'user-1' },
     });
     await expect(
       service().update('user-1', 'tx-1', { amountCents: '15000' })
@@ -448,5 +461,77 @@ describe('TransactionsService — liquidação', () => {
   it('recusa estornar lançamento não liquidado', async () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pending);
     await expect(service().reverse('user-1', 'tx-1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('TransactionsService — conta compartilhada é somente leitura', () => {
+  const alheio = {
+    id: 'tx-alheia',
+    accountId: 'acc-parceiro',
+    amountCents: { toString: () => '-1000' },
+    status: 'paid',
+    transferId: null,
+    account: { userId: 'u-parceiro' },
+  };
+
+  it('não cria lançamento na conta do parceiro', async () => {
+    (prismaMock.financialAccount.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'acc-parceiro',
+      userId: 'u-parceiro',
+    });
+
+    await expect(
+      service().create('user-1', { ...baseDto, accountId: 'acc-parceiro' })
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(txMock.transaction.create).not.toHaveBeenCalled();
+  });
+
+  it('não edita, liquida, cancela, estorna nem apaga lançamento de conta alheia', async () => {
+    (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(alheio);
+
+    await expect(service().update('user-1', 'tx-alheia', {})).rejects.toBeInstanceOf(
+      ForbiddenException
+    );
+    await expect(service().settle('user-1', 'tx-alheia')).rejects.toBeInstanceOf(
+      ForbiddenException
+    );
+    await expect(service().cancel('user-1', 'tx-alheia')).rejects.toBeInstanceOf(
+      ForbiddenException
+    );
+    await expect(service().reverse('user-1', 'tx-alheia')).rejects.toBeInstanceOf(
+      ForbiddenException
+    );
+    await expect(service().remove('user-1', 'tx-alheia')).rejects.toBeInstanceOf(
+      ForbiddenException
+    );
+
+    expect(txMock.financialAccount.update).not.toHaveBeenCalled();
+    expect(txMock.transaction.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('não transfere entre conta própria e conta do parceiro', async () => {
+    (prismaMock.financialAccount.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'acc-1', userId: 'user-1' },
+      { id: 'acc-parceiro', userId: 'u-parceiro' },
+    ]);
+
+    await expect(
+      service().create('user-1', {
+        accountId: 'acc-1',
+        description: 'Para o parceiro',
+        amountCents: '50000',
+        type: 'transfer',
+        date: '2026-11-10',
+        transferAccountId: 'acc-parceiro',
+      })
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('ler o histórico de conta FULL não permite escrever nela', async () => {
+    // A leitura usa outro filtro (visibleTransactionsWhere); aqui só a escrita.
+    (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(alheio);
+    await expect(service().settle('user-1', 'tx-alheia')).rejects.toBeInstanceOf(
+      ForbiddenException
+    );
   });
 });

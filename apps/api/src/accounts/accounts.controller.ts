@@ -15,9 +15,16 @@ import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
 import { centsToString, type DecimalLike } from '../common/money';
+import { accessFromShares, visibleAccountsWhere } from '../common/account-access';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
+}
+
+interface ShareRow {
+  accountId: string;
+  level: string;
+  owner: { id: string; name: string };
 }
 
 interface AccountRow {
@@ -33,6 +40,7 @@ interface AccountRow {
 }
 
 const ACCOUNT_SELECT = {
+  userId: true,
   id: true,
   name: true,
   institution: true,
@@ -44,6 +52,9 @@ const ACCOUNT_SELECT = {
   updatedAt: true,
 } as const;
 
+/** Dono da conta: vê tudo e escreve. Compartilhada: somente leitura. */
+const OWNER_ACCESS = { canSeeBalance: true, canSeeTransactions: true, readOnly: false };
+
 function toJson(account: AccountRow) {
   return { ...account, balanceCents: centsToString(account.balanceCents) };
 }
@@ -53,15 +64,49 @@ function toJson(account: AccountRow) {
 export class AccountsController {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Contas que o usuário enxerga: as próprias e as compartilhadas com ele.
+   *
+   * Cada item diz o que ele pode fazer (`access`): conta compartilhada é
+   * somente leitura, e `BALANCE_ONLY` não expõe histórico — a interface usa
+   * esses campos para não oferecer uma ação que a API vai recusar.
+   */
   @Get()
   async list(@Req() req: AuthenticatedRequest) {
+    const userId = req.user.userId;
     const accounts: AccountRow[] = await this.prisma.financialAccount.findMany({
-      where: { userId: req.user.userId },
+      where: visibleAccountsWhere(userId),
       orderBy: { createdAt: 'desc' },
       select: ACCOUNT_SELECT,
     });
 
-    return accounts.map(toJson);
+    const shared: ShareRow[] = await this.prisma.accountShare.findMany({
+      where: { sharedWithId: userId, revokedAt: null },
+      select: { accountId: true, level: true, owner: { select: { id: true, name: true } } },
+    });
+    const shareByAccount = new Map(shared.map((row) => [row.accountId, row]));
+
+    return accounts.map((account) => {
+      const ownerId = (account as AccountRow & { userId: string }).userId;
+      if (ownerId === userId) {
+        return {
+          ...toJson(account),
+          ownerId,
+          ownerName: null,
+          shareLevel: 'private',
+          access: OWNER_ACCESS,
+        };
+      }
+      const share = shareByAccount.get(account.id);
+      const access = accessFromShares(share ? [{ sharedWithId: userId, level: share.level }] : []);
+      return {
+        ...toJson(account),
+        ownerId,
+        ownerName: share?.owner.name ?? null,
+        shareLevel: (share?.level ?? 'private') as string,
+        access,
+      };
+    });
   }
 
   @Post()

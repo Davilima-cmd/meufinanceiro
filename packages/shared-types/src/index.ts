@@ -66,6 +66,19 @@ export type LoginDto = {
 };
 
 /** Conta financeira retornada pela API (valores em centavos como string). */
+/** Níveis de compartilhamento de uma conta, do mais restrito ao mais aberto. */
+export type ShareLevel = 'private' | 'BALANCE_ONLY' | 'FULL';
+
+/**
+ * O que o usuário pode fazer numa conta. Conta que não é dele vem sempre
+ * `readOnly`; `BALANCE_ONLY` não mostra histórico.
+ */
+export type AccountAccess = {
+  canSeeBalance: boolean;
+  canSeeTransactions: boolean;
+  readOnly: boolean;
+};
+
 export type ApiAccount = {
   id: string;
   name: string;
@@ -74,6 +87,11 @@ export type ApiAccount = {
   currency: string;
   balanceCents: string;
   isActive: boolean;
+  /** Dono da conta (pode ser o parceiro, em conta compartilhada). */
+  ownerId?: string;
+  ownerName?: string | null;
+  shareLevel?: ShareLevel;
+  access?: AccountAccess;
   createdAt: string;
   updatedAt: string;
 };
@@ -219,3 +237,34 @@ export const LOCAL_STORAGE_KEYS = {
 } as const;
 
 export { formatCents, formatBRL } from './format-money.js';
+
+/** Parceria entre duas pessoas: quem convidou, quem recebeu e a situação. */
+export type ApiPartnership = {
+  id: string;
+  status: 'pending' | 'accepted' | 'revoked';
+  invitedByMe: boolean;
+  partnerId: string | null;
+};
+
+export type ApiSharingOverview = {
+  partnership: ApiPartnership | null;
+  partner: { id: string; name: string } | null;
+  accounts: Array<{ id: string; name: string; balanceCents: string; level: ShareLevel }>;
+  levels: ShareLevel[];
+};
+
+/** Conta que o parceiro compartilhou, já com o que o usuário pode ver. */
+export type ApiSharedAccount = {
+  account: {
+    id: string;
+    name: string;
+    institution?: string | null;
+    balanceCents: string;
+    isActive: boolean;
+  };
+  owner: { id: string; name: string };
+  level: ShareLevel;
+  canSeeBalance: boolean;
+  canSeeTransactions: boolean;
+  readOnly: boolean;
+};

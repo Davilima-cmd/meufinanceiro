@@ -2,6 +2,9 @@ import {
   type ApiAccount,
   type ApiBankConnection,
   type ApiBudget,
+  type ApiSharedAccount,
+  type ApiSharingOverview,
+  type ShareLevel,
   type ApiCategory,
   type ApiErrorBody,
   type ApiGoal,
@@ -30,6 +33,9 @@ export type {
   ApiBudget,
   ApiGoal,
   ApiBankConnection,
+  ApiSharingOverview,
+  ApiSharedAccount,
+  ShareLevel,
   AuthResponse,
   RegisterDto,
   LoginDto,
@@ -225,6 +231,35 @@ class ApiClient {
 
   async deleteTransaction(id: string): Promise<{ deleted: number }> {
     return this.request<{ deleted: number }>(`/transactions/${id}`, { method: 'DELETE' });
+  }
+
+  /** Parceria, parceiro e nível de cada conta própria. */
+  async getSharing(): Promise<ApiSharingOverview> {
+    return this.request<ApiSharingOverview>('/sharing');
+  }
+
+  /** Contas que o parceiro compartilhou (saldo e/ou histórico). */
+  async getSharedAccounts(): Promise<ApiSharedAccount[]> {
+    return this.request<ApiSharedAccount[]>('/sharing/accounts');
+  }
+
+  async setShareLevel(accountId: string, level: ShareLevel): Promise<unknown> {
+    return this.request<unknown>(`/sharing/accounts/${accountId}`, {
+      method: 'PATCH',
+      body: { level },
+    });
+  }
+
+  async invitePartner(email: string): Promise<unknown> {
+    return this.request<unknown>('/sharing/invite', { method: 'POST', body: { email } });
+  }
+
+  async acceptPartnership(): Promise<unknown> {
+    return this.request<unknown>('/sharing/accept', { method: 'POST' });
+  }
+
+  async revokePartnership(): Promise<unknown> {
+    return this.request<unknown>('/sharing', { method: 'DELETE' });
   }
 
   async getCategories(): Promise<ApiCategory[]> {

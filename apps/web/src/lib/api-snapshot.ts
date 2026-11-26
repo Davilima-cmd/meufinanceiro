@@ -4,11 +4,13 @@ import {
   type ApiBudget,
   type ApiCategory,
   type ApiGoal,
+  type ApiSharingOverview,
   type ApiTransaction,
 } from './api';
 import type {
   AccountType,
   FinanceSnapshot,
+  FinancePartner,
   FinanceTransaction,
   FinanceUser,
   TransactionType,
@@ -16,9 +18,11 @@ import type {
 
 /**
  * Converte a resposta da API (centavos em string, categorias/orçamentos
- * separados) no snapshot usado pela interface. A API não expõe o nível de
- * compartilhamento por conta, então tudo é tratado como privado — regra
- * segura por padrão.
+ * separados) no snapshot usado pela interface.
+ *
+ * O nível de compartilhamento vem da própria conta (`shareLevel`/`access`),
+ * então conta do parceiro aparece com o dono certo e somente leitura — a
+ * interface reflete o que a API já decidiu, em vez de adivinhar.
  */
 
 function accountType(value: string): AccountType {
@@ -33,13 +37,42 @@ function transactionType(value: string): TransactionType {
 
 const DEFAULT_COLORS = ['#8b7bff', '#22c55e', '#f97316', '#0ea5e9', '#ec4899', '#eab308'];
 
+/**
+ * O parceiro vem da parceria (aceita ou ainda pendente). Sem parceria na API,
+ * cai no dono das contas compartilhadas — se houver mais de um, fica o primeiro.
+ */
+function partnerFromSnapshot(
+  accounts: ApiAccount[],
+  user: FinanceUser,
+  overview: ApiSharingOverview | null
+): FinancePartner | null {
+  if (overview?.partner) {
+    return {
+      id: overview.partner.id,
+      name: overview.partner.name,
+      email: '',
+      // Convite pendente aparece na tela como "aguardando", não como vínculo ativo.
+      status: overview.partnership?.status === 'accepted' ? 'accepted' : 'pending',
+    };
+  }
+  const shared = accounts.find((account) => account.ownerId && account.ownerId !== user.id);
+  if (!shared?.ownerId) return null;
+  return {
+    id: shared.ownerId,
+    name: shared.ownerName ?? 'Parceiro',
+    email: '',
+    status: 'accepted',
+  };
+}
+
 export function mapApiSnapshot(
   user: FinanceUser,
   accounts: ApiAccount[],
   transactions: ApiTransaction[],
   categories: ApiCategory[],
   budgets: ApiBudget[],
-  goals: ApiGoal[]
+  goals: ApiGoal[],
+  sharing: ApiSharingOverview | null = null
 ): FinanceSnapshot {
   const mappedCategories = categories.map((category, index) => {
     const kind: 'expense' | 'income' | 'both' =
@@ -69,20 +102,29 @@ export function mapApiSnapshot(
     createdAt: transaction.createdAt,
   }));
 
+  // O nível da conta vem da visão de compartilhamento (fonte do dono) quando
+  // disponível: a lista de contas pode vir de um cache anterior à mudança.
+  const levelByAccount = new Map((sharing?.accounts ?? []).map((row) => [row.id, row.level]));
+
   return {
-    accounts: accounts.map((account, index) => ({
-      id: account.id,
-      name: account.name,
-      institution: account.institution ?? null,
-      type: accountType(account.type),
-      currency: account.currency || 'BRL',
-      balanceCents: String(account.balanceCents),
-      shareLevel: 'private',
-      ownerId: user.id,
-      ownerName: user.name,
-      color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
-      isActive: account.isActive,
-    })),
+    accounts: accounts.map((account, index) => {
+      const isMine = !account.ownerId || account.ownerId === user.id;
+      return {
+        id: account.id,
+        name: account.name,
+        institution: account.institution ?? null,
+        type: accountType(account.type),
+        currency: account.currency || 'BRL',
+        balanceCents: String(account.balanceCents),
+        shareLevel: levelByAccount.get(account.id) ?? account.shareLevel ?? 'private',
+        ownerId: account.ownerId ?? user.id,
+        ownerName: account.ownerName ?? user.name,
+        access: account.access,
+        color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+        isActive: account.isActive,
+        isMine,
+      };
+    }),
     categories: mappedCategories,
     transactions: mappedTransactions,
     budgets: budgets.map((budget) => ({
@@ -99,18 +141,20 @@ export function mapApiSnapshot(
       currentCents: String(goal.currentCents),
       dueDate: goal.dueDate ? goal.dueDate.slice(0, 10) : null,
     })),
-    partner: null,
+    partner: partnerFromSnapshot(accounts, user, sharing),
     settings: { theme: 'dark', hideValues: false, partnerName: 'Parceiro' },
   };
 }
 
 export async function fetchApiSnapshot(): Promise<FinanceSnapshot> {
-  const [accounts, transactions, categories, budgets, goals] = await Promise.all([
+  const [accounts, transactions, categories, budgets, goals, sharing] = await Promise.all([
     api.getAccounts(),
     api.getTransactions(),
     api.getCategories(),
     api.getBudgets().catch(() => [] as ApiBudget[]),
     api.getGoals().catch(() => [] as ApiGoal[]),
+    // Compartilhamento é complementar: falhar aqui não pode derrubar a tela.
+    api.getSharing().catch(() => null),
   ]);
   const stored = localStorage.getItem('mf.session.api');
   const parsed = stored ? (JSON.parse(stored) as { user?: { id: string; name: string } }) : null;
@@ -119,5 +163,5 @@ export async function fetchApiSnapshot(): Promise<FinanceSnapshot> {
     name: parsed?.user?.name ?? 'Você',
     email: '',
   };
-  return mapApiSnapshot(user, accounts, transactions, categories, budgets, goals);
+  return mapApiSnapshot(user, accounts, transactions, categories, budgets, goals, sharing);
 }

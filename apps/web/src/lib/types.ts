@@ -2,6 +2,17 @@
 
 export type ShareLevel = 'private' | 'BALANCE_ONLY' | 'FULL';
 
+/**
+ * O que o usuário pode fazer numa conta. Conta compartilhada chega `readOnly`
+ * e, em `BALANCE_ONLY`, sem histórico — a interface não oferece o que a API
+ * vai recusar.
+ */
+export type AccountAccess = {
+  canSeeBalance: boolean;
+  canSeeTransactions: boolean;
+  readOnly: boolean;
+};
+
 export type SessionMode = 'demo' | 'api';
 
 export type AccountType = 'checking' | 'savings' | 'credit' | 'investment' | 'cash' | 'manual';
@@ -21,6 +32,10 @@ export type FinanceAccount = {
   currency: string;
   balanceCents: string;
   shareLevel: ShareLevel;
+  /** Permissões efetivas; ausente = conta própria com acesso total. */
+  access?: AccountAccess;
+  /** `false` em conta compartilhada: só leitura, em qualquer nível. */
+  isMine?: boolean;
   ownerId: string;
   ownerName: string;
   color: string;

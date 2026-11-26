@@ -124,7 +124,8 @@ export default function AccountsPage() {
                         {account.institution ? ` · ${typeLabel}` : ''}
                       </div>
                     </div>
-                    <div style={{ marginLeft: 'auto' }}>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                      {own ? null : <Badge tone="warning">somente leitura</Badge>}
                       {account.shareLevel === 'private' ? (
                         <Badge tone="neutral">privada</Badge>
                       ) : account.shareLevel === 'FULL' ? (

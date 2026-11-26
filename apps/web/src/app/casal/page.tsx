@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { Badge, Card, Money, PageHeader } from '@/components/ui';
+import { isOwnAccount } from '@/lib/account-access';
 import { initialOf, percentOf } from '@/lib/format';
 import { useFinance } from '@/lib/store';
 import type { ShareLevel } from '@/lib/types';
@@ -19,12 +20,23 @@ const LEVEL_LABEL: Record<ShareLevel, string> = {
  * o nível de cada conta diretamente.
  */
 export default function CouplePage() {
-  const { snapshot, session, setShareLevel } = useFinance();
+  const {
+    snapshot,
+    session,
+    isDemo,
+    setShareLevel,
+    invitePartner,
+    acceptPartnership,
+    revokePartnership,
+  } = useFinance();
   const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
   const ownerId = session?.user.id ?? '';
 
-  const mine = snapshot.accounts.filter((account) => account.ownerId === ownerId);
-  const partnerAccounts = snapshot.accounts.filter((account) => account.ownerId !== ownerId);
+  const mine = snapshot.accounts.filter((account) => isOwnAccount(account, ownerId));
+  const partnerAccounts = snapshot.accounts.filter((account) => !isOwnAccount(account, ownerId));
   const jointVisible = snapshot.accounts.filter((account) => account.shareLevel !== 'private');
   const jointBalance = jointVisible.reduce(
     (sum, account) => sum + BigInt(account.balanceCents),
@@ -35,13 +47,65 @@ export default function CouplePage() {
     .filter((account) => account.shareLevel === 'FULL')
     .reduce((sum, account) => sum + BigInt(account.balanceCents), 0n);
 
-  function changeLevel(accountId: string, level: ShareLevel) {
-    setShareLevel(accountId, level);
+  function flash(message: string) {
+    setNotice(message);
+    window.setTimeout(() => setNotice(''), 4000);
+  }
+
+  async function changeLevel(accountId: string, level: ShareLevel) {
     const account = snapshot.accounts.find((item) => item.id === accountId);
-    setNotice(
-      `${account?.name ?? 'Conta'} agora está em “${LEVEL_LABEL[level]}”. O efeito é imediato para os dois.`
-    );
-    window.setTimeout(() => setNotice(''), 3000);
+    const name = account?.name ?? 'Conta';
+    setError('');
+    setBusy(true);
+    const failure = await setShareLevel(accountId, level);
+    setBusy(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    flash(`${name} agora está em “${LEVEL_LABEL[level]}”. O efeito é imediato para os dois.`);
+  }
+
+  async function handleInvite(event: React.FormEvent) {
+    event.preventDefault();
+    setError('');
+    if (!email.includes('@')) {
+      setError('Informe o e-mail da pessoa que você quer convidar.');
+      return;
+    }
+    setBusy(true);
+    const failure = await invitePartner(email.trim());
+    setBusy(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    setEmail('');
+    flash('Convite enviado. A parceria libera o compartilhamento quando for aceita.');
+  }
+
+  async function handleAccept() {
+    setError('');
+    setBusy(true);
+    const failure = await acceptPartnership();
+    setBusy(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    flash('Parceria aceita. Agora vocês podem compartilhar contas.');
+  }
+
+  async function handleRevoke() {
+    setError('');
+    setBusy(true);
+    const failure = await revokePartnership();
+    setBusy(false);
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    flash('Parceria desfeita: todos os compartilhamentos foram revogados.');
   }
 
   return (
@@ -60,8 +124,20 @@ export default function CouplePage() {
                 <h2>Parceria</h2>
                 <p>Vínculo entre as duas contas</p>
               </div>
-              <Badge tone={snapshot.partner ? 'positive' : 'warning'}>
-                {snapshot.partner ? 'ativo' : 'sem parceria'}
+              <Badge
+                tone={
+                  snapshot.partner
+                    ? snapshot.partner.status === 'accepted'
+                      ? 'positive'
+                      : 'warning'
+                    : 'warning'
+                }
+              >
+                {snapshot.partner
+                  ? snapshot.partner.status === 'accepted'
+                    ? 'ativo'
+                    : 'convite pendente'
+                  : 'sem parceria'}
               </Badge>
             </div>
             {snapshot.partner ? (
@@ -71,13 +147,60 @@ export default function CouplePage() {
                 </span>
                 <span className="user-copy">
                   <strong>{snapshot.partner.name}</strong>
-                  <small>{snapshot.partner.email}</small>
+                  <small>{snapshot.partner.email || 'parceria ativa'}</small>
                 </span>
-                <Badge tone="accent">visão conjunta</Badge>
+                <Badge tone="accent">
+                  {snapshot.partner.status === 'accepted' ? 'visão conjunta' : 'aguardando'}
+                </Badge>
               </div>
             ) : (
               <p className="text-muted">Convide seu parceiro para começar a compartilhar contas.</p>
             )}
+
+            <form className="stack" onSubmit={handleInvite} style={{ gap: 8, marginTop: 16 }}>
+              <label className="field">
+                <span>Convidar pelo e-mail</span>
+                <input
+                  aria-label="E-mail do parceiro"
+                  className="input"
+                  inputMode="email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="parceiro@email.com"
+                  type="email"
+                  value={email}
+                />
+              </label>
+              <div className="goal-actions" style={{ justifyContent: 'flex-start', gap: 8 }}>
+                <button className="button button-primary" disabled={busy} type="submit">
+                  Enviar convite
+                </button>
+                {snapshot.partner?.status === 'accepted' ? (
+                  <button
+                    className="button button-ghost"
+                    disabled={busy}
+                    onClick={handleRevoke}
+                    type="button"
+                  >
+                    Desfazer parceria
+                  </button>
+                ) : null}
+                {!isDemo && snapshot.partner ? (
+                  <button
+                    className="button button-ghost"
+                    disabled={busy}
+                    onClick={handleAccept}
+                    type="button"
+                  >
+                    Aceitar convite recebido
+                  </button>
+                ) : null}
+              </div>
+              {error ? (
+                <p className="field-hint" role="alert" style={{ color: 'var(--danger, #ef4444)' }}>
+                  {error}
+                </p>
+              ) : null}
+            </form>
             <div className="stack" style={{ gap: 10, marginTop: 16 }}>
               <div className="mini-stat">
                 <span>Saldo das contas compartilhadas</span>
@@ -202,9 +325,12 @@ export default function CouplePage() {
                       <Money value={account.balanceCents} /> · de {account.ownerName}
                     </small>
                   </span>
-                  <Badge tone={account.shareLevel === 'private' ? 'neutral' : 'accent'}>
-                    {LEVEL_LABEL[account.shareLevel]}
-                  </Badge>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Badge tone="warning">somente leitura</Badge>
+                    <Badge tone={account.shareLevel === 'private' ? 'neutral' : 'accent'}>
+                      {LEVEL_LABEL[account.shareLevel]}
+                    </Badge>
+                  </div>
                 </div>
               ))
             )}

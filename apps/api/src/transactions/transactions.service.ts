@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { centsToString, decimalOperand, type DecimalLike } from '../common/money';
+import { readOnlyAccountError, visibleTransactionsWhere } from '../common/account-access';
 import type { CreateTransactionDto, UpdateTransactionDto } from './dto/transaction.dto';
 
 /**
@@ -28,20 +29,54 @@ export class TransactionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Histórico do usuário. `status` filtra por situação e `overdue` traz só os
-   * pendentes com vencimento no passado — a lista de contas atrasadas.
+   * Histórico visível: os próprios lançamentos mais os das contas que o
+   * parceiro compartilhou como `FULL`. Conta `BALANCE_ONLY` entra no saldo
+   * (na lista de contas), nunca aqui.
+   *
+   * `status` filtra por situação e `overdue` traz só os pendentes com
+   * vencimento no passado — a lista de contas atrasadas.
    */
   async list(userId: string, filters: { status?: string; overdue?: boolean } = {}) {
     const now = new Date();
     return this.prisma.transaction.findMany({
       where: {
-        userId,
+        ...visibleTransactionsWhere(userId),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.overdue ? { status: 'pending', dueDate: { lt: now } } : {}),
       },
       orderBy: { date: 'desc' },
-      include: { account: { select: { id: true, name: true } } },
+      include: {
+        account: {
+          select: {
+            id: true,
+            name: true,
+            userId: true,
+            user: { select: { id: true, name: true } },
+          },
+        },
+      },
     });
+  }
+
+  /**
+   * Carrega o lançamento para escrita e garante que a conta é do usuário.
+   *
+   * Compartilhamento é somente leitura: quem recebeu a conta pode ver o
+   * histórico, mas criar, editar, liquidar ou apagar continua sendo ato do dono.
+   */
+  private async writable<T extends Record<string, unknown>>(
+    userId: string,
+    id: string,
+    select: Record<string, boolean>
+  ): Promise<T & { account: { userId: string } }> {
+    const row = (await this.prisma.transaction.findFirst({
+      where: { id },
+      select: { ...select, account: { select: { userId: true } } } as never,
+    })) as unknown as (T & { account: { userId: string } }) | null;
+
+    if (!row) throw new NotFoundException('Lançamento não encontrado');
+    if (row.account.userId !== userId) throw readOnlyAccountError();
+    return row;
   }
 
   async create(userId: string, dto: CreateTransactionDto) {
@@ -62,10 +97,12 @@ export class TransactionsService {
     }
 
     const account = await this.prisma.financialAccount.findFirst({
-      where: { id: dto.accountId, userId },
-      select: { id: true },
+      where: { id: dto.accountId },
+      select: { id: true, userId: true },
     });
     if (!account) throw new NotFoundException('Conta não encontrada');
+    // Escrever na conta do parceiro não existe em nenhum nível de compartilhamento.
+    if (account.userId !== userId) throw readOnlyAccountError();
 
     if (dto.categoryId) {
       const category = await this.prisma.category.findFirst({
@@ -111,11 +148,19 @@ export class TransactionsService {
 
   /** Remove o lançamento e devolve ao saldo o valor que ele havia aplicado. */
   async remove(userId: string, id: string) {
-    const target = await this.prisma.transaction.findFirst({
-      where: { id, userId },
-      select: { id: true, accountId: true, amountCents: true, transferId: true, status: true },
+    const target = await this.writable<{
+      id: string;
+      accountId: string;
+      amountCents: DecimalLike;
+      transferId: string | null;
+      status: string;
+    }>(userId, id, {
+      id: true,
+      accountId: true,
+      amountCents: true,
+      transferId: true,
+      status: true,
     });
-    if (!target) throw new NotFoundException('Lançamento não encontrado');
 
     const siblings = target.transferId
       ? await this.prisma.transaction.findMany({
@@ -161,22 +206,29 @@ export class TransactionsService {
    * apagar o original. O par fica identificado pelo prefixo "Estorno de".
    */
   async reverse(userId: string, id: string) {
-    const target = await this.prisma.transaction.findFirst({
-      where: { id, userId },
-      select: {
-        id: true,
-        accountId: true,
-        categoryId: true,
-        description: true,
-        amountCents: true,
-        type: true,
-        date: true,
-        transferId: true,
-        status: true,
-        competenceDate: true,
-      },
+    const target = await this.writable<{
+      id: string;
+      accountId: string;
+      categoryId: string | null;
+      description: string;
+      amountCents: DecimalLike;
+      type: string;
+      date: Date;
+      transferId: string | null;
+      status: string;
+      competenceDate: Date;
+    }>(userId, id, {
+      id: true,
+      accountId: true,
+      categoryId: true,
+      description: true,
+      amountCents: true,
+      type: true,
+      date: true,
+      transferId: true,
+      status: true,
+      competenceDate: true,
     });
-    if (!target) throw new NotFoundException('Lançamento não encontrado');
     if (target.status !== 'paid') {
       throw new BadRequestException(
         'Só é possível estornar lançamento liquidado. Para desistir de um pendente, remova-o.'
@@ -225,11 +277,19 @@ export class TransactionsService {
    * cancelado é histórico encerrado — não se edita.
    */
   async update(userId: string, id: string, dto: UpdateTransactionDto) {
-    const target = await this.prisma.transaction.findFirst({
-      where: { id, userId },
-      select: { id: true, accountId: true, amountCents: true, status: true, type: true },
+    const target = await this.writable<{
+      id: string;
+      accountId: string;
+      amountCents: DecimalLike;
+      status: string;
+      type: string;
+    }>(userId, id, {
+      id: true,
+      accountId: true,
+      amountCents: true,
+      status: true,
+      type: true,
     });
-    if (!target) throw new NotFoundException('Lançamento não encontrado');
     if (target.status === 'canceled') {
       throw new BadRequestException('Lançamento cancelado não pode ser editado.');
     }
@@ -292,17 +352,19 @@ export class TransactionsService {
    * `competenceDate` continua apontando para o mês a que o lançamento pertence.
    */
   async settle(userId: string, id: string, paidAt?: string) {
-    const target = await this.prisma.transaction.findFirst({
-      where: { id, userId },
-      select: {
-        id: true,
-        accountId: true,
-        amountCents: true,
-        status: true,
-        transferId: true,
-      },
+    const target = await this.writable<{
+      id: string;
+      accountId: string;
+      amountCents: DecimalLike;
+      status: string;
+      transferId: string | null;
+    }>(userId, id, {
+      id: true,
+      accountId: true,
+      amountCents: true,
+      status: true,
+      transferId: true,
     });
-    if (!target) throw new NotFoundException('Lançamento não encontrado');
     if (target.status === 'paid') {
       throw new BadRequestException('Lançamento já está liquidado.');
     }
@@ -337,11 +399,15 @@ export class TransactionsService {
    * ser cancelado: o caminho correto é o estorno, que preserva o histórico.
    */
   async cancel(userId: string, id: string) {
-    const target = await this.prisma.transaction.findFirst({
-      where: { id, userId },
-      select: { id: true, status: true, transferId: true },
+    const target = await this.writable<{
+      id: string;
+      status: string;
+      transferId: string | null;
+    }>(userId, id, {
+      id: true,
+      status: true,
+      transferId: true,
     });
-    if (!target) throw new NotFoundException('Lançamento não encontrado');
     if (target.status === 'paid') {
       throw new BadRequestException(
         'Lançamento liquidado não pode ser cancelado. Use o estorno para reverter mantendo o histórico.'
@@ -368,10 +434,14 @@ export class TransactionsService {
     }
 
     const accounts = await this.prisma.financialAccount.findMany({
-      where: { id: { in: [dto.accountId, targetAccountId] }, userId },
-      select: { id: true },
+      where: { id: { in: [dto.accountId, targetAccountId] } },
+      select: { id: true, userId: true },
     });
     if (accounts.length !== 2) throw new NotFoundException('Conta não encontrada');
+    // Transferência move dinheiro de verdade: só entre contas próprias.
+    if (accounts.some((row: { userId: string }) => row.userId !== userId)) {
+      throw readOnlyAccountError();
+    }
 
     const value = amount < 0n ? -amount : amount;
     const transferId = randomUUID();

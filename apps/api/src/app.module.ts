@@ -12,6 +12,7 @@ import { OpenFinanceModule } from './open-finance/open-finance.module';
 import { SyncModule } from './sync/sync.module';
 import { AuditModule } from './audit/audit.module';
 import { MfaModule } from './mfa/mfa.module';
+import { SharingModule } from './sharing/sharing.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MfaModule } from './mfa/mfa.module';
     SyncModule,
     AuditModule,
     MfaModule,
+    SharingModule,
   ],
 })
 export class AppModule {}
