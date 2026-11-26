@@ -178,7 +178,16 @@ model Transaction {
   providerId   String?  @db.VarChar(255) // id original do provedor (idempotência)
   /// Par que liga as duas pontas de uma transferência (débito na origem e crédito no destino).
   transferId   String?  @db.VarChar(255)
+  /// Data de caixa: quando o dinheiro efetivamente entrou ou saiu.
   date         DateTime
+  /// Data de competência: a que mês o lançamento pertence (regime de competência).
+  competenceDate DateTime @default(now())
+  /// pending (a pagar/receber), paid (liquidado), canceled (anulado sem efeito).
+  status       String   @default("pending") @db.VarChar(16)
+  /// Momento da liquidação; nulo enquanto `status` for `pending`.
+  paidAt       DateTime?
+  /// Vencimento, para contas a pagar/receber.
+  dueDate      DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -190,6 +199,8 @@ model Transaction {
   @@index([userId])
   @@index([accountId])
   @@index([date])
+  @@index([competenceDate])
+  @@index([status])
   @@index([transferId])
   @@unique([providerId])
 }

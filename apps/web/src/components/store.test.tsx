@@ -19,7 +19,7 @@ describe('FinanceProvider (modo demonstração)', () => {
     expect(result.current.snapshot.accounts.length).toBeGreaterThan(0);
   });
 
-  it('entra no modo demonstração e cria lançamento ajustando o saldo', async () => {
+  it('entra no modo demonstração e cria lançamento liquidado ajustando o saldo', async () => {
     const { result } = renderHook(() => useFinance(), { wrapper });
     await waitFor(() => expect(result.current.hydrated).toBe(true));
 
@@ -38,6 +38,7 @@ describe('FinanceProvider (modo demonstração)', () => {
         amountCents: '-1234',
         type: 'expense',
         date: '2026-11-25',
+        status: 'paid',
       });
     });
 
@@ -117,5 +118,113 @@ describe('FinanceProvider (modo demonstração)', () => {
 
     await waitFor(() => expect(result.current.session).toBeNull());
     expect(result.current.snapshot.transactions).toHaveLength(totalComAjustes);
+  });
+});
+
+describe('FinanceProvider — contas a pagar/receber', () => {
+  it('pendente nasce fora do saldo e só entra quando é liquidado', async () => {
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+    act(() => result.current.startDemo());
+    await waitFor(() => expect(result.current.session?.mode).toBe('demo'));
+
+    const account = result.current.snapshot.accounts[0];
+    const saldoAntes = toCents(account.balanceCents);
+
+    let criadoId = '';
+    await act(async () => {
+      await result.current.addTransaction({
+        accountId: account.id,
+        categoryId: null,
+        description: 'Aluguel de dezembro',
+        amountCents: '-250000',
+        type: 'expense',
+        date: '2026-12-01',
+        dueDate: '2026-12-05',
+      });
+    });
+
+    const pendente = result.current.snapshot.transactions.find(
+      (item) => item.description === 'Aluguel de dezembro'
+    );
+    expect(pendente?.status).toBe('pending');
+    expect(pendente?.dueDate).toBe('2026-12-05');
+    criadoId = pendente?.id ?? '';
+
+    const aposCriar = result.current.snapshot.accounts.find((item) => item.id === account.id);
+    expect(toCents(aposCriar?.balanceCents ?? '0')).toBe(saldoAntes);
+
+    await act(async () => {
+      await result.current.settleTransaction(criadoId, '2026-12-05');
+    });
+
+    const liquidado = result.current.snapshot.transactions.find((item) => item.id === criadoId);
+    expect(liquidado?.status).toBe('paid');
+    const aposLiquidar = result.current.snapshot.accounts.find((item) => item.id === account.id);
+    expect(toCents(aposLiquidar?.balanceCents ?? '0')).toBe(saldoAntes - 250000n);
+  });
+
+  it('cancelar um pendente não devolve valor ao saldo', async () => {
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+    act(() => result.current.startDemo());
+    await waitFor(() => expect(result.current.session?.mode).toBe('demo'));
+
+    const account = result.current.snapshot.accounts[0];
+    const saldoAntes = toCents(account.balanceCents);
+
+    await act(async () => {
+      await result.current.addTransaction({
+        accountId: account.id,
+        categoryId: null,
+        description: 'Curso cancelado',
+        amountCents: '-30000',
+        type: 'expense',
+        date: '2026-12-02',
+      });
+    });
+    const pendente = result.current.snapshot.transactions.find(
+      (item) => item.description === 'Curso cancelado'
+    );
+
+    await act(async () => {
+      await result.current.cancelTransaction(pendente?.id ?? '');
+    });
+
+    const cancelado = result.current.snapshot.transactions.find((item) => item.id === pendente?.id);
+    expect(cancelado?.status).toBe('canceled');
+    const depois = result.current.snapshot.accounts.find((item) => item.id === account.id);
+    expect(toCents(depois?.balanceCents ?? '0')).toBe(saldoAntes);
+  });
+
+  it('remover um pendente não altera o saldo', async () => {
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+    act(() => result.current.startDemo());
+    await waitFor(() => expect(result.current.session?.mode).toBe('demo'));
+
+    const account = result.current.snapshot.accounts[0];
+    const saldoAntes = toCents(account.balanceCents);
+
+    await act(async () => {
+      await result.current.addTransaction({
+        accountId: account.id,
+        categoryId: null,
+        description: 'Boleto a pagar',
+        amountCents: '-9900',
+        type: 'expense',
+        date: '2026-12-03',
+      });
+    });
+    const pendente = result.current.snapshot.transactions.find(
+      (item) => item.description === 'Boleto a pagar'
+    );
+
+    await act(async () => {
+      await result.current.deleteTransaction(pendente?.id ?? '');
+    });
+
+    const depois = result.current.snapshot.accounts.find((item) => item.id === account.id);
+    expect(toCents(depois?.balanceCents ?? '0')).toBe(saldoAntes);
   });
 });

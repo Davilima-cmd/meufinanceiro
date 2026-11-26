@@ -98,7 +98,15 @@ export type ApiTransaction = {
   type: string;
   origin: string;
   providerId?: string | null;
+  /** Data de caixa (quando o dinheiro entrou/saiu). */
   date: string;
+  /** Data de competência: o mês a que o lançamento pertence. */
+  competenceDate: string;
+  /** `pending` (a pagar/receber), `paid` (liquidado) ou `canceled`. */
+  status: 'pending' | 'paid' | 'canceled';
+  /** Momento da liquidação; nulo enquanto pendente. */
+  paidAt?: string | null;
+  dueDate?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -149,7 +157,14 @@ export type CreateTransactionDto = {
   categoryId?: string;
   /** Só para `type: 'transfer'`: conta que recebe o valor. */
   transferAccountId?: string;
+  /** Data de caixa. */
   date: string;
+  /** Data de competência; sem ela, usa `date`. */
+  competenceDate?: string;
+  /** `pending` (padrão) ou `paid`. Transferências são sempre liquidadas. */
+  status?: 'pending' | 'paid' | 'canceled';
+  /** Vencimento, para contas a pagar/receber. */
+  dueDate?: string;
 };
 
 /** Erro padronizado da API (corpo do NestJS: { message, error, statusCode }). */

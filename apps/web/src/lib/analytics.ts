@@ -44,6 +44,12 @@ export type Overview = {
   expenseChange: number | null;
   transactionCount: number;
   visibleTransactions: FinanceTransaction[];
+  /** A pagar/receber ainda pendentes no mês (não afetam o saldo realizado). */
+  pendingTransactions: FinanceTransaction[];
+  pendingExpenseCents: bigint;
+  pendingIncomeCents: bigint;
+  /** Net realizado + pendentes do mês: para onde o caixa deve ir. */
+  projectedNetCents: bigint;
   categories: CategoryTotal[];
   trend: MonthlyPoint[];
   daily: Array<{ day: number; incomeCents: bigint; expenseCents: bigint }>;
@@ -86,6 +92,16 @@ export function isOwnAccount(
   ownerId: string
 ) {
   return account.ownerId === ownerId;
+}
+
+/** Pendente ainda não é caixa; cancelado não acontece. Só `paid` entra nos totais. */
+export function isSettled(transaction: FinanceTransaction): boolean {
+  return (transaction.status ?? 'paid') === 'paid';
+}
+
+/** Pendente ainda pode virar caixa: entra na projeção, não no realizado. */
+export function isPending(transaction: FinanceTransaction): boolean {
+  return transaction.status === 'pending';
 }
 
 export function transactionsOfMonth(
@@ -167,10 +183,13 @@ export function buildOverview(
   ownerId: string
 ): Overview {
   const accounts = visibleAccounts(snapshot, ownerId);
-  const monthTransactions = transactionsOfMonth(
+  const allMonthTransactions = transactionsOfMonth(
     coverage(snapshot.transactions, accounts).visible,
     monthKey
   );
+  // Realizado = o que já passou pelo caixa. Pendentes vão para a projeção.
+  const monthTransactions = allMonthTransactions.filter(isSettled);
+  const pendingTransactions = allMonthTransactions.filter(isPending);
   const expenses = monthTransactions.filter(
     (item) => toCents(item.amountCents) < 0n && item.type !== 'transfer'
   );
@@ -183,7 +202,7 @@ export function buildOverview(
   const previousMonthTransactions = transactionsOfMonth(
     coverage(snapshot.transactions, accounts).visible,
     previousMonth(monthKey)
-  );
+  ).filter(isSettled);
   const previousExpenseCents = -sumCents(
     previousMonthTransactions
       .filter((item) => toCents(item.amountCents) < 0n && item.type !== 'transfer')
@@ -215,7 +234,18 @@ export function buildOverview(
     )[0] ?? null;
 
   const monthExpenses = coverage(snapshot.transactions, accounts).visible.filter(
-    (item) => toCents(item.amountCents) < 0n && item.type === 'expense'
+    (item) => toCents(item.amountCents) < 0n && item.type === 'expense' && isSettled(item)
+  );
+
+  const pendingExpenseCents = -sumCents(
+    pendingTransactions
+      .filter((item) => toCents(item.amountCents) < 0n && item.type !== 'transfer')
+      .map((item) => item.amountCents)
+  );
+  const pendingIncomeCents = sumCents(
+    pendingTransactions
+      .filter((item) => toCents(item.amountCents) > 0n && item.type !== 'transfer')
+      .map((item) => item.amountCents)
   );
 
   const budgets = snapshot.budgets
@@ -273,9 +303,13 @@ export function buildOverview(
           )
         : null,
     transactionCount: monthTransactions.length,
-    visibleTransactions: [...monthTransactions].sort((left, right) =>
+    visibleTransactions: [...allMonthTransactions].sort((left, right) =>
       left.date < right.date ? 1 : -1
     ),
+    pendingTransactions,
+    pendingExpenseCents,
+    pendingIncomeCents,
+    projectedNetCents: incomeCents - expenseCents - pendingExpenseCents + pendingIncomeCents,
     categories: categoryTotals(monthTransactions, snapshot),
     trend: buildTrend(snapshot.transactions, accounts, monthKey, 6),
     daily: [...dailyMap.entries()]

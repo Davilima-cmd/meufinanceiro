@@ -24,6 +24,9 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
   const [submitting, setSubmitting] = useState(false);
   const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState(defaultDate ?? todayISO());
+  // Por padrão o lançamento já aconteceu; "a pagar/receber" é a exceção.
+  const [settled, setSettled] = useState(true);
+  const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
 
   const categories = useMemo(() => {
@@ -58,6 +61,7 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
       return;
     }
     const signed = type === 'income' ? absolute : -absolute;
+    const pending = type !== 'transfer' && !settled;
     setSubmitting(true);
     // A API é a dona da verdade: se ela recusar, o erro aparece aqui e o
     // formulário continua aberto com os dados preenchidos.
@@ -69,6 +73,8 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
       type,
       transferAccountId: type === 'transfer' ? transferAccountId : null,
       date,
+      status: pending ? 'pending' : 'paid',
+      dueDate: pending && dueDate ? dueDate : null,
     });
     setSubmitting(false);
     if (failure) {
@@ -78,6 +84,8 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
     setDescription('');
     setAmount('');
     setCategoryId('');
+    setSettled(true);
+    setDueDate('');
     onClose();
   }
 
@@ -218,6 +226,44 @@ export function TransactionDialog({ open, onClose, defaultType = 'expense', defa
               value={date}
             />
           </div>
+
+          {type !== 'transfer' ? (
+            <div className="field">
+              <span>Situação</span>
+              <div className="segmented" role="tablist" aria-label="Situação do lançamento">
+                {(
+                  [
+                    { value: true, label: 'Já aconteceu' },
+                    { value: false, label: 'A pagar/receber' },
+                  ] as const
+                ).map((option) => (
+                  <button
+                    aria-selected={settled === option.value}
+                    className={settled === option.value ? 'is-selected' : ''}
+                    key={String(option.value)}
+                    onClick={() => setSettled(option.value)}
+                    role="tab"
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <small className="field-hint">
+                {settled
+                  ? 'Entra no saldo agora. Vale para o que já saiu ou entrou da conta.'
+                  : 'Fica pendente e só mexe no saldo quando você liquidar. Aparece na projeção do mês.'}
+              </small>
+            </div>
+          ) : null}
+
+          {type !== 'transfer' && !settled ? (
+            <div className="field">
+              <span>Vencimento</span>
+              <DateField label="Data de vencimento" onChange={setDueDate} value={dueDate || date} />
+              <small className="field-hint">Opcional. Serve para destacar contas atrasadas.</small>
+            </div>
+          ) : null}
 
           {error ? <p className="form-error">{error}</p> : null}
 

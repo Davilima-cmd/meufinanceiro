@@ -38,15 +38,21 @@ export default function DashboardPage() {
     [snapshot.accounts]
   );
 
+  // O saldo acumulado é caixa: pendente só entra na projeção, não na linha do tempo.
+  const settledTransactions = useMemo(
+    () => monthTransactions.filter((transaction) => (transaction.status ?? 'paid') === 'paid'),
+    [monthTransactions]
+  );
+
   const runningBalance = useMemo(() => {
-    const sorted = [...monthTransactions].reverse();
+    const sorted = [...settledTransactions].reverse();
     // reduce acumula o saldo sem reatribuir variáveis durante o render.
     return sorted.reduce<bigint[]>((acc, transaction) => {
       const previous = acc.length > 0 ? acc[acc.length - 1] : 0n;
       acc.push(previous + toCents(transaction.amountCents));
       return acc;
     }, []);
-  }, [monthTransactions]);
+  }, [settledTransactions]);
 
   const hiddenTransactions = snapshot.accounts.filter(
     (account) => account.shareLevel !== 'FULL'
@@ -137,6 +143,15 @@ export default function DashboardPage() {
               <strong className={overview.netCents >= 0n ? 'text-positive' : 'text-negative'}>
                 <Money value={overview.netCents} signed />
               </strong>
+            </div>
+            <div className="mini-stat">
+              <span>A pagar/receber</span>
+              <strong>
+                <Money value={overview.pendingIncomeCents - overview.pendingExpenseCents} signed />
+              </strong>
+              <small className="text-muted">
+                projetado: <Money value={overview.projectedNetCents} signed />
+              </small>
             </div>
             <div className="mini-stat">
               <span>Taxa de sobra</span>
@@ -256,39 +271,45 @@ export default function DashboardPage() {
               <p className="text-muted">Nenhum lançamento neste mês.</p>
             ) : (
               <ul className="list">
-                {monthTransactions.slice(0, 6).map((transaction) => {
-                  const cents = toCents(transaction.amountCents);
-                  const category = transaction.categoryId
-                    ? categoryById.get(transaction.categoryId)
-                    : null;
-                  return (
-                    <li className="list-row" key={transaction.id}>
-                      <span
-                        aria-hidden="true"
-                        className="row-mark"
-                        style={{
-                          background: category ? `${category.color}22` : 'var(--surface-3)',
-                          color: category?.color ?? 'var(--muted)',
-                        }}
-                      >
-                        {transaction.description.slice(0, 2).toUpperCase()}
-                      </span>
-                      <span className="row-copy">
-                        <strong>{transaction.description}</strong>
-                        <small>
-                          {category?.name ?? 'Sem categoria'} ·{' '}
-                          {accountById.get(transaction.accountId)?.name ?? 'Conta'}
-                        </small>
-                      </span>
-                      <span className="row-end">
-                        <span className={`row-amount ${cents > 0n ? 'text-positive' : ''}`}>
-                          <Money value={cents} signed />
+                {[...monthTransactions]
+                  .sort((left, right) => (left.date < right.date ? 1 : -1))
+                  .slice(0, 6)
+                  .map((transaction) => {
+                    const cents = toCents(transaction.amountCents);
+                    const category = transaction.categoryId
+                      ? categoryById.get(transaction.categoryId)
+                      : null;
+                    return (
+                      <li className="list-row" key={transaction.id}>
+                        <span
+                          aria-hidden="true"
+                          className="row-mark"
+                          style={{
+                            background: category ? `${category.color}22` : 'var(--surface-3)',
+                            color: category?.color ?? 'var(--muted)',
+                          }}
+                        >
+                          {transaction.description.slice(0, 2).toUpperCase()}
                         </span>
-                        <small className="row-date">{formatRelativeDay(transaction.date)}</small>
-                      </span>
-                    </li>
-                  );
-                })}
+                        <span className="row-copy">
+                          <strong>{transaction.description}</strong>
+                          <small>
+                            {category?.name ?? 'Sem categoria'} ·{' '}
+                            {accountById.get(transaction.accountId)?.name ?? 'Conta'}
+                          </small>
+                        </span>
+                        <span className="row-end">
+                          <span className={`row-amount ${cents > 0n ? 'text-positive' : ''}`}>
+                            <Money value={cents} signed />
+                          </span>
+                          <small className="row-date">
+                            {transaction.status === 'pending' ? 'pendente · ' : ''}
+                            {formatRelativeDay(transaction.date)}
+                          </small>
+                        </span>
+                      </li>
+                    );
+                  })}
               </ul>
             )}
           </Card>

@@ -62,6 +62,10 @@ export function mapApiSnapshot(
     type: transactionType(transaction.type),
     origin: transaction.origin === 'imported' ? 'imported' : 'manual',
     date: transaction.date.slice(0, 10),
+    competenceDate: transaction.competenceDate?.slice(0, 10),
+    status: transaction.status,
+    paidAt: transaction.paidAt ? transaction.paidAt.slice(0, 10) : null,
+    dueDate: transaction.dueDate ? transaction.dueDate.slice(0, 10) : null,
     createdAt: transaction.createdAt,
   }));
 

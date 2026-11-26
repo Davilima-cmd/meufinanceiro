@@ -212,6 +212,17 @@ class ApiClient {
     });
   }
 
+  async settleTransaction(id: string, paidAt?: string): Promise<ApiTransaction> {
+    return this.request<ApiTransaction>(`/transactions/${id}/settle`, {
+      method: 'POST',
+      body: paidAt ? { paidAt } : {},
+    });
+  }
+
+  async cancelTransaction(id: string): Promise<ApiTransaction> {
+    return this.request<ApiTransaction>(`/transactions/${id}/cancel`, { method: 'POST' });
+  }
+
   async deleteTransaction(id: string): Promise<{ deleted: number }> {
     return this.request<{ deleted: number }>(`/transactions/${id}`, { method: 'DELETE' });
   }

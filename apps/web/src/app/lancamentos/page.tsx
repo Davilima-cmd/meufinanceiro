@@ -15,19 +15,24 @@ import {
   shiftMonth,
   sumCents,
   toCents,
+  todayISO,
 } from '@/lib/format';
 import { useFinance } from '@/lib/store';
 import type { TransactionType } from '@/lib/types';
 
 type Filter = 'all' | TransactionType;
+/** Filtro por situação: o que já é caixa, o que ainda vai ser, e o que foi cancelado. */
+type StatusFilter = 'all' | 'settled' | 'pending' | 'canceled';
 
 const PAGE_SIZE = 20;
 
 export default function TransactionsPage() {
-  const { snapshot, session, deleteTransaction } = useFinance();
+  const { snapshot, session, deleteTransaction, settleTransaction, cancelTransaction } =
+    useFinance();
   const dialog = useDialog();
   const [monthKey, setMonthKey] = useState(() => currentMonthKey());
   const [filter, setFilter] = useState<Filter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [accountFilter, setAccountFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -55,6 +60,13 @@ export default function TransactionsPage() {
     return visible
       .filter((transaction) => monthKeyOf(transaction.date) === monthKey)
       .filter((transaction) => (filter === 'all' ? true : transaction.type === filter))
+      .filter((transaction) => {
+        const status = transaction.status ?? 'paid';
+        if (statusFilter === 'all') return status !== 'canceled';
+        if (statusFilter === 'settled') return status === 'paid';
+        if (statusFilter === 'pending') return status === 'pending';
+        return status === 'canceled';
+      })
       .filter((transaction) =>
         accountFilter === 'all' ? true : transaction.accountId === accountFilter
       )
@@ -67,20 +79,27 @@ export default function TransactionsPage() {
         );
       })
       .sort((left, right) => (left.date < right.date ? 1 : left.date > right.date ? -1 : 0));
-  }, [visible, monthKey, filter, accountFilter, search, categoryById]);
+  }, [visible, monthKey, filter, statusFilter, accountFilter, search, categoryById]);
 
   const totals = useMemo(() => {
+    // Só o que já virou caixa entra nos totais; pendente tem seu próprio número.
+    const settled = filtered.filter((transaction) => (transaction.status ?? 'paid') === 'paid');
     const income = sumCents(
-      filtered
+      settled
         .filter((transaction) => toCents(transaction.amountCents) > 0n)
         .map((t) => t.amountCents)
     );
     const expense = -sumCents(
-      filtered
+      settled
         .filter((transaction) => toCents(transaction.amountCents) < 0n)
         .map((t) => t.amountCents)
     );
-    return { income, expense, net: income - expense };
+    const pending = sumCents(
+      filtered
+        .filter((transaction) => transaction.status === 'pending')
+        .map((t) => -toCents(t.amountCents))
+    );
+    return { income, expense, net: income - expense, pending };
   }, [filtered]);
 
   function exportCsv() {
@@ -179,6 +198,14 @@ export default function TransactionsPage() {
             <strong className={`stat-value ${totals.net >= 0n ? 'is-positive' : 'is-negative'}`}>
               <Money value={totals.net} signed />
             </strong>
+            <span className="stat-hint">só o que já passou pelo caixa</span>
+          </div>
+          <div className="stat">
+            <span className="stat-label">A pagar/receber</span>
+            <strong className="stat-value">
+              <Money value={-totals.pending} signed />
+            </strong>
+            <span className="stat-hint">ainda não afeta o saldo</span>
           </div>
         </div>
 
@@ -210,6 +237,21 @@ export default function TransactionsPage() {
                 })),
               ]}
               value={accountFilter}
+            />
+            <Select
+              className="filter-select"
+              label="Filtrar por situação"
+              onChange={(next) => {
+                setStatusFilter(next as StatusFilter);
+                setLimit(PAGE_SIZE);
+              }}
+              options={[
+                { value: 'all', label: 'Todas as situações' },
+                { value: 'settled', label: 'Liquidados' },
+                { value: 'pending', label: 'A pagar/receber' },
+                { value: 'canceled', label: 'Cancelados' },
+              ]}
+              value={statusFilter}
             />
             <div className="page-actions">
               {(
@@ -277,6 +319,9 @@ export default function TransactionsPage() {
                         ? categoryById.get(transaction.categoryId)
                         : null;
                       const account = accountById.get(transaction.accountId);
+                      const status = transaction.status ?? 'paid';
+                      const due = transaction.dueDate ?? transaction.date;
+                      const overdue = status === 'pending' && due < todayISO();
                       return (
                         <tr key={transaction.id}>
                           <td>{formatDay(transaction.date)}</td>
@@ -286,6 +331,20 @@ export default function TransactionsPage() {
                               <>
                                 {' '}
                                 <Badge tone="accent">auto</Badge>
+                              </>
+                            ) : null}
+                            {status === 'pending' ? (
+                              <>
+                                {' '}
+                                <Badge tone="warning">
+                                  {overdue ? 'atrasado' : 'a pagar/receber'}
+                                </Badge>
+                              </>
+                            ) : null}
+                            {status === 'canceled' ? (
+                              <>
+                                {' '}
+                                <Badge tone="neutral">cancelado</Badge>
                               </>
                             ) : null}
                           </td>
@@ -312,8 +371,47 @@ export default function TransactionsPage() {
                             <strong>
                               <Money value={cents} signed />
                             </strong>
+                            {status === 'pending' ? (
+                              <small className="stat-hint" style={{ display: 'block' }}>
+                                vence {formatDay(due)}
+                              </small>
+                            ) : null}
                           </td>
                           <td className="num">
+                            {status === 'pending' ? (
+                              <>
+                                <button
+                                  aria-label={`Liquidar ${transaction.description}`}
+                                  className="icon-button"
+                                  onClick={async () => {
+                                    const failure = await settleTransaction(transaction.id);
+                                    if (failure) return;
+                                  }}
+                                  title="Liquidar (marca como pago e move o saldo)"
+                                  type="button"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  aria-label={`Cancelar ${transaction.description}`}
+                                  className="icon-button"
+                                  onClick={async () => {
+                                    const confirmed = await dialog.confirm({
+                                      title: `Cancelar “${transaction.description}”?`,
+                                      description:
+                                        'O lançamento fica marcado como cancelado e some dos totais, mas continua no histórico.',
+                                      confirmLabel: 'Cancelar lançamento',
+                                    });
+                                    if (!confirmed) return;
+                                    void cancelTransaction(transaction.id);
+                                  }}
+                                  title="Cancelar pendente sem mexer no saldo"
+                                  type="button"
+                                >
+                                  ⊘
+                                </button>
+                              </>
+                            ) : null}
                             <button
                               aria-label={`Excluir ${transaction.description}`}
                               className="icon-button"
@@ -321,7 +419,9 @@ export default function TransactionsPage() {
                                 const confirmed = await dialog.confirm({
                                   title: `Excluir “${transaction.description}”?`,
                                   description:
-                                    'O valor deixa de entrar no saldo da conta e nos totais do mês.',
+                                    status === 'paid'
+                                      ? 'O valor volta para o saldo da conta e deixa de contar nos totais do mês.'
+                                      : 'O pendente é apagado sem mexer no saldo, porque ainda não era caixa.',
                                   confirmLabel: 'Excluir lançamento',
                                 });
                                 if (!confirmed) return;
@@ -344,7 +444,8 @@ export default function TransactionsPage() {
               >
                 <span className="text-muted" style={{ fontSize: 12 }}>
                   Mostrando {Math.min(limit, filtered.length)} de {filtered.length} lançamentos ·{' '}
-                  {formatAmount(totals.expense)} em saídas
+                  {formatAmount(totals.expense)} em saídas · {formatAmount(-totals.pending)} a
+                  pagar/receber
                 </span>
                 {limit < filtered.length ? (
                   <button

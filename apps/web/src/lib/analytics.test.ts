@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildDemoSnapshot, DEMO_USER } from '@/lib/demo-data';
-import { buildOverview, coverage, spentByCategory, visibleAccounts } from '@/lib/analytics';
+import {
+  buildOverview,
+  coverage,
+  isSettled,
+  spentByCategory,
+  visibleAccounts,
+} from '@/lib/analytics';
 import { currentMonthKey, monthBounds, toCents } from '@/lib/format';
 
 const snapshot = buildDemoSnapshot();
@@ -107,5 +113,68 @@ describe('analytics', () => {
     const total = [...spent.values()].reduce((sum, value) => sum + value, 0n);
     const overview = buildOverview(snapshot, month, ownerId);
     expect(total).toBe(overview.categories.reduce((sum, category) => sum + category.cents, 0n));
+  });
+});
+
+describe('analytics — realizado x projetado', () => {
+  it('pendente não entra no realizado, mas aparece na projeção', () => {
+    const base = buildDemoSnapshot('2026-11-25');
+    const month = '2026-11';
+    const account = base.accounts.find((item) => item.ownerId === DEMO_USER.id) ?? base.accounts[0];
+    const pendente = {
+      id: 'tx-pendente',
+      accountId: account.id,
+      categoryId: null,
+      description: 'IPTU a pagar',
+      amountCents: '-120000',
+      type: 'expense' as const,
+      origin: 'manual' as const,
+      date: '2026-11-20',
+      status: 'pending' as const,
+      createdAt: '2026-11-20T10:00:00.000Z',
+    };
+
+    const antes = buildOverview(base, month, DEMO_USER.id);
+    const depois = buildOverview(
+      { ...base, transactions: [...base.transactions, pendente] },
+      month,
+      DEMO_USER.id
+    );
+
+    // O realizado não muda: pendente ainda não é dinheiro no caixa.
+    expect(depois.expenseCents).toBe(antes.expenseCents);
+    expect(depois.pendingExpenseCents).toBe(antes.pendingExpenseCents + 120000n);
+    expect(depois.projectedNetCents).toBe(antes.projectedNetCents - 120000n);
+    expect(depois.pendingTransactions.map((tx) => tx.id)).toContain('tx-pendente');
+    expect(isSettled(pendente)).toBe(false);
+  });
+
+  it('cancelado não conta em nada', () => {
+    const base = buildDemoSnapshot('2026-11-25');
+    const month = '2026-11';
+    const account = base.accounts[0];
+    const cancelado = {
+      id: 'tx-cancelado',
+      accountId: account.id,
+      categoryId: null,
+      description: 'Compra desfeita',
+      amountCents: '-50000',
+      type: 'expense' as const,
+      origin: 'manual' as const,
+      date: '2026-11-20',
+      status: 'canceled' as const,
+      createdAt: '2026-11-20T10:00:00.000Z',
+    };
+
+    const antes = buildOverview(base, month, DEMO_USER.id);
+    const depois = buildOverview(
+      { ...base, transactions: [...base.transactions, cancelado] },
+      month,
+      DEMO_USER.id
+    );
+
+    expect(depois.expenseCents).toBe(antes.expenseCents);
+    expect(depois.pendingExpenseCents).toBe(antes.pendingExpenseCents);
+    expect(depois.projectedNetCents).toBe(antes.projectedNetCents);
   });
 });

@@ -120,6 +120,10 @@ export class SyncService {
             type: tx.type,
             origin: 'imported',
             date: tx.date,
+            // Lançamento importado do banco já aconteceu: nasce liquidado.
+            competenceDate: tx.date,
+            status: 'paid',
+            paidAt: tx.date,
           })),
           skipDuplicates: true,
         });
@@ -140,8 +144,9 @@ export class SyncService {
         transactionsSynced++;
       }
 
+      // Saldo é caixa realizado: soma só o que já está liquidado.
       const balance = await this.prisma.transaction.aggregate({
-        where: { accountId: connection.accountId },
+        where: { accountId: connection.accountId, status: 'paid' },
         _sum: { amountCents: true },
       });
       await this.prisma.financialAccount.update({

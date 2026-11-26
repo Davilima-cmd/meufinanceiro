@@ -47,8 +47,16 @@ export type FinanceTransaction = {
   amountCents: string;
   type: TransactionType;
   origin: 'manual' | 'imported';
-  /** ISO date (YYYY-MM-DD). */
+  /** ISO date (YYYY-MM-DD) — data de caixa. */
   date: string;
+  /** Data de competência: o mês a que o lançamento pertence. Sem ela, usa `date`. */
+  competenceDate?: string;
+  /** `pending` (a pagar/receber), `paid` (liquidado) ou `canceled`. */
+  status?: TransactionStatus;
+  /** Momento da liquidação; nulo enquanto pendente. */
+  paidAt?: string | null;
+  /** Vencimento, para contas a pagar/receber. */
+  dueDate?: string | null;
   createdAt: string;
 };
 
@@ -98,6 +106,8 @@ export type NewAccount = {
   shareLevel: ShareLevel;
 };
 
+export type TransactionStatus = 'pending' | 'paid' | 'canceled';
+
 export type NewTransaction = {
   accountId: string;
   categoryId: string | null;
@@ -107,4 +117,10 @@ export type NewTransaction = {
   /** Só para transferências: conta que recebe o valor. */
   transferAccountId?: string | null;
   date: string;
+  /** Data de competência; sem ela, usa `date`. */
+  competenceDate?: string;
+  /** `pending` é o padrão (conta a pagar/receber). Transferência é sempre `paid`. */
+  status?: TransactionStatus;
+  /** Vencimento. */
+  dueDate?: string | null;
 };

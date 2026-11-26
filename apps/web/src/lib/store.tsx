@@ -49,6 +49,8 @@ type FinanceContextValue = {
    * demonstração resolvem com `null` (tudo é local).
    */
   addTransaction: (input: NewTransaction) => Promise<string | null>;
+  settleTransaction: (id: string, paidAt?: string) => Promise<string | null>;
+  cancelTransaction: (id: string) => Promise<string | null>;
   deleteTransaction: (id: string) => Promise<string | null>;
   addAccount: (input: NewAccount) => Promise<string | null>;
   deleteAccount: (id: string) => Promise<string | null>;
@@ -253,13 +255,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             type: input.type,
             origin: 'manual',
             date: input.date || todayISO(),
+            competenceDate: input.competenceDate || input.date || todayISO(),
+            status: input.type === 'transfer' ? 'paid' : (input.status ?? 'pending'),
+            paidAt: null,
+            dueDate: input.dueDate ?? null,
             createdAt: new Date().toISOString(),
           };
           const delta = BigInt(transaction.amountCents);
+          // Pendente é conta a pagar/receber: não é dinheiro no caixa.
+          const movesBalance = transaction.status === 'paid';
           const targetAccountId =
             input.type === 'transfer' && input.transferAccountId ? input.transferAccountId : null;
           // Transferência move o dinheiro sem entrar em receita/despesa.
           const accounts: FinanceAccount[] = current.accounts.map((account) => {
+            if (!movesBalance) {
+              return account;
+            }
             if (targetAccountId && account.id === input.accountId) {
               return {
                 ...account,
@@ -291,6 +302,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             categoryId: input.categoryId ?? undefined,
             transferAccountId: input.transferAccountId ?? undefined,
             date: input.date || todayISO(),
+            competenceDate: input.competenceDate ?? undefined,
+            status: input.status ?? undefined,
+            dueDate: input.dueDate ?? undefined,
           })
       ),
     [mutate]
@@ -303,17 +317,69 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           const target = current.transactions.find((transaction) => transaction.id === id);
           if (!target) return current;
           const delta = -BigInt(target.amountCents);
+          // Remover um pendente não devolve nada ao caixa: ele nunca saiu de lá.
+          const movesBalance = (target.status ?? 'paid') === 'paid';
           return {
             ...current,
-            accounts: current.accounts.map((account) =>
-              account.id === target.accountId
-                ? { ...account, balanceCents: (BigInt(account.balanceCents) + delta).toString() }
-                : account
-            ),
+            accounts: movesBalance
+              ? current.accounts.map((account) =>
+                  account.id === target.accountId
+                    ? {
+                        ...account,
+                        balanceCents: (BigInt(account.balanceCents) + delta).toString(),
+                      }
+                    : account
+                )
+              : current.accounts,
             transactions: current.transactions.filter((transaction) => transaction.id !== id),
           };
         },
         () => api.deleteTransaction(id)
+      ),
+    [mutate]
+  );
+
+  const settleTransaction = useCallback(
+    (id: string, paidAt?: string) =>
+      mutate(
+        (current) => {
+          const target = current.transactions.find((transaction) => transaction.id === id);
+          if (!target || (target.status ?? 'paid') === 'paid') return current;
+          const when = paidAt || todayISO();
+          return {
+            ...current,
+            accounts: current.accounts.map((account) =>
+              account.id === target.accountId
+                ? {
+                    ...account,
+                    balanceCents: (
+                      BigInt(account.balanceCents) + BigInt(target.amountCents)
+                    ).toString(),
+                  }
+                : account
+            ),
+            transactions: current.transactions.map((transaction) =>
+              transaction.id === id
+                ? { ...transaction, status: 'paid', paidAt: when, date: when }
+                : transaction
+            ),
+          };
+        },
+        () => api.settleTransaction(id, paidAt)
+      ),
+    [mutate]
+  );
+
+  const cancelTransaction = useCallback(
+    (id: string) =>
+      mutate(
+        (current) => ({
+          ...current,
+          transactions: current.transactions.map((transaction) =>
+            transaction.id === id ? { ...transaction, status: 'canceled' } : transaction
+          ),
+        }),
+        () => api.cancelTransaction(id)
       ),
     [mutate]
   );
@@ -559,6 +625,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       resetDemo,
       refresh,
       addTransaction,
+      settleTransaction,
+      cancelTransaction,
       deleteTransaction,
       addAccount,
       deleteAccount,
@@ -585,6 +653,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       resetDemo,
       refresh,
       addTransaction,
+      settleTransaction,
+      cancelTransaction,
       deleteTransaction,
       addAccount,
       deleteAccount,
