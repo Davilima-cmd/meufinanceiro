@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import type { IncomingMessage } from 'http';
 import { PrismaService } from '../prisma/prisma.service';
@@ -122,6 +123,9 @@ export class OpenFinanceController {
    * constante. `OPEN_FINANCE_WEBHOOK_SECRET` é obrigatória em produção.
    */
   @Post('webhooks/:provider')
+  // Protegida contra força bruta na assinatura: um atacante que tente adivinhar
+  // o HMAC não pode usar esse endpoint como oráculo sem limite.
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   async webhook(
     @Param('provider') provider: string,
     @Body() payload: unknown,

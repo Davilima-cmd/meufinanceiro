@@ -491,9 +491,14 @@ class ApiClient {
     });
   }
 
-  async deleteAccount(): Promise<void> {
+  /**
+   * Exclui a conta. Exige a senha: a ação apaga todo o histórico financeiro e
+   * sessão sozinha não prova que o dono está ali agora.
+   */
+  async deleteAccount(password: string): Promise<void> {
     return this.request<void>('/auth/account', {
       method: 'DELETE',
+      body: { password },
     });
   }
 

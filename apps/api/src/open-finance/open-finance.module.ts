@@ -38,7 +38,26 @@ export function activeProviderClass(): Type<unknown> {
   return PluggyClient.configured() ? PluggyOpenFinanceProvider : SandboxOpenFinanceProvider;
 }
 
-const PROVIDER = activeProviderClass();
+/**
+ * Sandbox fictício só existe fora de produção.
+ *
+ * Antes, com o Pluggy desconfigurado, **produção** também caía neste provider e
+ * criava conta bancária com saldo inventado dentro da conta real do usuário. Uma
+ * variável de ambiente não pode ser o que separa dado real de dado fictício: em
+ * produção, sem credenciais, o app responde que a conexão não está configurada.
+ */
+export function sandboxAllowed(): boolean {
+  return process.env.NODE_ENV !== 'production';
+}
+
+/** Provedor efetivo do ambiente (sandbox em produção = nenhum). */
+export function resolveProviderClass(): Type<unknown> | null {
+  const active = activeProviderClass();
+  if (active === SandboxOpenFinanceProvider && !sandboxAllowed()) return null;
+  return active;
+}
+
+const PROVIDER = resolveProviderClass();
 
 @Module({
   imports: [PrismaModule, SyncModule],
@@ -46,10 +65,16 @@ const PROVIDER = activeProviderClass();
   providers: [
     SandboxOpenFinanceProvider,
     PluggyOpenFinanceProvider,
-    {
-      provide: OPEN_FINANCE_PROVIDER,
-      useExisting: PROVIDER,
-    },
+    // Em produção sem credenciais do provedor não há provedor: quem injeta
+    // recebe `null` e responde erro de configuração, em vez de dado fictício.
+    ...(PROVIDER
+      ? [
+          {
+            provide: OPEN_FINANCE_PROVIDER,
+            useExisting: PROVIDER,
+          },
+        ]
+      : [{ provide: OPEN_FINANCE_PROVIDER, useValue: null }]),
   ],
   exports: [OPEN_FINANCE_PROVIDER],
 })

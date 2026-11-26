@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as argon2 from 'argon2';
@@ -26,6 +31,23 @@ export class AuthService {
       return await argon2.verify(hash, password);
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Confere a senha atual do usuário (reautenticação para ação sensível).
+   *
+   * Resposta genérica de propósito: não diz se o usuário existe ou se a senha
+   * está errada por outro motivo.
+   */
+  async assertPassword(userId: string, password: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { password: true },
+    });
+    const matches = user ? await this.comparePassword(password, user.password) : false;
+    if (!matches) {
+      throw new UnauthorizedException('Senha incorreta.');
     }
   }
 

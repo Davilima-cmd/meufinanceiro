@@ -14,7 +14,13 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
-import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from './dto/auth.dto';
+import {
+  DeleteAccountDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RegisterDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
 import { PasswordResetService } from './password-reset.service';
 import { SessionService } from './session.service';
 import { clearSessionCookies, csrfTokenFor, setSessionCookies } from './session-cookie';
@@ -165,11 +171,20 @@ export class AuthController {
     };
   }
 
+  /**
+   * Exclusão da conta (irreversível).
+   *
+   * Exige a senha no corpo: sessão sozinha não é prova suficiente para apagar
+   * todo o histórico financeiro, e a senha confere que o dono está ali agora.
+   */
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete('account')
   @UseGuards(AuthGuard('jwt'))
+  // Erro de senha aqui é tentativa de destruição: limite curto.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @AuditLog(AuditAction.ACCOUNT_DELETE)
-  async deleteAccount(@Req() req: AuthenticatedRequest) {
+  async deleteAccount(@Req() req: AuthenticatedRequest, @Body() dto: DeleteAccountDto) {
+    await this.authService.assertPassword(req.user.userId, dto.password);
     return this.authService.deleteAccount(req.user.userId);
   }
 }

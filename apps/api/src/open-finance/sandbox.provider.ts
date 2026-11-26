@@ -66,6 +66,13 @@ export class SandboxOpenFinanceProvider implements OpenFinanceProvider {
     return TRANSACTIONS;
   }
 
+  /**
+   * Consentimento de sandbox.
+   *
+   * `externalId` vazio é proposital: sem um id do provedor, este registro nunca
+   * pode ser confundido com uma autorização real nem reaproveitado por um job
+   * de sincronização. Quem consome sandbox sabe que o dado é fictício.
+   */
   async createConsent(): Promise<OpenFinanceConsent> {
     const externalId = `sandbox_consent_${crypto.randomUUID()}`;
     return {

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AllocationsService } from './allocations.service';
 import { SettleAllocationDto, UpsertAllocationDto } from './dto/allocation.dto';
@@ -6,6 +17,29 @@ import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
+}
+
+/**
+ * Pesos do rateio como números finitos e positivos.
+ *
+ * `IsObject` garante objeto, não garante valores: `{"a": "1e999"}` passaria pelo
+ * pipe e explodiria dentro do `splitAmount`. Aqui o formato errado vira 400.
+ */
+function sanitizeWeights(weights?: Record<string, unknown>): Record<string, number> | undefined {
+  if (!weights) return undefined;
+  const entries = Object.entries(weights);
+  if (entries.length > 50) {
+    throw new BadRequestException('Rateio com pesos demais.');
+  }
+  const result: Record<string, number> = {};
+  for (const [key, value] of entries) {
+    const numeric = typeof value === 'number' ? value : Number.NaN;
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      throw new BadRequestException(`Peso inválido para o participante ${key}.`);
+    }
+    result[key] = numeric;
+  }
+  return result;
 }
 
 @Controller('allocations')
@@ -30,7 +64,10 @@ export class AllocationsController {
     return this.allocations.upsert(req.user.userId, id, {
       participants: dto.participants,
       mode: dto.mode,
-      weights: dto.weights,
+      // Sanitização final: `IsObject` aceita `{ a: "x" }`. Chave numérica
+      // estranha vira 400 aqui, em vez de BigInt inválido (500) no meio do
+      // cálculo de rateio.
+      weights: sanitizeWeights(dto.weights),
     });
   }
 

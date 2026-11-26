@@ -16,6 +16,16 @@ export class MfaService {
     private readonly encryption: EncryptionService
   ) {}
 
+  /** E-mail do usuário, usado para rotular o segredo no app autenticador. */
+  async profileForMfa(userId: string): Promise<{ email: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+    return user;
+  }
+
   /** Gera um segredo base32 e a URL otpauth (Google Authenticator etc.). */
   generateSecret(email: string) {
     const generated = speakeasy.generateSecret({

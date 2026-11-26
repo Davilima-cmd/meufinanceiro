@@ -16,10 +16,12 @@ const CENTS = /^-?\d{1,19}$/;
 
 export class CreateRecurrenceDto {
   @IsString()
+  @Length(1, 255)
   accountId: string;
 
   @IsOptional()
   @IsString()
+  @Length(1, 255)
   categoryId?: string;
 
   @IsString()

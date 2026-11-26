@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { HttpAdapterHost } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { setupOpenApi } from './common/openapi';
@@ -32,15 +33,56 @@ function allowedOrigins(): string[] {
   return ['http://localhost:3000', 'http://127.0.0.1:3000'];
 }
 
-export async function createApp(): Promise<INestApplication> {
+/**
+ * Cabeçalhos de segurança da API.
+ *
+ * A API só devolve JSON, então o objetivo aqui é fechar o navegador: nada de
+ * enquadrar (clickjacking), nada de adivinhar tipo de conteúdo (sniffing de
+ * JSON virando HTML), nada de vazar a URL anterior. Sem dependência externa
+ * (helmet) porque são cinco headers — e sem anunciar `x-powered-by`.
+ */
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Cross-Origin-Resource-Policy': 'same-site',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+};
+
+/** Corpo máximo aceito: JSON financeiro legítimo fica muito abaixo disso. */
+const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 1_000_000);
+
+export async function createApp(): Promise<NestExpressApplication> {
   // Sem `SENTRY_DSN` isto é um no-op: nenhum ambiente depende de conta externa.
   initSentry();
 
   // `rawBody` é o corpo HTTP original, necessário para validar a
   // assinatura HMAC dos webhooks do provedor Open Finance.
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+
+  // Limite de corpo: uma requisição de 50 MB não pode virar consumo de memória
+  // (JSON é parseado inteiro antes de qualquer validação de schema).
+  app.useBodyParser('json', { limit: MAX_BODY_BYTES });
+  app.useBodyParser('urlencoded', { limit: MAX_BODY_BYTES, extended: true });
 
   app.setGlobalPrefix('api');
+
+  // `disable('x-powered-by')` esconde a stack; os demais headers valem para
+  // qualquer resposta, inclusive erro.
+  app.getHttpAdapter().getInstance().disable?.('x-powered-by');
+  app.use(
+    (
+      _req: unknown,
+      res: { setHeader: (name: string, value: string) => void },
+      next: () => void
+    ) => {
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+        res.setHeader(name, value);
+      }
+      next();
+    }
+  );
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

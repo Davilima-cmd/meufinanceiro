@@ -6,6 +6,7 @@ import {
   Get,
   Inject,
   NotFoundException,
+  Optional,
   Post,
   Req,
   UseGuards,
@@ -68,8 +69,12 @@ export class OpenFinanceAccountsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly syncService: SyncService,
+    // `null` em produção sem credenciais do provedor: o ambiente não tem
+    // sandbox nem provedor real, e todas as rotas respondem erro de
+    // configuração em vez de inventar dados bancários.
+    @Optional()
     @Inject(OPEN_FINANCE_PROVIDER)
-    private readonly provider: OpenFinanceProvider
+    private readonly provider: OpenFinanceProvider | null
   ) {}
 
   /**
@@ -120,6 +125,19 @@ export class OpenFinanceAccountsController {
     if (!item) {
       throw new NotFoundException('Item não encontrado no provedor');
     }
+    /**
+     * Titularidade do item (IDOR).
+     *
+     * O `itemId` vem do navegador. Sem esta checagem, quem descobrisse o id de
+     * outra pessoa chamaria `connect-item` e importaria as contas dela para a
+     * própria conta no app. O provedor guarda o `clientUserId` que enviamos no
+     * token — é ele que prova de quem é o item.
+     */
+    if (item.clientUserId && item.clientUserId !== req.user.userId) {
+      // 404 e não 403: confirmar a existência do item já é informação demais.
+      throw new NotFoundException('Item não encontrado no provedor');
+    }
+
     if (item.status === 'LOGIN_ERROR' || item.status === 'OUTDATED') {
       throw new BadRequestException(
         'O banco recusou a conexão. Refaça o consentimento informando as credenciais novamente.'
@@ -233,7 +251,7 @@ export class OpenFinanceAccountsController {
       };
     }
 
-    const accounts = await this.provider.listAccounts(req.user.userId);
+    const accounts = await this.provider!.listAccounts(req.user.userId);
     // Uma conta já vinculada não deve aparecer de novo na lista.
     const linked = await this.prisma.bankConnection.findMany({
       where: { providerAccountId: { in: accounts.map((account) => account.id) } },
@@ -244,7 +262,7 @@ export class OpenFinanceAccountsController {
     );
 
     return {
-      provider: this.provider.kind,
+      provider: this.provider!.kind,
       available: true,
       accounts: accounts.map((account) => ({
         providerAccountId: account.id,
@@ -273,7 +291,7 @@ export class OpenFinanceAccountsController {
       );
     }
 
-    const available = await this.provider.listAccounts(req.user.userId);
+    const available = await this.provider!.listAccounts(req.user.userId);
     const remote = available.find((account) => account.id === dto.providerAccountId);
     if (!remote) {
       // 404 e não 400: o id informado não existe na instituição.
@@ -292,7 +310,7 @@ export class OpenFinanceAccountsController {
       );
     }
 
-    const consent = await this.provider.createConsent(req.user.userId);
+    const consent = await this.provider!.createConsent(req.user.userId);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const account = await tx.financialAccount.create({
@@ -362,15 +380,22 @@ export class OpenFinanceAccountsController {
    */
   /** O provider só é Pluggy quando as credenciais estão configuradas. */
   private asPluggy(): PluggyOpenFinanceProvider | null {
+    if (!this.provider) return null;
     const candidate = this.provider as Partial<PluggyOpenFinanceProvider>;
     return typeof candidate.connectToken === 'function'
       ? (this.provider as PluggyOpenFinanceProvider)
       : null;
   }
 
+  /**
+   * Provedor real disponível? Provedor real sempre vale; sandbox só fora de
+   * produção. A variável `OPEN_FINANCE_SANDBOX_IN_PRODUCTION` foi removida de
+   * propósito: liberar dado bancário fictício em produção por env var é o tipo
+   * de atalho que acaba ligado no ambiente errado.
+   */
   private providerLive(): boolean {
+    if (!this.provider) return false;
     if (this.provider.kind === 'live') return true;
-    if (process.env.NODE_ENV !== 'production') return true;
-    return process.env.OPEN_FINANCE_SANDBOX_IN_PRODUCTION === 'true';
+    return process.env.NODE_ENV !== 'production';
   }
 }

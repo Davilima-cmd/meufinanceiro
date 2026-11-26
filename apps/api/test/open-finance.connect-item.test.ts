@@ -84,7 +84,11 @@ beforeEach(() => {
   providerMock.listAccounts.mockImplementation(async (_userId?: string, itemId?: string) =>
     itemId ? ACCOUNTS.filter((account) => account.itemId === itemId) : ACCOUNTS
   );
-  providerMock.itemStatus.mockResolvedValue({ status: 'UPDATED', executionStatus: 'SUCCESS' });
+  providerMock.itemStatus.mockResolvedValue({
+    status: 'UPDATED',
+    executionStatus: 'SUCCESS',
+    clientUserId: 'user-1',
+  });
   providerMock.createConsent.mockResolvedValue({
     externalId: 'item-1',
     status: 'active',
@@ -164,8 +168,29 @@ describe('POST /open-finance/connect-item', () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
+  it('recusa item de outro usuário (o itemId vem do navegador)', async () => {
+    // Cenário de IDOR: alguém descobre o itemId de outra pessoa e chama
+    // `connect-item` para importar as contas dela para a própria conta.
+    providerMock.itemStatus.mockResolvedValue({
+      status: 'UPDATED',
+      executionStatus: 'SUCCESS',
+      clientUserId: 'outro-usuario',
+    });
+
+    await expect(controller().connectItem(req, { itemId: 'item-1' })).rejects.toBeInstanceOf(
+      NotFoundException
+    );
+    // Nada foi criado nem lido do provedor depois da checagem.
+    expect(providerMock.listAccounts).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   it('recusa item em erro de login em vez de criar vínculo quebrado', async () => {
-    providerMock.itemStatus.mockResolvedValue({ status: 'LOGIN_ERROR', executionStatus: 'ERROR' });
+    providerMock.itemStatus.mockResolvedValue({
+      status: 'LOGIN_ERROR',
+      executionStatus: 'ERROR',
+      clientUserId: 'user-1',
+    });
 
     await expect(controller().connectItem(req, { itemId: 'item-1' })).rejects.toBeInstanceOf(
       BadRequestException

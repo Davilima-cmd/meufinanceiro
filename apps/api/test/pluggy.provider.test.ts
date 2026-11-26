@@ -123,6 +123,7 @@ describe('PluggyOpenFinanceProvider', () => {
     expect(await provider.itemStatus('item-1')).toEqual({
       status: 'UPDATING',
       executionStatus: 'SUCCESS',
+      clientUserId: null,
     });
   });
 

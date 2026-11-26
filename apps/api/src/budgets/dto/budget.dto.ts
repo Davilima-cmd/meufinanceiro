@@ -1,9 +1,10 @@
-import { IsDateString, IsOptional, IsString, Matches } from 'class-validator';
+import { IsDateString, IsOptional, IsString, Length, Matches } from 'class-validator';
 
 const CENTS_PATTERN = /^-?\d{1,19}$/;
 
 export class CreateBudgetDto {
   @IsString()
+  @Length(1, 255)
   categoryId: string;
 
   /** Centavos inteiros em string (ex.: "60000" = R$ 600,00). */

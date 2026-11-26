@@ -119,9 +119,15 @@ export class PluggyOpenFinanceProvider implements OpenFinanceProvider {
   }
 
   /** Status do item no provedor, para a tela mostrar "sincronizando"/"erro". */
-  async itemStatus(itemId: string): Promise<{ status: string; executionStatus: string | null }> {
+  async itemStatus(
+    itemId: string
+  ): Promise<{ status: string; executionStatus: string | null; clientUserId: string | null }> {
     const item = await this.client().getItem(itemId);
-    return { status: item.status, executionStatus: item.executionStatus ?? null };
+    return {
+      status: item.status,
+      executionStatus: item.executionStatus ?? null,
+      clientUserId: item.clientUserId ?? null,
+    };
   }
 
   /**

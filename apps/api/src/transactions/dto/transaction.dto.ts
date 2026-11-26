@@ -8,6 +8,7 @@ export const TRANSACTION_STATUSES = ['pending', 'paid', 'canceled'] as const;
 
 export class CreateTransactionDto {
   @IsString()
+  @Length(1, 255)
   accountId: string;
 
   @IsString()
@@ -23,11 +24,13 @@ export class CreateTransactionDto {
 
   @IsOptional()
   @IsString()
+  @Length(1, 255)
   categoryId?: string;
 
   /** Obrigatório quando `type` é `transfer`: conta que recebe o valor. */
   @IsOptional()
   @IsString()
+  @Length(1, 255)
   transferAccountId?: string;
 
   /** Data de caixa: quando o dinheiro entrou/saiu (ou vai entrar/sair). */

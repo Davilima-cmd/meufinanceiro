@@ -11,6 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { MfaSessionStrategy } from './mfa-session.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { resolveJwtSecret } from './jwt-secret';
+import { LoginThrottleService } from './login-throttle.service';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { resolveJwtSecret } from './jwt-secret';
   ],
   providers: [
     AuthService,
+    LoginThrottleService,
     PasswordResetService,
     SessionService,
     LocalStrategy,
@@ -38,6 +40,6 @@ import { resolveJwtSecret } from './jwt-secret';
     MfaSessionStrategy,
   ],
   controllers: [AuthController],
-  exports: [AuthService, SessionService],
+  exports: [AuthService, SessionService, LoginThrottleService],
 })
 export class AuthModule {}

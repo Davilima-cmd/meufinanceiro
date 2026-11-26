@@ -8,11 +8,14 @@ import {
   Res,
   Query,
   NotFoundException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtService } from '@nestjs/jwt';
 import { MfaService } from './mfa.service';
+import { LoginThrottleService } from '../auth/login-throttle.service';
 import { EnableMfaDto, VerifyMfaDto } from './dto/mfa.dto';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 import { SessionService } from '../auth/session.service';
@@ -29,15 +32,32 @@ export class MfaController {
   constructor(
     private readonly mfaService: MfaService,
     private readonly jwt: JwtService,
-    private readonly sessions: SessionService
+    private readonly sessions: SessionService,
+    private readonly throttle: LoginThrottleService
   ) {}
 
-  /** Retorna o QR code (data URL) e a URL otpauth para um segredo TOTP. */
+  /**
+   * Gera um segredo novo o servidor e devolve o QR code.
+   *
+   * Antes o cliente mandava o segredo que quisesse por query string, gerando um
+   * QR code para um segredo arbitrário (e o segredo ia parar em log de acesso,
+   * histórico do navegador e cache do proxy, porque era uma URL). Agora o
+   * segredo nasce aqui, com CSPRNG, e só existe na resposta autenticada.
+   */
+  @Get('secret')
+  @UseGuards(AuthGuard('jwt'))
+  @AuditLog(AuditAction.MFA_ENABLE)
+  async newSecret(@Req() req: AuthenticatedRequest) {
+    const user = await this.mfaService.profileForMfa(req.user.userId);
+    return this.mfaService.generateSecret(user.email);
+  }
+
+  /** QR code (data URL) do segredo informado. O segredo vai no query, não no corpo. */
   @Get('qr-code')
   @UseGuards(AuthGuard('jwt'))
   async qrCode(@Query('secret') secret: string) {
-    if (!secret) {
-      throw new NotFoundException('Informe o parâmetro ?secret=');
+    if (!secret || !/^[A-Z2-7]{16,64}$/.test(secret)) {
+      throw new NotFoundException('Informe um segredo base32 válido em ?secret=');
     }
     const otpauthUrl = `otpauth://totp/MeuFinanceiro:${encodeURIComponent(
       secret
@@ -80,10 +100,25 @@ export class MfaController {
       cookie(name: string, value: string, options?: Record<string, unknown>): unknown;
     }
   ) {
+    // 6 dígitos são só 1 milhão de combinações: o limite por IP não segura
+    // força bruta distribuída. Cada usuário tem o seu próprio bloqueio.
+    const key = `mfa:${req.user.userId}`;
+    if (this.throttle.isLocked(key)) {
+      throw new HttpException(
+        {
+          message: 'Muitas tentativas de código. Tente novamente mais tarde.',
+          retryAfter: this.throttle.retryAfterSeconds(key),
+        },
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
+
     const valid = await this.mfaService.validateMFA(req.user.userId, dto.token);
     if (!valid) {
+      this.throttle.registerFailure(key);
       throw new NotFoundException('Token TOTP inválido');
     }
+    this.throttle.registerSuccess(key);
     // A sessão de verdade só nasce depois do segundo fator.
     const { token, sessionId } = await this.sessions.create(req.user.userId);
     const csrfToken = csrfTokenFor(sessionId);

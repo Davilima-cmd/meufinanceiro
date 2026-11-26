@@ -62,9 +62,18 @@ export function splitAmount({
     if (weight === undefined || !Number.isFinite(weight) || weight <= 0) {
       throw new Error(`Peso inválido para o participante ${userId}.`);
     }
+    // Teto do peso: sem isto, `1e308` escalado vira um BigInt de 300 dígitos e
+    // `total * micro` estoura a memória/CPU do processo (DoS pelo próprio
+    // payload). 1e9 já é mais que qualquer percentual ou valor realista.
+    if (weight > 1_000_000_000) {
+      throw new Error(`Peso acima do limite para o participante ${userId}.`);
+    }
     // Trabalhamos com micro-unidades para não perder precisão em percentuais
     // fracionários (ex.: 33,333%) sem recorrer a float na soma final.
     const scaled = BigInt(Math.round(weight * 1_000_000));
+    if (scaled <= 0n) {
+      throw new Error(`Peso pequeno demais para o participante ${userId}.`);
+    }
     weightSum += scaled;
     micro.push(scaled);
   }

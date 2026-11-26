@@ -151,21 +151,30 @@ describe('POST /open-finance/link-account', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('permite o sandbox em produção quando liberado por variável de ambiente', async () => {
-    // Caminho para testar o fluxo ponta a ponta antes de contratar um provedor.
+  it('não libera o sandbox em produção nem com variável de ambiente', async () => {
+    // A variável `OPEN_FINANCE_SANDBOX_IN_PRODUCTION` foi removida: era ela que
+    // permitia criar conta com saldo fictício dentro de uma conta real. O
+    // sandbox só existe fora de produção.
     process.env.NODE_ENV = 'production';
     process.env.OPEN_FINANCE_SANDBOX_IN_PRODUCTION = 'true';
     const sandbox = { ...providerMock, kind: 'sandbox' } as unknown as OpenFinanceProvider;
 
     try {
-      const result = await controller(sandbox).linkAccount(req, {
-        provider: 'sandbox',
-        providerAccountId: 'remote-1',
-      });
-      expect(result.connectionId).toBe('conn-1');
+      await expect(
+        controller(sandbox).linkAccount(req, { provider: 'sandbox', providerAccountId: 'remote-1' })
+      ).rejects.toBeInstanceOf(BadRequestException);
     } finally {
       delete process.env.OPEN_FINANCE_SANDBOX_IN_PRODUCTION;
     }
+  });
+
+  it('sem provedor configurado em produção, responde erro de configuração', async () => {
+    process.env.NODE_ENV = 'production';
+    // É o que o módulo injeta em produção sem credenciais do Pluggy.
+    const result = await controller(null as unknown as OpenFinanceProvider).availableAccounts(req);
+
+    expect(result).toMatchObject({ available: false, provider: 'nenhum' });
+    expect(result.reason).toContain('não está liberada');
   });
 
   it('falha na sincronização não desfaz o vínculo', async () => {

@@ -53,6 +53,12 @@ export type PluggyItem = {
   id: string;
   status: string;
   executionStatus?: string | null;
+  /**
+   * `clientUserId` que **nós** informamos ao criar o connect token. É o vínculo
+   * do item com o usuário do app — a única prova confiável de titularidade,
+   * já que o `itemId` sozinho é um identificador opaco (quem o obtiver não deve
+   * conseguir importar a conta de outra pessoa).
+   */
   clientUserId?: string | null;
   error?: { code?: string; message?: string } | null;
 };
