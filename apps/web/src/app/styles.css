@@ -2143,3 +2143,328 @@ a.notice:hover {
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/* =========================================================================
+   Refinamento visual — 2026-11-27
+   A base (tema, grades, componentes) já existia; o que muda aqui é a *voz*
+   da interface: hierarquia no menu, cabeçalho que fala com quem está lendo,
+   números alinhados e um pouco de luz onde antes havia só caixas cinzas.
+   ========================================================================= */
+
+:root {
+  /* gradiente da marca, usado no logo, no boot e nos detalhes de destaque */
+  --brand-gradient: linear-gradient(135deg, #8b7bff 0%, #6a55f2 45%, #4be0c0 100%);
+  --glow-accent: 0 18px 40px -18px rgba(139, 123, 255, 0.55);
+}
+
+/* Números nunca dançam: a fonte tabular vem de `Money`, mas listas e tabelas
+   também exibem valores por conta própria. */
+.money,
+.table .num,
+.row-amount,
+.stat-value,
+.hero-balance .value,
+.mini-stat strong,
+.legend-row strong,
+.goal-amounts strong {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* -------- marca -------- */
+
+.brand-mark,
+.boot-mark {
+  background: var(--brand-gradient);
+  box-shadow: var(--glow-accent);
+}
+
+.brand-text {
+  font-size: 15.5px;
+}
+
+/* -------- menu em grupos -------- */
+
+.nav {
+  gap: 18px;
+  padding-bottom: 4px;
+}
+
+.nav-group {
+  display: grid;
+  gap: 2px;
+}
+
+.nav-group-label {
+  margin: 0 0 4px;
+  padding: 0 11px;
+  color: var(--muted-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-item.is-active {
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft),
+    color-mix(in srgb, var(--accent-soft) 25%, transparent)
+  );
+}
+
+.nav-item.is-active .nav-pip {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.nav-item:focus-visible,
+.icon-button:focus-visible,
+.button:focus-visible,
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* -------- barra do topo: onde estou + quem está -------- */
+
+.topbar {
+  gap: 12px;
+  min-height: 62px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.topbar-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.topbar-crumb {
+  color: var(--muted-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.topbar-hello {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* -------- cabeçalho de página -------- */
+
+.page-header h1 {
+  font-size: clamp(1.55rem, 1.15rem + 1.5vw, 2.15rem);
+  letter-spacing: -0.035em;
+  line-height: 1.16;
+  text-wrap: balance;
+}
+
+.page-description {
+  max-width: 58ch;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.eyebrow {
+  margin-bottom: 8px;
+  font-size: 10.5px;
+}
+
+/* -------- cartões com um pouco de luz -------- */
+
+.card,
+.stat {
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.stat:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+
+.card-heading h2 {
+  font-size: 15px;
+  letter-spacing: -0.015em;
+}
+
+.card-heading p {
+  line-height: 1.45;
+}
+
+/* -------- hero: o retrato do mês -------- */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(20px, 2.4vw, 30px);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  background:
+    radial-gradient(110% 150% at 0% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 58%),
+    radial-gradient(80% 120% at 100% 100%, rgba(75, 224, 192, 0.12), transparent 60%),
+    var(--surface);
+  box-shadow: 0 30px 70px -50px rgba(0, 0, 0, 0.9);
+}
+
+.hero-mood {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: start;
+  padding: 4px 11px 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
+.hero-mood-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.hero-mood.is-positive {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.hero-mood.is-negative {
+  background: var(--negative-soft);
+  color: var(--negative);
+}
+
+.hero-mood.is-neutral {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.hero-balance .label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.hero-balance .value {
+  margin-top: -2px;
+}
+
+.mini-stat {
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.mini-stat:hover {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border-soft));
+}
+
+/* -------- listas e linhas -------- */
+
+.row-mark {
+  border-radius: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.list-row {
+  border-radius: var(--radius-sm);
+  transition: background 140ms ease;
+}
+
+.list-row .row-copy strong {
+  font-weight: 600;
+}
+
+.empty-state {
+  border-color: var(--border);
+  background:
+    radial-gradient(90% 120% at 50% 0%, var(--accent-soft), transparent 70%), var(--surface-2);
+}
+
+.empty-icon {
+  border-radius: 14px;
+}
+
+/* -------- estado vazio do app: convite, não muro -------- */
+
+.notice {
+  transition: border-color 140ms ease;
+}
+
+.demo-banner {
+  align-items: center;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+  color: var(--text);
+}
+
+.demo-banner strong {
+  font-weight: 650;
+}
+
+.demo-banner-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.demo-banner .link-button {
+  margin-left: auto;
+}
+
+/* -------- botões com peso de ação -------- */
+
+.button-primary {
+  background: var(--brand-gradient);
+  box-shadow: var(--glow-accent);
+}
+
+.button-primary:hover {
+  filter: brightness(1.06);
+}
+
+/* -------- acessibilidade -------- */
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted: #c4cbdb;
+    --muted-soft: #a7b0c2;
+    --border: #3a4152;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar-hello {
+    display: none;
+  }
+  .demo-banner {
+    margin-bottom: 18px;
+  }
+  .demo-banner .link-button {
+    margin-left: 0;
+  }
+}

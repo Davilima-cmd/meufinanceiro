@@ -27,8 +27,10 @@ export function Money({
   }
   const cents = typeof value === 'bigint' ? value : BigInt(value);
   const prefix = signed && cents > 0n ? '+' : '';
+  // `money` alinha os dígitos na vertical (tabular-nums): sem isso uma coluna
+  // de valores "dança" a cada centavo que muda.
   return (
-    <span className={className}>
+    <span className={['money', className].filter(Boolean).join(' ')}>
       {prefix}
       {formatBRL(cents)}
     </span>

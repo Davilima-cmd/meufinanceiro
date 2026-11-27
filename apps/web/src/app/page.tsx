@@ -17,6 +17,7 @@ import {
   toCents,
 } from '@/lib/format';
 import { useFinance } from '@/lib/store';
+import { greetingFor, hourOfDay, monthHeadline } from '@/lib/narrative';
 
 export default function DashboardPage() {
   const { snapshot, session } = useFinance();
@@ -83,6 +84,16 @@ export default function DashboardPage() {
     (account) => account.shareLevel !== 'FULL'
   ).length;
 
+  // A frase do mês: o painel abre dizendo alguma coisa, em vez de só empilhar
+  // números. E muda conforme o mês vai andando.
+  const headline = monthHeadline({
+    monthLabel: formatMonth(monthKey),
+    incomeCents: overview.incomeCents,
+    expenseCents: overview.expenseCents,
+    savingsRate: overview.incomeCents > 0n ? overview.savingsRate : null,
+    pendingCount: overview.pendingTransactions.length,
+  });
+
   const upcomingGoal = overview.goals[0] ?? null;
   const goalRecord = upcomingGoal
     ? snapshot.goals.find((goal) => goal.id === upcomingGoal.id)
@@ -91,9 +102,9 @@ export default function DashboardPage() {
   return (
     <AppShell>
       <PageHeader
-        eyebrow="Visão geral"
-        title={`Olá, ${session?.user.name.split(' ')[0] ?? 'tudo bem'}!`}
-        description="Saldo consolidado das contas do casal, gastos do mês e o que está por vir."
+        eyebrow={`${greetingFor(hourOfDay())}, ${session?.user.name.split(' ')[0] ?? 'por aqui'}`}
+        title={headline.title}
+        description={headline.detail}
         actions={
           <>
             <div className="segmented" aria-label="Selecionar mês">
@@ -139,6 +150,14 @@ export default function DashboardPage() {
 
         <section className="hero">
           <div className="hero-balance">
+            <span className={`hero-mood is-${headline.tone}`}>
+              <span aria-hidden="true" className="hero-mood-dot" />
+              {headline.tone === 'positive'
+                ? 'mês no azul'
+                : headline.tone === 'negative'
+                  ? 'mês no vermelho'
+                  : 'mês neutro'}
+            </span>
             <span className="label">Saldo consolidado (contas visíveis)</span>
             <span className="value">
               <Money value={overview.netWorthCents} />

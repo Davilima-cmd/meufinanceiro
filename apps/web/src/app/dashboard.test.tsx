@@ -35,9 +35,12 @@ describe('Visão geral', () => {
   it('mostra saudação, saldo consolidado e seções principais', async () => {
     renderDashboard();
 
+    // O título agora é a frase do mês (o que o painel tem a dizer); a saudação
+    // com o nome continua ali, no olho do cabeçalho.
     await waitFor(() =>
-      expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Davi')
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/novembro/i)
     );
+    expect(screen.getAllByText(/Davi/).length).toBeGreaterThan(0);
     expect(screen.getByText('Saldo consolidado (contas visíveis)')).toBeTruthy();
     expect(screen.getByText('Entradas e saídas')).toBeTruthy();
     expect(screen.getByText('Onde o dinheiro foi')).toBeTruthy();

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useFinance } from '@/lib/store';
 import { initialOf } from '@/lib/format';
+import { greetingFor, hourOfDay, sessionLabel } from '@/lib/narrative';
 
 type NavItem = {
   href: string;
@@ -92,7 +93,36 @@ const NAV: NavItem[] = [
   },
 ];
 
+/**
+ * O menu tinha 12 itens com o mesmo peso visual: "Categorias" e "Visão geral"
+ * pareciam igualmente importantes. Aqui os itens ficam em três grupos com
+ * rótulo — o dia a dia primeiro, depois planejamento e por fim a conta.
+ */
+const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: 'Todo dia',
+    items: NAV.filter((item) =>
+      ['/', '/lancamentos', '/vencimentos', '/contas', '/recorrencias'].includes(item.href)
+    ),
+  },
+  {
+    label: 'Planejar',
+    items: NAV.filter((item) =>
+      ['/orcamentos', '/metas', '/patrimonio', '/categorias'].includes(item.href)
+    ),
+  },
+  {
+    label: 'Conta',
+    items: NAV.filter((item) => ['/casal', '/configuracoes'].includes(item.href)),
+  },
+];
+
 const MOBILE_NAV = NAV.slice(0, 5);
+
+/** Rótulo do caminho atual, inclusive nas telas que não estão no menu. */
+function currentTitle(pathname: string): string {
+  return NAV.find((item) => item.href === pathname)?.label ?? 'Painel';
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { snapshot, session, signOut, setHideValues, toggleTheme, hydrated, resetDemo } =
@@ -123,6 +153,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const user = session.user;
+  const initialName = user.name.trim().split(/\s+/)[0] || 'por aqui';
 
   return (
     <div className="shell" data-theme={theme}>
@@ -138,35 +169,41 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
 
         <nav aria-label="Navegação principal" className="nav">
-          {NAV.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                aria-current={active ? 'page' : undefined}
-                className={`nav-item ${active ? 'is-active' : ''}`}
-                href={item.href}
-                key={item.href}
-                onClick={() => setMenuOpen(false)}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {NAV_GROUPS.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <p className="nav-group-label">{group.label}</p>
+              {group.items.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    aria-current={active ? 'page' : undefined}
+                    className={`nav-item ${active ? 'is-active' : ''}`}
+                    href={item.href}
+                    key={item.href}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <span className="nav-icon">{item.icon}</span>
+                    <span>{item.label}</span>
+                    {active ? <span aria-hidden="true" className="nav-pip" /> : null}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-footer">
-          {session.mode === 'demo' ? (
-            <div className="demo-chip">
-              <span className="dot" aria-hidden="true" />
-              Modo demonstração
-            </div>
-          ) : (
-            <div className="demo-chip is-live">
-              <span className="dot" aria-hidden="true" />
-              Conectado à API
-            </div>
-          )}
+          {(() => {
+            // Uma função pura decide o tom da sessão: a mesma frase não serve
+            // para "dados fictícios" e para "sua conta de verdade".
+            const status = sessionLabel(session.mode);
+            return (
+              <div className={`demo-chip ${status.live ? 'is-live' : ''}`}>
+                <span className="dot" aria-hidden="true" />
+                {status.text}
+              </div>
+            );
+          })()}
           <div className="user-box">
             <span aria-hidden="true" className="avatar">
               {initialOf(user.name)}
@@ -199,7 +236,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Icon path="M4 7h16M4 12h16M4 17h16" />
           </button>
           <div className="topbar-title">
-            {NAV.find((item) => item.href === pathname)?.label ?? 'Painel'}
+            <span className="topbar-crumb">{currentTitle(pathname)}</span>
+            <span className="topbar-hello">
+              {greetingFor(hourOfDay())}, {initialName}
+            </span>
           </div>
           <div className="topbar-actions">
             <span className="topbar-hint">
@@ -238,8 +278,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {session.mode === 'demo' ? (
           <div className="demo-banner">
+            <span className="demo-banner-icon" aria-hidden="true">
+              ✦
+            </span>
             <span>
-              Você está no modo demonstração, com dados fictícios do casal salvos neste navegador.
+              <strong>Modo demonstração.</strong> Tudo aqui é fictício e fica só neste navegador —
+              experimente à vontade, nada vai para o servidor.
             </span>
             <button className="link-button" onClick={resetDemo} type="button">
               Restaurar dados de exemplo
