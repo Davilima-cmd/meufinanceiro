@@ -3,6 +3,7 @@ import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { CronController, CronSecretGuard } from '../src/cron/cron.controller';
 import type { RecurrencesService } from '../src/recurrences/recurrences.service';
 import type { SyncService } from '../src/sync/sync.service';
+import type { WebhookConsumerService } from '../src/open-finance/webhook-consumer.service';
 
 /**
  * Rotas de cron.
@@ -16,11 +17,13 @@ import type { SyncService } from '../src/sync/sync.service';
 
 const recurrencesMock = { run: vi.fn() };
 const syncMock = { runDailyReconciliation: vi.fn() };
+const webhooksMock = { processPending: vi.fn() };
 
 function controller() {
   return new CronController(
     recurrencesMock as unknown as RecurrencesService,
-    syncMock as unknown as SyncService
+    syncMock as unknown as SyncService,
+    webhooksMock as unknown as WebhookConsumerService
   );
 }
 
@@ -75,12 +78,36 @@ describe('CronController', () => {
     vi.clearAllMocks();
     recurrencesMock.run.mockResolvedValue({ created: 3 });
     syncMock.runDailyReconciliation.mockResolvedValue(undefined);
+    webhooksMock.processPending.mockResolvedValue({
+      inspected: 0,
+      processed: 0,
+      ignored: 0,
+      usersSynced: 0,
+    });
+  });
+
+  it('processa os webhooks pendentes antes da conciliação', async () => {
+    webhooksMock.processPending.mockResolvedValue({
+      inspected: 4,
+      processed: 3,
+      ignored: 1,
+      usersSynced: 2,
+    });
+
+    const result = await controller().daily();
+
+    expect(webhooksMock.processPending).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ webhooksInspected: 4, webhooksProcessed: 3 });
+    // Ordem importa: o evento diz quais usuários precisam sincronizar.
+    expect(webhooksMock.processPending.mock.invocationCallOrder[0]).toBeLessThan(
+      syncMock.runDailyReconciliation.mock.invocationCallOrder[0]
+    );
   });
 
   it('roda recorrências de todos os usuários e a reconciliação diária', async () => {
     const result = await controller().daily();
 
-    expect(result).toEqual({ ok: true, recurrencesCreated: 3 });
+    expect(result).toMatchObject({ ok: true, recurrencesCreated: 3 });
     // Sem `userId`: cron não é de um usuário só.
     expect(recurrencesMock.run).toHaveBeenCalledWith();
     expect(syncMock.runDailyReconciliation).toHaveBeenCalledTimes(1);

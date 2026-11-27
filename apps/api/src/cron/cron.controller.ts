@@ -15,6 +15,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { SkipCsrf } from '../common/skip-csrf.decorator';
 import { RecurrencesService } from '../recurrences/recurrences.service';
 import { SyncService } from '../sync/sync.service';
+import { WebhookConsumerService } from '../open-finance/webhook-consumer.service';
 
 /**
  * Tarefas periódicas em ambiente serverless.
@@ -72,7 +73,8 @@ export class CronSecretGuard implements CanActivate {
 export class CronController {
   constructor(
     private readonly recurrences: RecurrencesService,
-    private readonly sync: SyncService
+    private readonly sync: SyncService,
+    private readonly webhooks: WebhookConsumerService
   ) {}
 
   /**
@@ -87,8 +89,21 @@ export class CronController {
   @UseGuards(CronSecretGuard)
   async daily() {
     const recurrences = await this.recurrences.run();
+    /**
+     * Eventos de webhook primeiro: eles dizem **quais** usuários precisam
+     * sincronizar agora e quais conexões foram revogadas. Sem isso a tabela
+     * `webhook_events` só acumulava linhas com `processed: false` e o aviso do
+     * provedor chegava ao app apenas na conciliação diária.
+     */
+    const webhooks = await this.webhooks.processPending();
     await this.sync.runDailyReconciliation();
-    return { ok: true, recurrencesCreated: recurrences.created };
+    return {
+      ok: true,
+      recurrencesCreated: recurrences.created,
+      webhooksInspected: webhooks.inspected,
+      webhooksProcessed: webhooks.processed,
+      usersSyncedByWebhook: webhooks.usersSynced,
+    };
   }
 
   /** Mesma rotina por GET, para crons que só fazem requisição simples. */

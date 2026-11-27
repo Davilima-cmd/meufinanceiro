@@ -8,6 +8,7 @@ import { PluggyOpenFinanceProvider } from './pluggy.provider';
 import { PluggyClient } from './pluggy.client';
 import { OPEN_FINANCE_PROVIDER } from './open-finance.provider';
 import { SyncModule } from '../sync/sync.module';
+import { WebhookConsumerService } from './webhook-consumer.service';
 
 /**
  * Controllers do módulo de Open Finance.
@@ -63,6 +64,8 @@ const PROVIDER = resolveProviderClass();
   imports: [PrismaModule, SyncModule],
   controllers: CONTROLLERS,
   providers: [
+    // Consome `webhook_events` (antes a tabela só crescia: ninguém lia).
+    WebhookConsumerService,
     SandboxOpenFinanceProvider,
     PluggyOpenFinanceProvider,
     // Em produção sem credenciais do provedor não há provedor: quem injeta
@@ -76,6 +79,6 @@ const PROVIDER = resolveProviderClass();
         ]
       : [{ provide: OPEN_FINANCE_PROVIDER, useValue: null }]),
   ],
-  exports: [OPEN_FINANCE_PROVIDER],
+  exports: [OPEN_FINANCE_PROVIDER, WebhookConsumerService],
 })
 export class OpenFinanceModule {}
