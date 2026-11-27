@@ -8,30 +8,36 @@
   /* CAJU Finance — verde sobre papel claro. O tema escuro continua existindo
      como escolha em Configurações, mas a identidade do produto é esta. */
   color-scheme: light;
-  --font-sans:
-    'Nunito Variable', 'Nunito', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Manual da marca: Sora nos títulos, Inter no texto. */
+  --font-sans: 'Inter Variable', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Sora Variable', 'Sora', var(--font-sans);
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 
-  --canvas: #f5f8f5;
-  --canvas-soft: #ffffff;
+  /* Paleta oficial: Off White #F8F6F1, Grafite #1A1A1A, Caju #F7931E,
+     Coral #F26D6D, Roxo #A78BFA, Verde #A7C957. */
+  --canvas: #f8f6f1;
+  --canvas-soft: #fffdf9;
   --surface: #ffffff;
-  --surface-2: #f1f6f2;
-  --surface-3: #e4ece6;
-  --border: #d7e2da;
-  --border-soft: #e6ece7;
-  --text: #14301f;
-  --muted: #5d6f64;
-  --muted-soft: #8a998f;
-  --accent: #176b45;
-  --accent-strong: #123d2b;
-  --accent-soft: rgba(23, 107, 69, 0.1);
-  --positive: #176b45;
-  --positive-soft: rgba(53, 166, 111, 0.14);
-  --negative: #c0453d;
-  --negative-soft: rgba(192, 69, 61, 0.1);
-  --warning: #b07a16;
-  --warning-soft: rgba(176, 122, 22, 0.12);
-  --shadow: 0 22px 50px -34px rgba(18, 61, 43, 0.35);
+  --surface-2: #f4f1ea;
+  --surface-3: #eae6dc;
+  --border: #e0dcd1;
+  --border-soft: #ece8df;
+  --text: #1a1a1a;
+  --muted: #6b6660;
+  --muted-soft: #948e86;
+  --accent: #f7931e;
+  --accent-strong: #d97a0b;
+  --accent-soft: rgba(247, 147, 30, 0.13);
+  --positive: #6f8f2f;
+  --positive-soft: rgba(167, 201, 87, 0.2);
+  --negative: #e0554f;
+  --negative-soft: rgba(242, 109, 109, 0.14);
+  --warning: #d97a0b;
+  --warning-soft: rgba(247, 147, 30, 0.14);
+  --coral: #f26d6d;
+  --purple: #a78bfa;
+  --lime: #a7c957;
+  --shadow: 0 22px 50px -34px rgba(26, 26, 26, 0.4);
   --radius-lg: 18px;
   --radius-md: 14px;
   --radius-sm: 12px;
@@ -40,26 +46,27 @@
 /* Tema escuro — variante, com o mesmo verde como acento. */
 [data-theme='dark'] {
   color-scheme: dark;
-  --canvas: #0c1512;
-  --canvas-soft: #101b16;
-  --surface: #14211b;
-  --surface-2: #182821;
-  --surface-3: #1f332a;
-  --border: #263f34;
-  --border-soft: #1c2f26;
-  --text: #eaf5ee;
-  --muted: #9bb0a4;
-  --muted-soft: #74897d;
-  --accent: #4fd39a;
-  --accent-strong: #35a66f;
-  --accent-soft: rgba(79, 211, 154, 0.14);
-  --positive: #4fd39a;
-  --positive-soft: rgba(79, 211, 154, 0.12);
-  --negative: #ff8b84;
-  --negative-soft: rgba(255, 139, 132, 0.12);
-  --warning: #f0c173;
-  --warning-soft: rgba(240, 193, 115, 0.12);
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  /* O manual tem o grafite como fundo de marca: o escuro do app é esse. */
+  --canvas: #141414;
+  --canvas-soft: #1a1a1a;
+  --surface: #1f1f1f;
+  --surface-2: #262626;
+  --surface-3: #303030;
+  --border: #3a3a3a;
+  --border-soft: #2b2b2b;
+  --text: #f8f6f1;
+  --muted: #a8a29a;
+  --muted-soft: #857f78;
+  --accent: #f7931e;
+  --accent-strong: #ffb057;
+  --accent-soft: rgba(247, 147, 30, 0.18);
+  --positive: #a7c957;
+  --positive-soft: rgba(167, 201, 87, 0.16);
+  --negative: #f26d6d;
+  --negative-soft: rgba(242, 109, 109, 0.16);
+  --warning: #ffb057;
+  --warning-soft: rgba(255, 176, 87, 0.16);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
 }
 
 *,
@@ -4393,4 +4400,356 @@ a:focus-visible,
 /* Cada `stat` já tem seu próprio espaçamento; o grid cuida do resto. */
 .stat-grid {
   gap: 12px;
+}
+
+/* =========================================================================
+   Manual da marca CAJU (grafite + laranja/coral/roxo, Sora sobre Inter)
+   A camada ilustrativa anterior estava presa ao verde. Aqui ela passa a usar
+   as cores do manual, mantendo contorno escuro só como acabamento — não mais
+   como estrutura da tela.
+   ========================================================================= */
+
+:root {
+  --ink: #1a1a1a;
+  --ink-shadow: #1a1a1a;
+  --illu-mint: #ffe6cc;
+  --illu-mint-2: #ffd0b8;
+  --illu-lime: #f7d9a0;
+  --illu-peach: #f26d6d;
+  --illu-coin: #ffb057;
+  --illu-coin-2: #f26d6d;
+  --illu-note: #a78bfa;
+  --illu-line: rgba(26, 26, 26, 0.14);
+  --outline: 1.5px solid var(--ink);
+  --outline-soft: 1.5px solid var(--ink);
+  --shadow-sticker: 6px 6px 0 rgba(26, 26, 26, 0.9);
+  --shadow-sticker-sm: 4px 4px 0 rgba(26, 26, 26, 0.86);
+}
+
+[data-theme='dark'] {
+  --ink: #f8f6f1;
+  --ink-shadow: #000000;
+  --illu-mint: #3a2a17;
+  --illu-mint-2: #4a2b1a;
+  --illu-lime: #6b5a2a;
+  --illu-peach: #f26d6d;
+  --illu-coin: #ffb057;
+  --illu-coin-2: #f26d6d;
+  --illu-note: #a78bfa;
+  --illu-line: rgba(248, 246, 241, 0.12);
+  --shadow-sticker: 6px 6px 0 rgba(0, 0, 0, 0.55);
+  --shadow-sticker-sm: 4px 4px 0 rgba(0, 0, 0, 0.55);
+}
+
+/* -------- títulos em Sora, texto em Inter -------- */
+
+h1,
+h2,
+h3,
+h4,
+.page-header h1,
+.card-heading h2,
+.auth-card h1,
+.auth-showcase h2,
+.hero .value,
+.stat-value,
+.account-balance,
+.hero-mood,
+.sticker,
+.brand-copy strong {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.page-header h1 {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.hero .value,
+.account-balance,
+.stat-value {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.brand-copy strong {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.brand-copy small {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+}
+
+/* -------- marca: quadrado grafite com o "c" em degradê -------- */
+
+.brand-mark,
+.boot-mark {
+  background: #1a1a1a;
+  color: #f8f6f1;
+  box-shadow: none;
+}
+
+.brand-mark svg,
+.boot-mark svg {
+  width: 78%;
+  height: 78%;
+}
+
+/* -------- destaque do painel: chapado em laranja claro, sem verde -------- */
+
+.hero {
+  border: var(--outline);
+  background:
+    radial-gradient(120% 120% at 90% -20%, rgba(247, 147, 30, 0.5), transparent 58%),
+    linear-gradient(150deg, #fff4e6 0%, #ffe3d0 54%, #f7d8e2 100%);
+  box-shadow: 8px 8px 0 rgba(26, 26, 26, 0.14);
+}
+
+[data-theme='dark'] .hero {
+  border-color: #3a3a3a;
+  background:
+    radial-gradient(120% 120% at 88% -14%, rgba(247, 147, 30, 0.32), transparent 60%),
+    radial-gradient(90% 90% at 6% 108%, rgba(167, 139, 250, 0.22), transparent 62%),
+    #1f1f1f;
+}
+
+.hero::after {
+  opacity: 0.5;
+}
+
+.hero-mood {
+  border: var(--outline);
+  background: var(--surface);
+  box-shadow: 2px 2px 0 rgba(26, 26, 26, 0.16);
+}
+
+[data-theme='dark'] .hero-mood {
+  border-color: var(--border);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+/* -------- botões: primário laranja, texto grafite -------- */
+
+.button {
+  border-width: 1.5px;
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--ink-shadow);
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+
+.button-primary {
+  border-color: var(--ink);
+  background: var(--accent);
+  color: #1a1a1a;
+}
+
+.button-primary:hover {
+  background: #ffa53a;
+}
+
+.button-ghost {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.button-ghost:hover {
+  border-color: var(--ink);
+}
+
+[data-theme='dark'] .button-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #141414;
+}
+
+[data-theme='dark'] .button {
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .button:hover {
+  border-color: var(--accent);
+}
+
+[data-theme='dark'] .button-ghost {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* -------- cartões: linhas finas, sem "adesivo" pesado -------- */
+
+.card,
+.stat,
+.mini-stat,
+.account-card {
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(26, 26, 26, 0.04);
+}
+
+.hero-side .mini-stat {
+  border: 1.5px solid rgba(26, 26, 26, 0.16);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .card,
+[data-theme='dark'] .stat,
+[data-theme='dark'] .mini-stat,
+[data-theme='dark'] .account-card,
+[data-theme='dark'] .hero-side .mini-stat {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+/* -------- navegação -------- */
+
+.nav-item {
+  border: 0;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.nav-item:hover {
+  background: var(--surface-2);
+}
+
+.nav-item.is-active {
+  border: 0;
+  background: rgba(247, 147, 30, 0.14);
+  box-shadow: none;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nav-item.is-active .nav-pip {
+  background: var(--accent);
+}
+
+.nav-group-label {
+  color: var(--muted-soft);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* -------- chips, segmentado, abas -------- */
+
+.chip,
+.chip-toggle,
+.segmented {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+}
+
+.chip.is-selected,
+.chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.segmented {
+  box-shadow: none;
+}
+
+.segmented button.is-selected {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(26, 26, 26, 0.06);
+}
+
+.badge {
+  border-width: 1.5px;
+  font-weight: 600;
+}
+
+/* -------- campos -------- */
+
+.input,
+.select-trigger,
+.money-field,
+.day-field {
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+}
+
+.input:focus,
+.select-trigger[aria-expanded='true'],
+.money-field:focus-within,
+.day-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* -------- ilustrações: cores do manual, sem filtro de papel -------- */
+
+.illu-coin,
+.illu-note {
+  filter: none;
+}
+
+.illu-spark {
+  color: var(--accent);
+  filter: none;
+}
+
+.page-header h1::after {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.auth-tabs button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--text);
+}
+
+.auth-card {
+  border: 1.5px solid var(--border);
+  box-shadow: 0 24px 60px -40px rgba(26, 26, 26, 0.55);
+}
+
+.auth-page {
+  background:
+    radial-gradient(70% 60% at 14% 6%, rgba(247, 147, 30, 0.22), transparent 62%),
+    radial-gradient(70% 60% at 88% 92%, rgba(167, 139, 250, 0.2), transparent 62%),
+    var(--canvas);
+}
+
+[data-theme='dark'] .auth-page {
+  background:
+    radial-gradient(70% 60% at 14% 6%, rgba(247, 147, 30, 0.2), transparent 62%),
+    radial-gradient(70% 60% at 88% 92%, rgba(167, 139, 250, 0.16), transparent 62%),
+    var(--canvas);
+}
+
+.auth-orb {
+  background: radial-gradient(circle at 30% 30%, rgba(247, 147, 30, 0.5), transparent 70%);
+}
+
+.auth-orb-b {
+  background: radial-gradient(circle at 60% 40%, rgba(167, 139, 250, 0.45), transparent 70%);
+}
+
+/* Sora nos números grandes do painel, Inter no resto. */
+.hero .value,
+.stat-value,
+.account-balance,
+.mini-stat strong,
+.legend-row strong {
+  font-family: var(--font-display);
 }

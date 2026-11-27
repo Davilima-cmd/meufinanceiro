@@ -3,11 +3,10 @@ import type { ReactNode } from 'react';
 /**
  * Ilustrações do CAJU Finance.
  *
- * A referência visual da apresentação (estilo "illustrative", contorno preto
- * grosso, formas chapadas e rabiscos) entra aqui como peças reutilizáveis:
- * uma moeda, uma nota de dinheiro, um raio e o rabisco de fundo. Tudo é SVG
- * escrito à mão em `currentColor` + variáveis da paleta, então acompanha o
- * tema claro/escuro sem peso de imagem e sem requisição extra.
+ * Peças desenhadas à mão (moeda, nota, raio, carretel de linha e rabisco) na
+ * paleta do manual: laranja Caju, coral, roxo e verde. Tudo em SVG com
+ * variáveis de cor, então acompanha o tema claro/escuro sem peso de imagem e
+ * sem requisição extra.
  */
 
 /** Rabisco decorativo de fundo (o "espiral" solto da referência). */
@@ -51,7 +50,20 @@ export function Coin({ className = '', size = 64 }: { className?: string; size?:
       viewBox="0 0 64 64"
       width={size}
     >
-      <circle cx="32" cy="32" fill="var(--illu-coin)" r="27" stroke="var(--ink)" strokeWidth="4" />
+      <defs>
+        <linearGradient id="illu-coin-grad" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor="var(--illu-coin)" />
+          <stop offset="1" stopColor="var(--illu-coin-2)" />
+        </linearGradient>
+      </defs>
+      <circle
+        cx="32"
+        cy="32"
+        fill="url(#illu-coin-grad)"
+        r="27"
+        stroke="var(--ink)"
+        strokeWidth="4"
+      />
       <circle
         cx="32"
         cy="32"
