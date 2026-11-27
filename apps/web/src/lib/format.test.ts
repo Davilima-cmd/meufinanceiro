@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_AMOUNT_CENTS,
   centsFromInput,
   daysUntil,
   formatBRL,
@@ -32,6 +33,42 @@ describe('centsFromInput', () => {
     expect(centsFromInput('')).toBe(0n);
     expect(centsFromInput('abc')).toBe(0n);
     expect(centsFromInput('   ')).toBe(0n);
+  });
+
+  it('trata ponto com 3 dígitos como milhar', () => {
+    expect(centsFromInput('1.234')).toBe(123400n);
+    expect(centsFromInput('1.234.567')).toBe(123456700n);
+  });
+
+  it('vírgula é sempre decimal: 3 dígitos truncam, não inflam mil vezes', () => {
+    // Em pt-BR a vírgula é decimal e o ponto é milhar. Se sobrarem 3 dígitos
+    // depois da vírgula, truncar perde centavos; ler como milhar multiplicaria
+    // por mil. O erro pequeno é o aceitável.
+    expect(centsFromInput('1,239')).toBe(123n);
+    expect(centsFromInput('1,234')).toBe(123n);
+    expect(centsFromInput('1,2')).toBe(120n);
+    expect(centsFromInput('1,20')).toBe(120n);
+  });
+
+  it('separa milhar e decimal pelo último separador', () => {
+    expect(centsFromInput('1.234,56')).toBe(123456n);
+    expect(centsFromInput('1,234.56')).toBe(123456n);
+  });
+
+  it('não perde o valor quando a parte decimal tem 4+ dígitos (regressão)', () => {
+    // Antes "1.2345" virava R$ 1,23 — mil vezes menor, sem aviso nenhum.
+    expect(centsFromInput('1.2345')).toBe(1234500n);
+    expect(centsFromInput('12.3456')).toBe(12345600n);
+  });
+
+  it('limita ao intervalo da coluna Decimal(20,0)', () => {
+    const huge = '999999999999999999999999';
+    expect(centsFromInput(huge)).toBe(MAX_AMOUNT_CENTS);
+    expect(centsFromInput(huge).toString().length).toBe(19);
+  });
+
+  it('ignora texto colado em volta do número', () => {
+    expect(centsFromInput('R$ 1.000')).toBe(100000n);
   });
 });
 

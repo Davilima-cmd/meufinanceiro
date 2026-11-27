@@ -61,7 +61,10 @@ describe('MFA — contrato com a API', () => {
   });
 
   it('pede o QR code sem mandar segredo na URL', async () => {
-    const fetchMock = mockFetch(200, { qrCode: 'data:image/png;base64,x', otpauthUrl: 'otpauth://totp/x' });
+    const fetchMock = mockFetch(200, {
+      qrCode: 'data:image/png;base64,x',
+      otpauthUrl: 'otpauth://totp/x',
+    });
 
     await api.mfaQrCode();
 

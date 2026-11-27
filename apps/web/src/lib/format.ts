@@ -12,21 +12,73 @@ const compactFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 1,
 });
 
-/** Converte texto digitado pelo usuário ("1.234,56", "12.34", "-40") em centavos. */
+/**
+ * Converte o texto digitado pelo usuário em centavos.
+ *
+ * Regra explícita, porque digitação livre é ambígua:
+ * - aceita separador de milhar (`.`) e decimal (`,` ou `.`);
+ * - o **último** separador é decimal quando tem 1 ou 2 dígitos depois dele;
+ *   com 3+ dígitos é milhar — exceto 3 dígitos depois de vírgula, que é
+ *   decimal a truncar ("1,239" = R$ 1,23), porque no Brasil `.` é o milhar;
+ * - mais de 2 dígitos decimais são truncados, não arredondados: o usuário vê o
+ *   valor que digitou, sem centavo inventado;
+ * - `-` na frente ou valor entre parênteses = negativo;
+ * - o resultado é limitado ao intervalo da coluna `Decimal(20,0)`: sem isso uma
+ *   digitação longa ou colada estourava o banco (erro 500 ao criar o
+ *   lançamento).
+ */
+export const MAX_AMOUNT_CENTS = 9_999_999_999_999_999_999n;
+
 export function centsFromInput(input: string): bigint {
   const raw = input.trim();
   if (!raw) return 0n;
 
   const negative = raw.startsWith('-') || raw.startsWith('(');
-  const digitsOnly = raw.replace(/[^\d.,]/g, '');
-  const normalized = normalizeSeparators(digitsOnly);
-  if (!normalized) return 0n;
+  // Só dígitos, `.` e `,`: "R$", espaços e letras ("12 reais") saem fora.
+  const cents = parseAmount(raw.replace(/[^\d.,]/g, ''));
+  if (cents === null) return 0n;
 
-  const [whole, fraction = ''] = normalized.split('.');
-  const cents = BigInt(whole || '0') * 100n + BigInt(fraction.padEnd(2, '0').slice(0, 2));
-  return negative ? -cents : cents;
+  const signed = negative ? -cents : cents;
+  if (signed > MAX_AMOUNT_CENTS) return MAX_AMOUNT_CENTS;
+  if (signed < -MAX_AMOUNT_CENTS) return -MAX_AMOUNT_CENTS;
+  return signed;
 }
 
+/** Núcleo da conversão. `null` quando não há nenhum dígito aproveitável. */
+function parseAmount(value: string): bigint | null {
+  if (!value) return null;
+
+  const lastIndex = Math.max(value.lastIndexOf(','), value.lastIndexOf('.'));
+  let whole = value;
+  let fraction = '';
+
+  if (lastIndex >= 0) {
+    const tail = value.slice(lastIndex + 1).replace(/[.,]/g, '');
+    const isComma = value[lastIndex] === ',';
+    if (tail.length === 0) {
+      // "1.234." — separador solto no fim: fica só o inteiro.
+      whole = value.slice(0, lastIndex);
+    } else if (tail.length <= 2 || (isComma && tail.length === 3)) {
+      whole = value.slice(0, lastIndex);
+      fraction = tail;
+    }
+    // Qualquer outro caso (3+ dígitos depois de ponto, vários pontos) é
+    // milhar: os separadores saem e o número fica inteiro.
+  }
+
+  const wholeDigits = whole.replace(/\D/g, '');
+  fraction = fraction.replace(/\D/g, '').slice(0, 2).padEnd(2, '0');
+  if (!wholeDigits && fraction === '00') return null;
+
+  return BigInt(wholeDigits || '0') * 100n + BigInt(fraction);
+}
+
+/**
+ * Converte um valor monetário já em centavos (API, estado interno, fixtures)
+ * para bigint. Texto é sempre interpretado como centavos: "1234" = R$ 12,34,
+ * o que evita leituras ambíguas de separador decimal. Para texto digitado pelo
+ * usuário use `centsFromInput`.
+ */
 /**
  * Converte um valor monetário já em centavos (API, estado interno, fixtures)
  * para bigint. Texto é sempre interpretado como centavos: "1234" = R$ 12,34,
@@ -43,26 +95,6 @@ export function toCents(input: string | number | bigint): bigint {
   } catch {
     return 0n;
   }
-}
-
-function normalizeSeparators(value: string): string {
-  if (!value) return '';
-  const hasComma = value.includes(',');
-  const hasDot = value.includes('.');
-
-  if (hasComma && hasDot) {
-    // O último separador é o decimal (padrão brasileiro: 1.234,56).
-    return value.lastIndexOf(',') > value.lastIndexOf('.')
-      ? value.replace(/\./g, '').replace(',', '.')
-      : value.replace(/,/g, '');
-  }
-  if (hasComma) return value.replace(',', '.');
-  if (hasDot) {
-    // "1.234" costuma ser milhar; "1.23" é decimal.
-    const decimals = value.split('.')[1] ?? '';
-    return decimals.length === 3 ? value.replace(/\./g, '') : value;
-  }
-  return value;
 }
 
 /** Formata centavos como "R$ 1.234,56". */

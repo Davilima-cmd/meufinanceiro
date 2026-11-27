@@ -51,7 +51,25 @@ const SECURITY_HEADERS: Record<string, string> = {
 };
 
 /** Corpo máximo aceito: JSON financeiro legítimo fica muito abaixo disso. */
-const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 1_000_000);
+const DEFAULT_MAX_BODY_BYTES = 1_000_000;
+
+/**
+ * Lê o limite de corpo da env.
+ *
+ * `Number('')` é `0` e `Number('1mb')` é `NaN`: os dois passavam direto para o
+ * body parser. Com `limit: NaN` o parser compara `bytes > NaN` (sempre falso) e
+ * o **limite deixa de existir** — um corpo de 50 MB seria lido inteiro em
+ * memória. Com `0`, toda requisição com corpo quebrava. Inválido agora cai no
+ * padrão, em vez de desligar a proteção em silêncio.
+ */
+export function resolveMaxBodyBytes(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === '') return DEFAULT_MAX_BODY_BYTES;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_BODY_BYTES;
+  return Math.floor(parsed);
+}
+
+const MAX_BODY_BYTES = resolveMaxBodyBytes(process.env.MAX_BODY_BYTES);
 
 export async function createApp(): Promise<NestExpressApplication> {
   // Sem `SENTRY_DSN` isto é um no-op: nenhum ambiente depende de conta externa.
