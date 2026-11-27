@@ -134,3 +134,98 @@ describe('Campo de data próprio', () => {
     expect(future.disabled).toBe(true);
   });
 });
+
+/**
+ * `dialog.prompt` — substitui `window.prompt` (usado na tela de patrimônio
+ * para alterar o valor de um bem). `window.prompt` é bloqueante, sem estilo e
+ * sem validação visível.
+ */
+function PromptHarness({ onResult }: { onResult: (value: string | null) => void }) {
+  const dialog = useDialog();
+  return (
+    <button
+      onClick={async () => {
+        const value = await dialog.prompt({
+          title: 'Novo valor de “Carro”',
+          label: 'Valor (R$)',
+          defaultValue: '1.234,56',
+          inputMode: 'decimal',
+          confirmLabel: 'Salvar valor',
+        });
+        onResult(value);
+      }}
+      type="button"
+    >
+      pedir valor
+    </button>
+  );
+}
+
+describe('dialog.prompt', () => {
+  it('devolve o texto digitado ao salvar', async () => {
+    const results: Array<string | null> = [];
+    render(
+      <DialogProvider>
+        <PromptHarness onResult={(value) => results.push(value)} />
+      </DialogProvider>
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'pedir valor' }));
+    const input = await screen.findByLabelText('Valor (R$)');
+    // O valor atual vem preenchido, para a pessoa ajustar em vez de digitar tudo.
+    expect((input as HTMLInputElement).value).toBe('1.234,56');
+
+    await userEvent.clear(input);
+    await userEvent.type(input, '2.000,00');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar valor' }));
+
+    await waitFor(() => expect(results).toEqual(['2.000,00']));
+  });
+
+  it('devolve null ao cancelar (mesmo contrato do window.prompt)', async () => {
+    const results: Array<string | null> = [];
+    render(
+      <DialogProvider>
+        <PromptHarness onResult={(value) => results.push(value)} />
+      </DialogProvider>
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'pedir valor' }));
+    await screen.findByLabelText('Valor (R$)');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    await waitFor(() => expect(results).toEqual([null]));
+  });
+
+  it('não deixa salvar com o campo vazio', async () => {
+    render(
+      <DialogProvider>
+        <PromptHarness onResult={() => undefined} />
+      </DialogProvider>
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'pedir valor' }));
+    const input = await screen.findByLabelText('Valor (R$)');
+    await userEvent.clear(input);
+
+    expect(
+      (screen.getByRole('button', { name: 'Salvar valor' }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
+
+  it('envia o valor no Enter, sem precisar do botão', async () => {
+    const results: Array<string | null> = [];
+    render(
+      <DialogProvider>
+        <PromptHarness onResult={(value) => results.push(value)} />
+      </DialogProvider>
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'pedir valor' }));
+    const input = await screen.findByLabelText('Valor (R$)');
+    await userEvent.clear(input);
+    await userEvent.type(input, '99,90{Enter}');
+
+    await waitFor(() => expect(results).toEqual(['99,90']));
+  });
+});

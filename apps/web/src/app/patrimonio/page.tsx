@@ -61,16 +61,38 @@ export default function PatrimonioPage() {
     setValue('');
   }
 
-  async function handleValueChange(itemId: string, currentValue: string) {
-    const input = window.prompt('Novo valor (R$)', formatBRL(toCents(currentValue)));
-    if (input === null) return;
-    const cents = centsFromInput(input);
-    if (cents <= 0n) {
-      setError('Informe um valor maior que zero.');
+  /**
+   * Alterar o valor de um bem/dívida.
+   *
+   * Antes usava `window.prompt`: caixa do navegador, sem estilo, sem validação
+   * visível e travando a página. Agora é o mesmo diálogo do resto do app, e o
+   * valor é conferido com retorno explícito ("Informe um valor maior que zero")
+   * sem perder o que a pessoa digitou.
+   */
+  async function handleValueChange(itemName: string, itemId: string, currentValue: string) {
+    let suggestion = formatBRL(toCents(currentValue)).replace('R$ ', '');
+    for (;;) {
+      const input = await dialog.prompt({
+        title: `Novo valor de “${itemName}”`,
+        description: 'Valor positivo em reais. O tipo do item define se soma ou subtrai.',
+        label: 'Valor (R$)',
+        defaultValue: suggestion,
+        inputMode: 'decimal',
+        confirmLabel: 'Salvar valor',
+      });
+      if (input === null) return;
+      const cents = centsFromInput(input);
+      if (cents <= 0n) {
+        // Reabre com o texto digitado, para corrigir em vez de recomeçar.
+        suggestion = input;
+        setError('Informe um valor maior que zero.');
+        continue;
+      }
+      setError(null);
+      const failure = await updateNetWorthItemValue(itemId, cents.toString());
+      if (failure) setError(failure);
       return;
     }
-    const failure = await updateNetWorthItemValue(itemId, cents.toString());
-    if (failure) setError(failure);
   }
 
   return (
@@ -198,7 +220,7 @@ export default function PatrimonioPage() {
                     <button
                       aria-label={`Alterar valor de ${item.name}`}
                       className="icon-button"
-                      onClick={() => void handleValueChange(item.id, item.valueCents)}
+                      onClick={() => void handleValueChange(item.name, item.id, item.valueCents)}
                       type="button"
                     >
                       ✎

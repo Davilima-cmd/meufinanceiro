@@ -25,6 +25,19 @@ export type ConfirmOptions = {
   tone?: 'danger' | 'default';
 };
 
+export type PromptOptions = {
+  title: string;
+  description?: string;
+  /** Texto inicial do campo. */
+  defaultValue?: string;
+  label?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  placeholder?: string;
+  /** Aceita só estes caracteres (ex.: dígitos, vírgula e ponto no valor). */
+  inputMode?: 'text' | 'decimal';
+};
+
 export type NoticeOptions = {
   title: string;
   description?: string;
@@ -33,13 +46,25 @@ export type NoticeOptions = {
 };
 
 type PendingRequest =
-  { kind: 'confirm'; options: ConfirmOptions } | { kind: 'notice'; options: NoticeOptions };
+  | { kind: 'confirm'; options: ConfirmOptions }
+  | { kind: 'notice'; options: NoticeOptions }
+  | { kind: 'prompt'; options: PromptOptions };
 
-type DialogRequest = PendingRequest & { id: number; resolve: (value: boolean) => void };
+/**
+ * `prompt` resolve com o texto digitado ou `null` se cancelado.
+ *
+ * Existe porque a tela de patrimônio usava `window.prompt` para alterar o valor
+ * de um bem: sem estilo, sem validação visível, com o "OK" do navegador e
+ * travando o app inteiro. Aqui é o mesmo diálogo do resto do produto.
+ */
+type DialogResult = boolean | string | null;
+
+type DialogRequest = PendingRequest & { id: number; resolve: (value: DialogResult) => void };
 
 type DialogApi = {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   notice: (options: NoticeOptions) => Promise<boolean>;
+  prompt: (options: PromptOptions) => Promise<string | null>;
 };
 
 const DialogContext = createContext<DialogApi | null>(null);
@@ -54,13 +79,13 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useState<DialogRequest | null>(null);
   const requestId = useRef(0);
 
-  const open = useCallback((next: PendingRequest) => {
+  const open = useCallback(<T extends DialogResult>(next: PendingRequest, cancelled: T) => {
     requestId.current += 1;
     const id = requestId.current;
-    return new Promise<boolean>((resolve) => {
+    return new Promise<T>((resolve) => {
       setRequest((current) => {
         // Um pedido pendente é descartado como "cancelado" ao ser substituído.
-        current?.resolve(false);
+        current?.resolve(cancelled);
         return { ...next, id, resolve } as DialogRequest;
       });
     });
@@ -68,13 +93,14 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<DialogApi>(
     () => ({
-      confirm: (options) => open({ kind: 'confirm', options }),
-      notice: (options) => open({ kind: 'notice', options }),
+      confirm: (options) => open<boolean>({ kind: 'confirm', options }, false),
+      notice: (options) => open<boolean>({ kind: 'notice', options }, false),
+      prompt: (options) => open<string | null>({ kind: 'prompt', options }, null),
     }),
     [open]
   );
 
-  function settle(value: boolean) {
+  function settle(value: DialogResult) {
     setRequest((current) => {
       current?.resolve(value);
       return null;
@@ -87,8 +113,8 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       {request ? (
         <AppDialog
           key={request.id}
-          onCancel={() => settle(false)}
-          onConfirm={() => settle(true)}
+          onCancel={() => settle(request.kind === 'prompt' ? null : false)}
+          onConfirm={(value) => settle(request.kind === 'prompt' ? (value ?? '') : true)}
           request={request}
         />
       ) : null}
@@ -102,21 +128,38 @@ function AppDialog({
   onCancel,
 }: {
   request: DialogRequest;
-  onConfirm: () => void;
+  onConfirm: (value?: string) => void;
   onCancel: () => void;
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isConfirm = request.kind === 'confirm';
+  const isPrompt = request.kind === 'prompt';
   const confirmOptions = isConfirm ? (request.options as ConfirmOptions) : null;
-  const noticeOptions = isConfirm ? null : (request.options as NoticeOptions);
-  const tone = isConfirm ? (confirmOptions?.tone ?? 'danger') : (noticeOptions?.tone ?? 'default');
+  const promptOptions = isPrompt ? (request.options as PromptOptions) : null;
+  const noticeOptions = isConfirm || isPrompt ? null : (request.options as NoticeOptions);
+  const tone = isConfirm
+    ? (confirmOptions?.tone ?? 'danger')
+    : isPrompt
+      ? 'default'
+      : (noticeOptions?.tone ?? 'default');
   const confirmLabel = isConfirm
     ? (confirmOptions?.confirmLabel ?? 'Excluir')
-    : (noticeOptions?.confirmLabel ?? 'Entendi');
+    : isPrompt
+      ? (promptOptions?.confirmLabel ?? 'Salvar')
+      : (noticeOptions?.confirmLabel ?? 'Entendi');
+
+  const [value, setValue] = useState(promptOptions?.defaultValue ?? '');
+  const canSubmit = !isPrompt || value.trim().length > 0;
 
   useEffect(() => {
-    confirmRef.current?.focus();
-  }, []);
+    if (isPrompt) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else {
+      confirmRef.current?.focus();
+    }
+  }, [isPrompt]);
 
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent) {
@@ -137,11 +180,11 @@ function AppDialog({
         aria-modal="true"
         className="dialog dialog-compact"
         onClick={(event) => event.stopPropagation()}
-        role="alertdialog"
+        role={isPrompt ? 'dialog' : 'alertdialog'}
       >
         <header className="dialog-header">
           <div>
-            <p className="eyebrow">{isConfirm ? 'Confirmação' : 'Aviso'}</p>
+            <p className="eyebrow">{isConfirm ? 'Confirmação' : isPrompt ? 'Editar' : 'Aviso'}</p>
             <h2 id="app-dialog-title">{request.options.title}</h2>
           </div>
           <button aria-label="Fechar" className="icon-button" onClick={onCancel} type="button">
@@ -153,21 +196,55 @@ function AppDialog({
             {request.options.description}
           </p>
         ) : null}
-        <div className="dialog-footer">
-          {isConfirm ? (
-            <button className="button button-ghost" onClick={onCancel} type="button">
-              {confirmOptions?.cancelLabel ?? 'Cancelar'}
-            </button>
-          ) : null}
-          <button
-            className={`button ${tone === 'danger' ? 'button-danger' : 'button-primary'}`}
-            onClick={onConfirm}
-            ref={confirmRef}
-            type="button"
+        {isPrompt ? (
+          <form
+            className="dialog-field"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSubmit) onConfirm(value);
+            }}
           >
-            {confirmLabel}
-          </button>
-        </div>
+            <label htmlFor="app-dialog-input">{promptOptions?.label ?? 'Valor'}</label>
+            <input
+              autoComplete="off"
+              id="app-dialog-input"
+              inputMode={promptOptions?.inputMode === 'decimal' ? 'decimal' : 'text'}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder={promptOptions?.placeholder}
+              ref={inputRef}
+              value={value}
+            />
+            <div className="dialog-footer">
+              <button className="button button-ghost" onClick={onCancel} type="button">
+                {promptOptions?.cancelLabel ?? 'Cancelar'}
+              </button>
+              <button
+                className="button button-primary"
+                disabled={!canSubmit}
+                ref={confirmRef}
+                type="submit"
+              >
+                {confirmLabel}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="dialog-footer">
+            {isConfirm ? (
+              <button className="button button-ghost" onClick={onCancel} type="button">
+                {confirmOptions?.cancelLabel ?? 'Cancelar'}
+              </button>
+            ) : null}
+            <button
+              className={`button ${tone === 'danger' ? 'button-danger' : 'button-primary'}`}
+              onClick={() => onConfirm()}
+              ref={confirmRef}
+              type="button"
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

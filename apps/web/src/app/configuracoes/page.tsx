@@ -131,10 +131,26 @@ export default function SettingsPage() {
           </div>
           <div className="settings-row">
             <div className="settings-row-copy">
-              <strong>Dados fictícios</strong>
-              <small>Este é um protótipo. Não insira dados bancários reais.</small>
+              <strong>Autenticação de dois fatores</strong>
+              <small>
+                {user?.mfaEnabled
+                  ? 'Ativa nesta conta (código de 6 dígitos no app autenticador).'
+                  : 'Desativada. Ativar protege o acesso mesmo se a senha vazar.'}
+              </small>
             </div>
-            <Badge tone="warning">protótipo</Badge>
+            <Badge tone={user?.mfaEnabled ? 'positive' : 'warning'}>
+              {user?.mfaEnabled ? 'ativa' : 'inativa'}
+            </Badge>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row-copy">
+              <strong>Seus dados são criptografados</strong>
+              <small>
+                Campos sensíveis (documento, conta, chave Pix) são guardados com AES-256-GCM; senhas
+                usam argon2 e nunca aparecem para ninguém.
+              </small>
+            </div>
+            <Badge tone="positive">ativo</Badge>
           </div>
         </Card>
       </div>
