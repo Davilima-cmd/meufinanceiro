@@ -196,6 +196,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         id: status.user.id,
         name: status.user.name,
         email: status.user.email,
+        // `GET /auth/status` já devolve o estado do segundo fator; sem copiar
+        // aqui a tela de Configurações mostrava "inativa" para quem tem MFA.
+        mfaEnabled: status.user.mfaEnabled,
       };
       const nextSession: Session = { mode: 'api', user };
       sessionRef.current = nextSession;

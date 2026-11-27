@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useFinance } from '@/lib/store';
 import type { FinanceUser } from '@/lib/types';
 
-type StoredApiSession = { token?: string; user?: { id: string; name: string; email: string } };
+type StoredApiSession = {
+  token?: string;
+  user?: { id: string; name: string; email: string; mfaEnabled?: boolean };
+};
 
 /** Entra no modo API usando a sessão salva pelo login na tela /login. */
 export default function ApiEntryPage() {
@@ -34,6 +37,7 @@ export default function ApiEntryPage() {
         id: parsed.user.id,
         name: parsed.user.name,
         email: parsed.user.email,
+        mfaEnabled: parsed.user.mfaEnabled,
       };
       void startApiSession(user).then(() => router.replace('/'));
     } catch {

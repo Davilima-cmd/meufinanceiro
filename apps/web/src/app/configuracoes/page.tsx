@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { MfaSetup } from '@/components/mfa-setup';
 import { Badge, Card, PageHeader } from '@/components/ui';
 import { API_BASE, hasConfiguredApi } from '@/lib/api';
 import { initialOf } from '@/lib/format';
@@ -10,8 +11,13 @@ import { useFinance } from '@/lib/store';
 export default function SettingsPage() {
   const { snapshot, session, signOut, resetDemo, setHideValues, toggleTheme } = useFinance();
   const [notice, setNotice] = useState('');
+  // O estado do segundo fator aparece aqui e muda nesta própria tela (ativar ou
+  // desativar). Guardar no componente evita depender de refazer a sessão: a
+  // resposta da API já diz o estado novo.
+  const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
 
   const user = session?.user;
+  const isMfaEnabled = mfaEnabled ?? Boolean(user?.mfaEnabled);
 
   return (
     <AppShell>
@@ -129,19 +135,17 @@ export default function SettingsPage() {
             </div>
             <Badge tone="accent">inteiro</Badge>
           </div>
-          <div className="settings-row">
-            <div className="settings-row-copy">
-              <strong>Autenticação de dois fatores</strong>
-              <small>
-                {user?.mfaEnabled
-                  ? 'Ativa nesta conta (código de 6 dígitos no app autenticador).'
-                  : 'Desativada. Ativar protege o acesso mesmo se a senha vazar.'}
-              </small>
+          {session?.mode === 'api' ? (
+            <MfaSetup enabled={isMfaEnabled} onChanged={setMfaEnabled} />
+          ) : (
+            <div className="settings-row">
+              <div className="settings-row-copy">
+                <strong>Autenticação de dois fatores</strong>
+                <small>Disponível apenas em contas reais: no modo demonstração não há login.</small>
+              </div>
+              <Badge tone="neutral">indisponível</Badge>
             </div>
-            <Badge tone={user?.mfaEnabled ? 'positive' : 'warning'}>
-              {user?.mfaEnabled ? 'ativa' : 'inativa'}
-            </Badge>
-          </div>
+          )}
           <div className="settings-row">
             <div className="settings-row-copy">
               <strong>Seus dados são criptografados</strong>

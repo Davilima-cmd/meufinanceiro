@@ -229,6 +229,27 @@ describe('FinanceProvider (modo API)', () => {
     expect(result.current.syncError).toBe('Aceite uma parceria antes de compartilhar contas');
   });
 
+  it('traz para a sessão o estado do segundo fator que a API informa', async () => {
+    apiMock.authStatus.mockResolvedValue({
+      authenticated: true,
+      user: { id: 'user-1', name: 'Davi', email: 'davi@ex.com', mfaEnabled: true },
+      sessionId: 'sess-1',
+      sessions: 1,
+    });
+    // Caminho de abertura do app: a sessão guardada é reconfirmada em
+    // `GET /auth/status`, que é quem sabe o estado do segundo fator.
+    window.localStorage.setItem(
+      'mf.session.v1',
+      JSON.stringify({ mode: 'api', user: { id: 'user-1', name: 'Davi', email: 'davi@ex.com' } })
+    );
+    const { result } = renderHook(() => useFinance(), { wrapper });
+    await waitFor(() => expect(result.current.session?.user.mfaEnabled).toBe(true));
+
+    // Sem isso a tela de Configurações mostrava "inativa" para quem tem MFA:
+    // o objeto de sessão era montado descartando o campo.
+    expect(result.current.session?.user.mfaEnabled).toBe(true);
+  });
+
   it('sair no modo API revoga a sessão no servidor', async () => {
     const result = await renderApiSession();
 

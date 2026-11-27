@@ -93,7 +93,19 @@ export default function LoginPage() {
       }
       // A sessão web vive no cookie `HttpOnly` que a API acabou de gravar: o
       // token não é guardado no `localStorage`, então um XSS não o alcança.
-      localStorage.setItem('mf.session.api', JSON.stringify({ user: result.user }));
+      // Guarda o estado do segundo fator junto com o usuário: a tela de
+      // Configurações precisa dele antes de qualquer chamada nova.
+      localStorage.setItem(
+        'mf.session.api',
+        JSON.stringify({
+          user: {
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            mfaEnabled: result.user.mfaEnabled,
+          },
+        })
+      );
       router.push('/api');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível entrar agora.';

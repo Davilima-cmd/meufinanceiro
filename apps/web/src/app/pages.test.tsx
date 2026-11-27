@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { DialogProvider } from '@/components/dialog';
 import { FinanceProvider, useFinance } from '@/lib/store';
 import BudgetsPage from '@/app/orcamentos/page';
+import SettingsPage from '@/app/configuracoes/page';
 import CategoriesPage from '@/app/categorias/page';
 
 vi.mock('next/navigation', () => ({
@@ -113,5 +114,16 @@ describe('Categorias', () => {
     await waitFor(() =>
       expect(screen.queryByRole('cell', { name: 'Assinaturas do Davi' })).toBeNull()
     );
+  });
+});
+
+describe('Configurações', () => {
+  it('no modo demonstração não oferece ativar o segundo fator', async () => {
+    renderPage(<SettingsPage />);
+
+    // Sem login não existe conta para proteger: a tela diz isso em vez de
+    // mostrar um botão que a API recusaria (modo demo não tem sessão).
+    expect(await screen.findByText(/Disponível apenas em contas reais/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Ativar segundo fator' })).toBeNull();
   });
 });
