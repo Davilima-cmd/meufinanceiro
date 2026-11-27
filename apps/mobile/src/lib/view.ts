@@ -28,18 +28,41 @@ export function buildView(snapshot: Snapshot | null) {
   if (!snapshot) return null;
   const categoryById = new Map(snapshot.categories.map((item) => [item.id, item.name]));
 
+  /**
+   * Lançamentos que entram nos totais.
+   *
+   * Três coisas ficavam de fora ou entravam erradas:
+   * - **transferência** entre contas do usuário não é receita nem despesa: era
+   *   somada como entrada na conta de destino e saída na de origem, inflando os
+   *   dois lados do mês. A saída continua aparecendo na lista (é o histórico),
+   *   mas fica fora dos totais;
+   * - **pendente** (a pagar/receber) não é caixa ainda: contava como dinheiro
+   *   que entrou/saiu e o saldo do mês não fechava com o extrato;
+   * - **cancelado** nunca aconteceu.
+   */
+  const isTransfer = (item: { type: string; transferId?: string | null }) =>
+    item.type === 'transfer' || Boolean(item.transferId);
+  const isCash = (item: { status: string }) => item.status === 'paid';
+
   const transactions: DemoTransaction[] = snapshot.transactions
     .slice()
     .sort((left, right) => (left.date < right.date ? 1 : -1))
     .map((item) => ({
       id: item.id,
       description: item.description,
-      category: item.categoryId
-        ? (categoryById.get(item.categoryId) ?? 'Sem categoria')
-        : 'Sem categoria',
+      category: isTransfer(item)
+        ? 'Transferência'
+        : item.categoryId
+          ? (categoryById.get(item.categoryId) ?? 'Sem categoria')
+          : 'Sem categoria',
       date: item.date.slice(0, 10).split('-').reverse().join('/'),
       amountCents: BigInt(item.amountCents),
     }));
+
+  // Base dos totais: só caixa de verdade, sem transferência entre contas.
+  const settled = snapshot.transactions.filter(
+    (item) => isCash(item) && !isTransfer(item) && item.status !== 'canceled'
+  );
 
   const accounts = snapshot.accounts.map((item) => ({
     name: item.name,
@@ -49,9 +72,13 @@ export function buildView(snapshot: Snapshot | null) {
   }));
 
   const byCategory = new Map<string, bigint>();
-  for (const item of transactions) {
-    if (item.amountCents >= 0n) continue;
-    byCategory.set(item.category, (byCategory.get(item.category) ?? 0n) + -item.amountCents);
+  for (const item of settled) {
+    const cents = BigInt(item.amountCents);
+    if (cents >= 0n) continue;
+    const name = item.categoryId
+      ? (categoryById.get(item.categoryId) ?? 'Sem categoria')
+      : 'Sem categoria';
+    byCategory.set(name, (byCategory.get(name) ?? 0n) + -cents);
   }
   const total = [...byCategory.values()].reduce((sum, value) => sum + value, 0n);
   const categories = [...byCategory.entries()]
@@ -63,12 +90,15 @@ export function buildView(snapshot: Snapshot | null) {
     }));
 
   const balanceCents = accounts.reduce((sum, account) => sum + account.cents, 0n);
-  const incomeCents = transactions
-    .filter((item) => item.amountCents > 0n)
-    .reduce((sum, item) => sum + item.amountCents, 0n);
-  const expenseCents = -transactions
-    .filter((item) => item.amountCents < 0n)
-    .reduce((sum, item) => sum + item.amountCents, 0n);
+  let incomeCents = 0n;
+  let expenseCents = 0n;
+  for (const item of settled) {
+    const cents = BigInt(item.amountCents);
+    // O sinal vem do valor, não do texto de `type`: é o mesmo critério da API
+    // na hora de aplicar saldo, e um `type` divergente não desalinha a tela.
+    if (cents > 0n) incomeCents += cents;
+    else if (cents < 0n) expenseCents += -cents;
+  }
 
   return { transactions, accounts, categories, balanceCents, incomeCents, expenseCents };
 }

@@ -112,3 +112,141 @@ describe('buildView', () => {
     expect(view.accounts[1].share).toMatch(/somente leitura/i);
   });
 });
+
+/**
+ * Regressão: transferência e pendente mexiam nos totais.
+ *
+ * Transferir 1.000 da conta A para a B aparecia como receita de 1.000 **e**
+ * despesa de 1.000; uma conta a pagar de 300 entrava como despesa antes de o
+ * dinheiro sair. O saldo do mês no app não fechava com o extrato.
+ */
+describe('buildView — o que entra nos totais', () => {
+  const base = {
+    accounts: [
+      {
+        id: 'acc-1',
+        name: 'Corrente',
+        institution: null,
+        type: 'checking',
+        currency: 'BRL',
+        balanceCents: '100000',
+        shareLevel: 'private',
+        ownerId: 'u1',
+        ownerName: 'Davi',
+        isActive: true,
+      },
+    ],
+    categories: [
+      { id: 'cat-1', name: 'Salário', color: '#0f0', isSystem: true },
+      { id: 'cat-2', name: 'Alimentação', color: '#00f', isSystem: true },
+    ],
+    goals: [],
+    transactions: [
+      {
+        id: 'income-1',
+        accountId: 'acc-1',
+        categoryId: 'cat-1',
+        description: 'Salário',
+        amountCents: '500000',
+        type: 'income',
+        origin: 'manual',
+        date: '2026-11-05',
+        status: 'paid',
+        createdAt: '2026-11-05T12:00:00Z',
+      },
+      {
+        id: 'transfer-out',
+        accountId: 'acc-1',
+        categoryId: null,
+        description: 'Para a poupança',
+        amountCents: '-100000',
+        type: 'transfer',
+        transferId: 'tr-1',
+        origin: 'manual',
+        date: '2026-11-06',
+        status: 'paid',
+        createdAt: '2026-11-06T12:00:00Z',
+      },
+      {
+        id: 'transfer-in',
+        accountId: 'acc-2',
+        categoryId: null,
+        description: 'Da corrente',
+        amountCents: '100000',
+        type: 'transfer',
+        transferId: 'tr-1',
+        origin: 'manual',
+        date: '2026-11-06',
+        status: 'paid',
+        createdAt: '2026-11-06T12:00:00Z',
+      },
+      {
+        id: 'pending-1',
+        accountId: 'acc-1',
+        categoryId: 'cat-2',
+        description: 'Mercado (a pagar)',
+        amountCents: '-30000',
+        type: 'expense',
+        origin: 'manual',
+        date: '2026-11-10',
+        status: 'pending',
+        createdAt: '2026-11-10T12:00:00Z',
+      },
+      {
+        id: 'canceled-1',
+        accountId: 'acc-1',
+        categoryId: 'cat-2',
+        description: 'Compra cancelada',
+        amountCents: '-90000',
+        type: 'expense',
+        origin: 'manual',
+        date: '2026-11-12',
+        status: 'canceled',
+        createdAt: '2026-11-12T12:00:00Z',
+      },
+    ],
+  } as unknown as Snapshot;
+
+  const view = buildView(base)!;
+
+  it('não conta transferência como receita nem como despesa', () => {
+    expect(view.incomeCents).toBe(500000n);
+    expect(view.expenseCents).toBe(0n);
+  });
+
+  it('não conta pendente nem cancelado', () => {
+    expect(view.categories).toEqual([]);
+  });
+
+  it('mostra a transferência na lista, com rótulo próprio', () => {
+    const transfer = view.transactions.find((item) => item.id === 'transfer-out');
+    expect(transfer?.category).toBe('Transferência');
+    // Continua na lista mesmo fora dos totais: é histórico.
+    expect(view.transactions).toHaveLength(5);
+  });
+
+  it('despesa liquidada entra na categoria e no total', () => {
+    const withPaidExpense = {
+      ...base,
+      transactions: [
+        ...base.transactions,
+        {
+          id: 'paid-1',
+          accountId: 'acc-1',
+          categoryId: 'cat-2',
+          description: 'Feira',
+          amountCents: '-25000',
+          type: 'expense',
+          origin: 'manual',
+          date: '2026-11-15',
+          status: 'paid',
+          createdAt: '2026-11-15T12:00:00Z',
+        },
+      ],
+    } as unknown as Snapshot;
+
+    const next = buildView(withPaidExpense)!;
+    expect(next.expenseCents).toBe(25000n);
+    expect(next.categories).toEqual([{ name: 'Alimentação', cents: 25000n, percent: 100 }]);
+  });
+});
