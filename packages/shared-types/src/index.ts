@@ -94,6 +94,34 @@ export type MfaQrCodeResponse = {
   qrCode?: string;
 };
 
+/** Recorrência mensal (aluguel, salário): gera o lançamento todo mês. */
+export type ApiRecurrence = {
+  id: string;
+  accountId: string;
+  categoryId: string | null;
+  description: string;
+  /** Centavos com sinal: negativo = despesa, positivo = receita. */
+  amountCents: string;
+  type: 'income' | 'expense' | string;
+  frequency: string;
+  /** Dia do mês (1–28) em que o lançamento é gerado. */
+  dayOfMonth: number;
+  /** Próxima data em que a rotina vai criar o lançamento. */
+  nextRunAt: string;
+  active: boolean;
+};
+
+/** DTO de criação de recorrência. */
+export type CreateRecurrenceDto = {
+  accountId: string;
+  categoryId?: string;
+  description: string;
+  amountCents: string;
+  type: 'income' | 'expense';
+  dayOfMonth?: number;
+  startAt?: string;
+};
+
 /** DTO de entrada de cadastro. */
 export type RegisterDto = {
   email: string;

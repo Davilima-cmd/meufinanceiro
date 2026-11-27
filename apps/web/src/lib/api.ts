@@ -17,6 +17,8 @@ import {
   type AuthResponse,
   type AuthStatus,
   type CreateAccountDto,
+  type ApiRecurrence,
+  type CreateRecurrenceDto,
   type CreateTransactionDto,
   type LinkAccountDto,
   type LoginDto,
@@ -52,6 +54,8 @@ export type {
   RegisterDto,
   LoginDto,
   CreateAccountDto,
+  ApiRecurrence,
+  CreateRecurrenceDto,
   CreateTransactionDto,
   MfaDisableResponse,
   MfaEnableRequest,
@@ -579,6 +583,28 @@ class ApiClient {
     return this.request<TriggerSyncResponse>('/open-finance/sync', {
       method: 'POST',
     });
+  }
+
+  /* Recorrências — lançamentos que se repetem todo mês */
+
+  async getRecurrences(): Promise<ApiRecurrence[]> {
+    return this.request<ApiRecurrence[]>('/recurrences');
+  }
+
+  async createRecurrence(dto: CreateRecurrenceDto): Promise<ApiRecurrence> {
+    return this.request<ApiRecurrence>('/recurrences', { method: 'POST', body: dto });
+  }
+
+  /** Liga/desliga a recorrência sem apagar o histórico já gerado. */
+  async setRecurrenceActive(id: string, active: boolean): Promise<ApiRecurrence> {
+    return this.request<ApiRecurrence>(`/recurrences/${id}`, {
+      method: 'PATCH',
+      body: { active },
+    });
+  }
+
+  async deleteRecurrence(id: string): Promise<void> {
+    return this.request<void>(`/recurrences/${id}`, { method: 'DELETE' });
   }
 
   /* MFA — autenticação de dois fatores (TOTP) */

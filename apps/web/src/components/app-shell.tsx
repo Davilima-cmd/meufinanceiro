@@ -50,6 +50,13 @@ const NAV: NavItem[] = [
     ),
   },
   {
+    href: '/recorrencias',
+    label: 'Recorrências',
+    icon: (
+      <Icon path="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 0 0 6.3 6.3L4 9m16 6-2.3 2.7A8 8 0 0 1 4 15" />
+    ),
+  },
+  {
     href: '/orcamentos',
     label: 'Orçamentos',
     icon: <Icon path="M12 3v18M5 8h9a3 3 0 0 1 0 6H7a3 3 0 0 0 0 6h10" />,
