@@ -156,7 +156,8 @@ export default function LoginPage() {
           </ul>
         </div>
         <p className="auth-note">
-          Protótipo · dados fictícios · não use informações bancárias reais.
+          Entre com uma conta real para conectar seus bancos — ou abra a demonstração e conheça o
+          painel com dados fictícios, sem cadastro.
         </p>
       </aside>
 

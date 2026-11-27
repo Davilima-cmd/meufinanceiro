@@ -61,7 +61,7 @@ export default function MfaLoginPage() {
           <h2>Digite o código do seu aplicativo autenticador.</h2>
           <p>O código tem 6 dígitos e muda a cada 30 segundos.</p>
         </div>
-        <p className="auth-note">Protótipo · dados fictícios.</p>
+        <p className="auth-note">Segundo fator ativo nesta conta.</p>
       </aside>
       <div className="auth-form-wrap">
         <div className="auth-card">
