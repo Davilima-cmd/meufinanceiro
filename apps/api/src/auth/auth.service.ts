@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as argon2 from 'argon2';
+import { AuditAction } from '../audit/audit-log.decorator';
 
 @Injectable()
 export class AuthService {
@@ -169,7 +170,11 @@ export class AuthService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        action: 'ACCOUNT_DELETED',
+        // Mesma string do @AuditLog do controller: antes a exclusão gerava
+        // **dois** registros (ACCOUNT_DELETE pelo interceptor e
+        // ACCOUNT_DELETED aqui), e quem consultasse o histórico para provar o
+        // direito à exclusão (LGPD art. 18) via duas linhas para um ato só.
+        action: AuditAction.ACCOUNT_DELETE,
         target: userId,
         metadata: { deletedAt: deletedAt.toISOString() },
       },

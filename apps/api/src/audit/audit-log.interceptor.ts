@@ -39,10 +39,16 @@ function sanitize(value: unknown): unknown {
 }
 
 /**
- * Mapeamento de rota -> ação para endpoints sensíveis que ainda não tenham
- * o decorador @AuditLog aplicado. Garante auditoria mesmo por padrão de rota.
+ * Mapeamento de rota -> ação, mantido como **rede de segurança** para rota
+ * sensível que esqueça o decorador.
+ *
+ * O mapa já foi a fonte principal, e aí ficava invisível: rota nova sem
+ * decorador não era auditada, rota decorada podia ter a ação trocada por
+ * engano numa reordenação de path, e não havia como notar. Os testes
+ * (`audit.coverage.test.ts`) agora exigem o decorador em toda rota sensível;
+ * este mapa é só o cinto.
  */
-const AUDIT_ACTIONS_BY_ROUTE: Record<string, string> = {
+export const AUDIT_ACTIONS_BY_ROUTE: Record<string, string> = {
   'POST /auth/login': 'LOGIN',
   'POST /auth/register': 'REGISTER',
   'POST /auth/mfa/enable': 'MFA_ENABLE',
