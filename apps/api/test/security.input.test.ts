@@ -59,21 +59,27 @@ describe('validação de entrada (DTOs)', () => {
     expect(errors.map((error) => error.property)).toContain('participants');
   });
 
-  it('só aceita código TOTP de 6 dígitos e segredo base32', async () => {
-    const wrongToken = await errorsOf(new EnableMfaDto(), {
-      secret: 'JBSWY3DPEHPK3PXP',
-      token: '1234567',
-    });
+  it('só aceita código TOTP de 6 dígitos na ativação do MFA', async () => {
+    const wrongToken = await errorsOf(new EnableMfaDto(), { token: '1234567' });
     expect(wrongToken.map((error) => error.property)).toContain('token');
 
-    const wrongSecret = await errorsOf(new EnableMfaDto(), {
-      secret: 'segredo-com-hifen-e-minusculas',
+    const lettersToken = await errorsOf(new EnableMfaDto(), { token: 'abcdef' });
+    expect(lettersToken.map((error) => error.property)).toContain('token');
+
+    const ok = await errorsOf(new EnableMfaDto(), { token: '123456' });
+    expect(ok).toHaveLength(0);
+  });
+
+  it('ignora `secret` enviado no corpo da ativação (segredo vem do servidor)', async () => {
+    // O DTO não tem mais o campo: um cliente antigo que mande `secret` não
+    // consegue escolher o segredo — o servidor usa o pendente.
+    const dto = Object.assign(new EnableMfaDto(), {
+      secret: 'JBSWY3DPEHPK3PXP',
       token: '123456',
     });
-    expect(wrongSecret.map((error) => error.property)).toContain('secret');
-
-    const ok = await errorsOf(new EnableMfaDto(), { secret: 'JBSWY3DPEHPK3PXP', token: '123456' });
-    expect(ok).toHaveLength(0);
+    expect(Object.prototype.hasOwnProperty.call(new EnableMfaDto(), 'secret')).toBe(false);
+    const errors = await errorsOf(dto, { token: '123456' });
+    expect(errors).toHaveLength(0);
   });
   it('recusa ids fora do formato no vínculo manual de conexão', async () => {
     const errors = await errorsOf(new ConnectConnectionDto(), {

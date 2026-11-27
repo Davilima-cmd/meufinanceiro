@@ -42,8 +42,14 @@ export type AuthResponse = {
   csrfToken?: string;
 };
 
-/** DTO de ativação do MFA: segredo base32 + código TOTP de confirmação. */
-export type MfaEnableRequest = { secret: string; token: string };
+/**
+ * DTO de ativação do MFA: **só** o código TOTP de confirmação.
+ *
+ * O segredo nasce no servidor (`GET /auth/mfa/secret`) e fica pendente na conta;
+ * aceitar `secret` aqui permitiria ativar o segundo fator com um segredo que o
+ * atacante conhece.
+ */
+export type MfaEnableRequest = { token: string };
 
 /** Resposta de ativação do MFA. */
 export type MfaEnableResponse = { mfaEnabled: boolean; user: ApiUser };
@@ -51,8 +57,14 @@ export type MfaEnableResponse = { mfaEnabled: boolean; user: ApiUser };
 /** Resposta de desativação do MFA. */
 export type MfaDisableResponse = { mfaEnabled: boolean; user: ApiUser };
 
-/** DTO de verificação de código TOTP (segundo fator no login). */
-export type MfaVerifyRequest = { code: string };
+/**
+ * DTO de verificação de código TOTP (segundo fator no login e desligamento).
+ *
+ * O campo é `token` — é o nome que o servidor valida. A web enviava `code`, o
+ * que fazia o `ValidationPipe` recusar com 400 justamente para quem tinha MFA
+ * ativo, ou seja, ninguém conseguia entrar com o segundo fator ligado.
+ */
+export type MfaVerifyRequest = { token: string };
 
 /** Resposta de `GET /auth/status`: valida a sessão e devolve o usuário. */
 export type AuthStatus = {
@@ -66,10 +78,18 @@ export type AuthStatus = {
   csrfToken?: string | null;
 };
 
-/** Resposta da geração do QR code de configuração do MFA. */
+/** Resposta de `GET /auth/mfa/secret`: segredo novo, gerado no servidor. */
+export type MfaSecretResponse = {
+  /** Segredo base32 — mostrado uma única vez, para digitar/copiar no app. */
+  secret: string;
+  /** A mesma configuração em `otpauth://`, para desenhar o QR no cliente. */
+  otpauthUrl: string;
+};
+
+/** Resposta de `GET /auth/mfa/qr-code`: QR do segredo pendente do usuário. */
 export type MfaQrCodeResponse = {
   /** URL otpauth://totp/... a ser lida pelo app autenticador (Google Authenticator etc.). */
-  otpAuthUrl: string;
+  otpauthUrl: string;
   /** Imagem do QR code em data URL, quando gerada pelo servidor. */
   qrCode?: string;
 };

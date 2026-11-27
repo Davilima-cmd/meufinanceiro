@@ -25,6 +25,7 @@ import {
   type MfaEnableRequest,
   type MfaEnableResponse,
   type MfaQrCodeResponse,
+  type MfaSecretResponse,
   type MfaVerifyRequest,
   type RegisterDto,
   type TriggerSyncResponse,
@@ -58,6 +59,7 @@ export type {
   MfaEnableRequest,
   MfaEnableResponse,
   MfaQrCodeResponse,
+  MfaSecretResponse,
   MfaVerifyRequest,
   BankConnectionStatus,
   SyncJob,
@@ -590,10 +592,19 @@ class ApiClient {
 
   /* MFA — autenticação de dois fatores (TOTP) */
 
-  async mfaQrCode(secret: string): Promise<MfaQrCodeResponse> {
-    return this.request<MfaQrCodeResponse>(
-      `/auth/mfa/qr-code?secret=${encodeURIComponent(secret)}`
-    );
+  /**
+   * QR code do segredo **pendente** (gerado antes por `mfaNewSecret`).
+   *
+   * Não recebe segredo: ele não trafega por query string (URL fica em log de
+   * acesso, histórico e cache de proxy).
+   */
+  async mfaQrCode(): Promise<MfaQrCodeResponse> {
+    return this.request<MfaQrCodeResponse>('/auth/mfa/qr-code');
+  }
+
+  /** Gera um segredo novo no servidor (o QR code vem de `mfaQrCode`). */
+  async mfaNewSecret(): Promise<MfaSecretResponse> {
+    return this.request<MfaSecretResponse>('/auth/mfa/secret');
   }
 
   async mfaEnable(dto: MfaEnableRequest): Promise<MfaEnableResponse> {
@@ -635,8 +646,12 @@ class ApiClient {
     return status;
   }
 
-  async mfaDisable(): Promise<MfaDisableResponse> {
-    return this.request<MfaDisableResponse>('/auth/mfa/disable', { method: 'POST' });
+  /** Desliga o MFA — exige o código atual do app autenticador. */
+  async mfaDisable(dto: MfaVerifyRequest): Promise<MfaDisableResponse> {
+    return this.request<MfaDisableResponse>('/auth/mfa/disable', {
+      method: 'POST',
+      body: dto,
+    });
   }
 }
 

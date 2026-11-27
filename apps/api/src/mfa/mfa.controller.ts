@@ -6,7 +6,7 @@ import {
   UseGuards,
   Req,
   Res,
-  Query,
+  BadRequestException,
   NotFoundException,
   HttpException,
   HttpStatus,
@@ -49,30 +49,40 @@ export class MfaController {
   @AuditLog(AuditAction.MFA_ENABLE)
   async newSecret(@Req() req: AuthenticatedRequest) {
     const user = await this.mfaService.profileForMfa(req.user.userId);
-    return this.mfaService.generateSecret(user.email);
+    return this.mfaService.generateSecret(req.user.userId, user.email);
   }
 
-  /** QR code (data URL) do segredo informado. O segredo vai no query, não no corpo. */
+  /**
+   * QR code (data URL) do segredo **pendente** do usuário.
+   *
+   * Antes a rota aceitava `?secret=` e desenhava o QR de qualquer segredo
+   * informado — e uma URL cai em log de acesso, histórico do navegador e cache
+   * de proxy. O segredo agora vem do servidor (o devolvido por
+   * `GET /auth/mfa/secret`), então não há nada para o cliente mandar.
+   */
   @Get('qr-code')
   @UseGuards(AuthGuard('jwt'))
-  async qrCode(@Query('secret') secret: string) {
-    if (!secret || !/^[A-Z2-7]{16,64}$/.test(secret)) {
-      throw new NotFoundException('Informe um segredo base32 válido em ?secret=');
+  async qrCode(@Req() req: AuthenticatedRequest) {
+    const otpauthUrl = await this.mfaService.pendingOtpauthUrl(req.user.userId);
+    if (!otpauthUrl) {
+      throw new BadRequestException('Nenhum segredo pendente. Comece em GET /auth/mfa/secret.');
     }
-    const otpauthUrl = `otpauth://totp/MeuFinanceiro:${encodeURIComponent(
-      secret
-    )}?secret=${secret}&issuer=MeuFinanceiro`;
-    // Gera a URL otpauth de forma consistente com o serviço, quando possível.
     const qrCode = await QRCode.toDataURL(otpauthUrl);
     return { qrCode, otpauthUrl };
   }
 
-  /** Habilita MFA após confirmar o token contra o segredo informado. */
+  /**
+   * Habilita MFA confirmando o primeiro código do segredo pendente.
+   *
+   * O corpo traz **só** o código: o segredo é o que o servidor guardou em
+   * `GET /auth/mfa/secret`. Aceitar `secret` do cliente permitia ativar o
+   * segundo fator com um segredo que o atacante já conhece.
+   */
   @Post('enable')
   @UseGuards(AuthGuard('jwt'))
   @AuditLog(AuditAction.MFA_ENABLE)
   async enable(@Req() req: AuthenticatedRequest, @Body() dto: EnableMfaDto) {
-    const user = await this.mfaService.enableMFA(req.user.userId, dto.token, dto.secret);
+    const user = await this.mfaService.enableMFA(req.user.userId, dto.token);
     return { mfaEnabled: true, user };
   }
 
@@ -128,12 +138,17 @@ export class MfaController {
     return { token, csrfToken };
   }
 
-  /** Desabilita MFA do usuário logado. */
+  /**
+   * Desabilita MFA do usuário logado.
+   *
+   * Exige o código do app autenticador: desligar o segundo fator é a primeira
+   * coisa que alguém com a sessão sequestrada tentaria.
+   */
   @Post('disable')
   @UseGuards(AuthGuard('jwt'))
   @AuditLog(AuditAction.MFA_DISABLE)
-  async disable(@Req() req: AuthenticatedRequest) {
-    const user = await this.mfaService.disableMFA(req.user.userId);
+  async disable(@Req() req: AuthenticatedRequest, @Body() dto: VerifyMfaDto) {
+    const user = await this.mfaService.disableMFA(req.user.userId, dto.token);
     return { mfaEnabled: false, user };
   }
 }

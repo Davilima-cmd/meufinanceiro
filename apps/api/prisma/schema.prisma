@@ -17,6 +17,8 @@ model User {
   email     String    @unique @db.VarChar(255)
   password  String    @db.VarChar(255)
   totpSecret String?   @db.VarChar(255)
+  /// Segredo gerado por `GET /auth/mfa/secret` aguardando confirmação do 1º código.
+  totpPendingSecret String? @db.VarChar(255)
   mfaEnabled Boolean  @default(false)
   theme     String    @default("system") @db.VarChar(32)
   currency  String    @default("BRL") @db.VarChar(16)

@@ -26,7 +26,10 @@ export default function MfaLoginPage() {
       const tempToken = sessionStorage.getItem('mf.mfa.temp');
       if (!tempToken) throw new Error('Sessão expirada. Entre novamente.');
       const { api } = await import('@/lib/api');
-      const result: AuthResponse = await withTimeout(api.mfaVerify({ code }, tempToken), 8000);
+      const result: AuthResponse = await withTimeout(
+        api.mfaVerify({ token: code }, tempToken),
+        8000
+      );
       if (!result.token) throw new Error('Resposta inválida da API.');
       // O token temporário só serviu para o segundo fator; a sessão definitiva
       // chegou no cookie `HttpOnly`, inacessível ao JavaScript.
