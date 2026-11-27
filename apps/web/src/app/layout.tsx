@@ -1,4 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+// Nunito vem do pacote npm (@fontsource), não do CDN do Google: o build fica
+// offline-safe, o arquivo é servido junto com o app e não há requisição externa
+// no navegador. Variável de 200 a 1000 cobre títulos pesados e texto comum.
+import '@fontsource-variable/nunito';
 import './styles.css';
 import { DialogProvider } from '@/components/dialog';
 import { FinanceProvider } from '@/lib/store';

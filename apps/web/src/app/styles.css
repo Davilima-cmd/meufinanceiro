@@ -8,7 +8,8 @@
   /* CAJU Finance — verde sobre papel claro. O tema escuro continua existindo
      como escolha em Configurações, mas a identidade do produto é esta. */
   color-scheme: light;
-  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans:
+    'Nunito Variable', 'Nunito', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 
   --canvas: #f5f8f5;
@@ -3053,4 +3054,499 @@ a.notice:hover {
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
+}
+
+/* =========================================================================
+   Camada ilustrativa — referência da apresentação "illustrative"
+   Formas chapadas, contorno escuro grosso, rabiscos de fundo e tipografia
+   arredondada. A paleta continua a do CAJU (verdes + papel claro), com o
+   verde-lima e o pêssego como cores de apoio.
+   ========================================================================= */
+
+:root {
+  --ink: #12352a;
+  --illu-mint: #b9ecc9;
+  --illu-lime: #e3f79a;
+  --illu-peach: #ffcf8f;
+  --illu-coin: #f7f3c6;
+  --illu-note: #a8e8c0;
+  --illu-line: rgba(18, 53, 42, 0.5);
+  --outline: 2.5px solid var(--ink);
+  --outline-soft: 2px solid var(--ink);
+  --shadow-sticker: 6px 6px 0 var(--ink);
+  --shadow-sticker-sm: 4px 4px 0 var(--ink);
+  --ease-out: cubic-bezier(0.22, 0.9, 0.24, 1);
+}
+
+[data-theme='dark'] {
+  --ink: #040f0b;
+  --illu-mint: #4fd39a;
+  --illu-lime: #cfeb86;
+  --illu-peach: #ffb877;
+  --illu-coin: #f4efc2;
+  --illu-note: #6fd8a4;
+  --illu-line: rgba(234, 245, 238, 0.24);
+  --shadow-sticker: 6px 6px 0 rgba(0, 0, 0, 0.6);
+  --shadow-sticker-sm: 4px 4px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* -------- tipografia: títulos redondos e pesados -------- */
+
+body {
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+.page-header h1,
+.card-heading h2,
+.hero .value,
+.stat-value {
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.page-header h1 {
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+.card-heading h2 {
+  font-size: 1.12rem;
+}
+
+/* -------- superfícies: papel + contorno, no lugar de sombra difusa -------- */
+
+.card,
+.hero,
+.mini-stat,
+.account-card,
+.stat-card {
+  border: var(--outline-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sticker-sm);
+}
+
+.card {
+  background: var(--surface);
+}
+
+/* o cartão principal do painel ganha o fundo menta com rabisco */
+.hero {
+  position: relative;
+  overflow: hidden;
+  border: var(--outline);
+  border-radius: 22px;
+  background: var(--illu-mint);
+  box-shadow: var(--shadow-sticker);
+}
+
+.hero::after {
+  position: absolute;
+  top: -28px;
+  right: -34px;
+  width: 220px;
+  height: 260px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 260' fill='none'%3E%3Cpath d='M188 12c-44 6-78 30-96 62-17 30-8 58 16 62 22 4 38-16 34-36-4-19-27-25-48-14-26 13-40 42-36 74 4 33 28 52 58 48' stroke='%2312352a' stroke-opacity='.14' stroke-width='20' stroke-linecap='round'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+  content: '';
+  pointer-events: none;
+}
+
+.hero-balance {
+  position: relative;
+  z-index: 1;
+}
+
+/* selo do mês: pílula com contorno, como as etiquetas da referência */
+.hero-mood {
+  border: var(--outline-soft);
+  background: var(--surface);
+  box-shadow: 2px 2px 0 var(--ink);
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* números grandes e tabulares, com o mesmo peso do "95%" da referência */
+.hero .value {
+  font-size: clamp(2.2rem, 1.4rem + 2.4vw, 3.1rem);
+  line-height: 1.02;
+}
+
+/* -------- botões: adesivo, com deslocamento no clique -------- */
+
+.button {
+  border: var(--outline-soft);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sticker-sm);
+  font-weight: 700;
+  transition:
+    transform 120ms var(--ease-out),
+    box-shadow 120ms var(--ease-out),
+    background 140ms ease;
+}
+
+.button:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 6px 0 var(--ink);
+}
+
+.button:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.button-primary {
+  border-color: var(--ink);
+  background: var(--accent);
+  color: #f4fff9;
+}
+
+.button-ghost {
+  border-color: var(--ink);
+  background: var(--surface);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.icon-button {
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  transition:
+    transform 120ms var(--ease-out),
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.icon-button:hover {
+  border-color: var(--ink);
+  background: var(--illu-lime);
+  transform: translateY(-1px);
+}
+
+/* -------- navegação: item ativo em lima com contorno -------- */
+
+.nav-item {
+  border: 2px solid transparent;
+  border-radius: 12px;
+  font-weight: 600;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 120ms var(--ease-out);
+}
+
+.nav-item:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.nav-item.is-active {
+  border-color: var(--ink);
+  background: var(--illu-lime);
+  box-shadow: 3px 3px 0 var(--ink);
+  color: var(--text);
+}
+
+.nav-item.is-active .nav-pip {
+  background: var(--ink);
+}
+
+.nav-group-label {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* -------- chips, selos e pílulas -------- */
+
+.chip,
+.chip-toggle,
+.segmented {
+  border: var(--outline-soft);
+  background: var(--surface);
+}
+
+.chip.is-selected,
+.chip[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--illu-lime);
+  box-shadow: 2px 2px 0 var(--ink);
+  color: var(--text);
+}
+
+.chip.is-selected:hover,
+.chip[aria-pressed='true']:hover {
+  color: var(--text);
+}
+
+.segmented {
+  border-radius: 999px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.segmented button {
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.segmented button.is-selected {
+  border: 2px solid var(--ink);
+  box-shadow: none;
+}
+
+.badge {
+  border: 2px solid currentColor;
+  font-weight: 700;
+}
+
+/* -------- tabelas e listas com cabeçalho chapado -------- */
+
+.table th {
+  font-weight: 700;
+}
+
+.list-item,
+.transaction,
+.row {
+  border-radius: 12px;
+}
+
+.list > li + li,
+.list-item + .list-item {
+  border-top: 1.5px dashed var(--border);
+}
+
+/* campos: fundo branco e contorno que fica escuro no foco */
+.input,
+.select-trigger,
+.money-field,
+.day-field {
+  border: 2px solid var(--border);
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.input:focus,
+.select-trigger[aria-expanded='true'],
+.money-field:focus-within,
+.day-field:focus-within {
+  border-color: var(--ink);
+  box-shadow: 3px 3px 0 var(--accent-soft);
+}
+
+/* -------- peças ilustradas -------- */
+
+.illu-spark {
+  width: 18px;
+  height: 18px;
+  color: var(--illu-lime);
+  filter: drop-shadow(0 0 1px var(--ink));
+}
+
+.illu-coin,
+.illu-note {
+  filter: drop-shadow(3px 3px 0 rgba(18, 53, 42, 0.22));
+}
+
+.illu-scribble {
+  color: var(--illu-line);
+}
+
+.sticker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: var(--outline-soft);
+  border-radius: 14px;
+  background: var(--illu-mint);
+  box-shadow: var(--shadow-sticker-sm);
+  font-weight: 700;
+}
+
+.sticker.is-lime {
+  background: var(--illu-lime);
+}
+
+.sticker.is-peach {
+  background: var(--illu-peach);
+}
+
+.sticker-scribble {
+  position: absolute;
+  inset: auto -6px -10px auto;
+  width: 46px;
+  opacity: 0.35;
+}
+
+/* -------- decoração do cabeçalho da página -------- */
+
+.page-header {
+  position: relative;
+}
+
+.page-header h1 {
+  position: relative;
+  display: inline-block;
+}
+
+.page-header h1::after {
+  position: absolute;
+  right: -22px;
+  bottom: 0.22em;
+  width: 16px;
+  height: 16px;
+  background: var(--illu-lime);
+  box-shadow: 0 0 0 2px var(--ink);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  content: '';
+}
+
+/* -------- transição entre telas -------- */
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.content {
+  animation: page-in 260ms var(--ease-out) both;
+}
+
+/* barra fininha no topo do conteúdo: dá a sensação de "carregou" sem esperar */
+.page-transition {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--accent), var(--illu-lime));
+  animation: page-progress 380ms var(--ease-out) both;
+  pointer-events: none;
+}
+
+.page-transition.is-done {
+  opacity: 0;
+  transition: opacity 160ms ease 60ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content,
+  .page-transition {
+    animation: none;
+  }
+
+  .button,
+  .icon-button,
+  .nav-item {
+    transition: none;
+  }
+
+  .button:hover,
+  .button:active {
+    transform: none;
+  }
+}
+
+/* celular: menos contorno para não pesar */
+@media (max-width: 620px) {
+  .card,
+  .hero,
+  .mini-stat {
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+
+  .hero::after {
+    width: 150px;
+    opacity: 0.7;
+  }
+}
+
+/* -------- decoração do cartão principal -------- */
+
+.hero-deco {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hero-deco .deco-coin {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  transform: rotate(-12deg);
+}
+
+.hero-deco .deco-note {
+  position: absolute;
+  right: 92px;
+  bottom: 12px;
+  opacity: 0.9;
+  transform: rotate(-14deg);
+}
+
+.hero-deco .deco-spark-a {
+  position: absolute;
+  top: 22px;
+  right: 104px;
+  width: 22px;
+  height: 22px;
+}
+
+.hero-deco .deco-spark-b {
+  position: absolute;
+  right: 34px;
+  bottom: 96px;
+  width: 14px;
+  height: 14px;
+}
+
+.hero-deco .deco-spark-a,
+.hero-deco .deco-spark-b {
+  color: var(--illu-lime);
+}
+
+.hero-side {
+  position: relative;
+  z-index: 1;
+}
+
+/* cada número do painel vira uma etiqueta branca sobre o fundo menta */
+.hero-side .mini-stat {
+  border: var(--outline-soft);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 600;
+}
+
+@media (max-width: 620px) {
+  .hero-deco .deco-note {
+    display: none;
+  }
+
+  .hero-deco .deco-coin {
+    width: 52px;
+    height: 52px;
+  }
 }

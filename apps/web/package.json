@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource-variable/nunito": "5.3.0",
     "@meufinanceiro/shared-types": "workspace:*",
     "next": "^16.4.6",
     "react": "^19.3.0",

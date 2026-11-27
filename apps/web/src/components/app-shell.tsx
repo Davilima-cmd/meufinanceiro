@@ -196,7 +196,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const initialName = user.name.trim().split(/\s+/)[0] || 'por aqui';
 
   return (
-    <div className={`shell ${collapsed ? 'is-collapsed' : ''}`} data-theme={theme}>
+    <div className={`shell ${collapsed ? 'is-collapsed' : ''}`} data-theme={theme} key={pathname}>
       <aside className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
         <div className="sidebar-head">
           <Link
@@ -336,7 +336,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="content">{children}</main>
+        <main className="content">
+          {/* Fio de progresso a cada troca de tela: a entrada do conteúdo é
+              curta, mas o traço deixa claro que a navegação aconteceu. */}
+          <span aria-hidden="true" className="page-transition" />
+          {children}
+        </main>
 
         {session.mode === 'demo' ? (
           <div className="demo-banner">

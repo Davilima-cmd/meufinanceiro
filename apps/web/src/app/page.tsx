@@ -18,6 +18,7 @@ import {
 } from '@/lib/format';
 import { useFinance } from '@/lib/store';
 import { greetingFor, hourOfDay, monthHeadline } from '@/lib/narrative';
+import { Banknote, Coin, Spark } from '@/components/illustrations';
 
 export default function DashboardPage() {
   const { snapshot, session } = useFinance();
@@ -149,6 +150,12 @@ export default function DashboardPage() {
         ) : null}
 
         <section className="hero">
+          <div aria-hidden="true" className="hero-deco">
+            <Spark className="deco-spark deco-spark-a" />
+            <Spark className="deco-spark deco-spark-b" />
+            <Coin className="deco-coin" size={72} />
+            <Banknote className="deco-note" size={92} />
+          </div>
           <div className="hero-balance">
             <span className={`hero-mood is-${headline.tone}`}>
               <span aria-hidden="true" className="hero-mood-dot" />
