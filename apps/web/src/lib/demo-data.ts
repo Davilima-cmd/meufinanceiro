@@ -580,7 +580,7 @@ export function buildDemoSnapshot(today = todayISO()): FinanceSnapshot {
       },
     ],
     settings: {
-      theme: 'dark',
+      theme: 'light',
       hideValues: false,
       partnerName: DEMO_PARTNER.name,
     },
@@ -637,6 +637,6 @@ export function buildEmptySnapshot(): FinanceSnapshot {
     partner: null,
     netWorthItems: [],
     invites: [],
-    settings: { theme: 'dark', hideValues: false, partnerName: '' },
+    settings: { theme: 'light', hideValues: false, partnerName: '' },
   };
 }

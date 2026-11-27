@@ -1,61 +1,64 @@
 /* =========================================================================
-   Meu Financeiro — estilos do painel
+   CAJU Finance — estilos do painel
    Tema escuro por padrão, com identidade própria (cantos suaves, contraste
    baixo nas bordas, accent violeta e verde para números positivos).
    ========================================================================= */
 
 :root {
-  color-scheme: dark;
+  /* CAJU Finance — verde sobre papel claro. O tema escuro continua existindo
+     como escolha em Configurações, mas a identidade do produto é esta. */
+  color-scheme: light;
   --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 
-  --canvas: #0b0d12;
-  --canvas-soft: #10131b;
-  --surface: #14171f;
-  --surface-2: #191d27;
-  --surface-3: #202532;
-  --border: #262b38;
-  --border-soft: #1d2230;
-  --text: #eef1f7;
-  --muted: #98a1b4;
-  --muted-soft: #6f7889;
-  --accent: #8b7bff;
-  --accent-strong: #6a55f2;
-  --accent-soft: rgba(139, 123, 255, 0.14);
-  --positive: #3ddc97;
-  --positive-soft: rgba(61, 220, 151, 0.12);
-  --negative: #ff7a80;
-  --negative-soft: rgba(255, 122, 128, 0.12);
-  --warning: #ffc773;
-  --warning-soft: rgba(255, 199, 115, 0.12);
-  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  --radius-lg: 22px;
-  --radius-md: 16px;
-  --radius-sm: 11px;
-}
-
-[data-theme='light'] {
-  color-scheme: light;
-  --canvas: #f5f6fa;
+  --canvas: #f5f8f5;
   --canvas-soft: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f4f5f9;
-  --surface-3: #ebedf4;
-  --border: #e2e5ee;
-  --border-soft: #eef0f6;
-  --text: #141824;
-  --muted: #667088;
-  --muted-soft: #8b93a7;
-  --accent: #5b46e0;
-  --accent-strong: #4b36d1;
-  --accent-soft: rgba(91, 70, 224, 0.1);
-  --positive: #0f9d63;
-  --positive-soft: rgba(15, 157, 99, 0.1);
-  --negative: #d94a52;
-  --negative-soft: rgba(217, 74, 82, 0.1);
-  --warning: #b37711;
-  --warning-soft: rgba(179, 119, 17, 0.12);
-  --shadow: 0 20px 45px rgba(24, 30, 55, 0.1);
+  --surface-2: #f1f6f2;
+  --surface-3: #e4ece6;
+  --border: #d7e2da;
+  --border-soft: #e6ece7;
+  --text: #14301f;
+  --muted: #5d6f64;
+  --muted-soft: #8a998f;
+  --accent: #176b45;
+  --accent-strong: #123d2b;
+  --accent-soft: rgba(23, 107, 69, 0.1);
+  --positive: #176b45;
+  --positive-soft: rgba(53, 166, 111, 0.14);
+  --negative: #c0453d;
+  --negative-soft: rgba(192, 69, 61, 0.1);
+  --warning: #b07a16;
+  --warning-soft: rgba(176, 122, 22, 0.12);
+  --shadow: 0 22px 50px -34px rgba(18, 61, 43, 0.35);
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 12px;
+}
+
+/* Tema escuro — variante, com o mesmo verde como acento. */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #0c1512;
+  --canvas-soft: #101b16;
+  --surface: #14211b;
+  --surface-2: #182821;
+  --surface-3: #1f332a;
+  --border: #263f34;
+  --border-soft: #1c2f26;
+  --text: #eaf5ee;
+  --muted: #9bb0a4;
+  --muted-soft: #74897d;
+  --accent: #4fd39a;
+  --accent-strong: #35a66f;
+  --accent-soft: rgba(79, 211, 154, 0.14);
+  --positive: #4fd39a;
+  --positive-soft: rgba(79, 211, 154, 0.12);
+  --negative: #ff8b84;
+  --negative-soft: rgba(255, 139, 132, 0.12);
+  --warning: #f0c173;
+  --warning-soft: rgba(240, 193, 115, 0.12);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
 }
 
 *,
@@ -161,11 +164,14 @@ button {
   flex: none;
   place-items: center;
   border-radius: 13px;
-  background: linear-gradient(135deg, var(--accent), #4be0c0);
-  color: #0b0d12;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: -0.06em;
+  background: linear-gradient(150deg, #123d2b 0%, #176b45 55%, #35a66f 100%);
+  color: #eafff2;
+  box-shadow: 0 12px 24px -14px rgba(18, 61, 43, 0.8);
+}
+
+.brand-mark svg {
+  width: 60%;
+  height: 60%;
 }
 
 .brand-text {
@@ -387,9 +393,8 @@ button {
   margin: 0 auto;
   place-items: center;
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--accent), #4be0c0);
-  color: #0b0d12;
-  font-weight: 800;
+  background: linear-gradient(150deg, #123d2b 0%, #176b45 55%, #35a66f 100%);
+  color: #eafff2;
 }
 
 /* ------------------------------------------------------------------ pieces */
@@ -490,7 +495,7 @@ button {
 
 .button-primary {
   background: var(--accent);
-  color: #0b0d12;
+  color: #f0fff7;
 }
 
 .button-primary:hover {
@@ -941,7 +946,7 @@ button {
 .segmented button.is-selected {
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(18, 61, 43, 0.12);
 }
 
 /* stats */
@@ -1753,7 +1758,7 @@ button {
 
 .switch.is-on::after {
   transform: translateX(18px);
-  background: #0b0d12;
+  background: #ffffff;
 }
 
 .partner-row {
@@ -2153,8 +2158,8 @@ a.notice:hover {
 
 :root {
   /* gradiente da marca, usado no logo, no boot e nos detalhes de destaque */
-  --brand-gradient: linear-gradient(135deg, #8b7bff 0%, #6a55f2 45%, #4be0c0 100%);
-  --glow-accent: 0 18px 40px -18px rgba(139, 123, 255, 0.55);
+  --brand-gradient: linear-gradient(150deg, #123d2b 0%, #176b45 55%, #35a66f 100%);
+  --glow-accent: 0 14px 30px -16px rgba(18, 61, 43, 0.65);
 }
 
 /* Números nunca dançam: a fonte tabular vem de `Money`, mas listas e tabelas
@@ -2316,9 +2321,9 @@ a.notice:hover {
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
   background:
     radial-gradient(110% 150% at 0% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 58%),
-    radial-gradient(80% 120% at 100% 100%, rgba(75, 224, 192, 0.12), transparent 60%),
+    radial-gradient(80% 120% at 100% 100%, rgba(53, 166, 111, 0.14), transparent 60%),
     var(--surface);
-  box-shadow: 0 30px 70px -50px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 26px 60px -46px rgba(18, 61, 43, 0.55);
 }
 
 .hero-mood {

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { withTimeout } from '@/lib/api';
+import { BrandLockup, BrandMark } from '@/components/brand';
 import type { AuthResponse } from '@meufinanceiro/shared-types';
 
 export default function MfaLoginPage() {
@@ -48,13 +49,8 @@ export default function MfaLoginPage() {
     <div className="auth-page">
       <aside className="auth-showcase">
         <div className="brand">
-          <span aria-hidden="true" className="brand-mark">
-            mf
-          </span>
-          <span className="brand-text">
-            meu financeiro
-            <small>finanças a dois</small>
-          </span>
+          <BrandMark />
+          <BrandLockup />
         </div>
         <div className="stack">
           <p className="eyebrow">Verificação em duas etapas</p>

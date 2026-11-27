@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFinance } from '@/lib/store';
+import { BrandMark } from '@/components/brand';
 import type { FinanceUser } from '@/lib/types';
 
 type StoredApiSession = {
@@ -47,7 +48,7 @@ export default function ApiEntryPage() {
 
   return (
     <div className="boot" aria-busy="true">
-      <span className="boot-mark">mf</span>
+      <BrandMark size={48} />
       <span>{error || 'Retomando sua sessão…'}</span>
     </div>
   );

@@ -219,7 +219,7 @@ describe('basisTotals (caixa × competência)', () => {
       budgets: [],
       goals: [],
       partner: null,
-      settings: { theme: 'dark' as const, hideValues: false, partnerName: 'Parceiro' },
+      settings: { theme: 'light' as const, hideValues: false, partnerName: 'Parceiro' },
     };
 
     expect(basisTotals(snapshot, '2026-12', 'user-1', 'accrual').expenseCents).toBe(150000n);

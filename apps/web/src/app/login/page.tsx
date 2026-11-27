@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFinance } from '@/lib/store';
 import { withTimeout } from '@/lib/api';
+import { BrandLockup, BrandMark } from '@/components/brand';
 import type { AuthResponse } from '@meufinanceiro/shared-types';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
@@ -119,13 +120,8 @@ export default function LoginPage() {
     <div className="auth-page">
       <aside className="auth-showcase">
         <div className="brand">
-          <span aria-hidden="true" className="brand-mark">
-            mf
-          </span>
-          <span className="brand-text">
-            meu financeiro
-            <small>finanças a dois</small>
-          </span>
+          <BrandMark />
+          <BrandLockup />
         </div>
         <div className="stack">
           <p className="eyebrow">Um painel para o casal</p>

@@ -73,7 +73,7 @@ const apiSnapshot = {
   budgets: [],
   goals: [],
   partner: null,
-  settings: { theme: 'dark' as const, hideValues: false, partnerName: 'Parceiro' },
+  settings: { theme: 'light' as const, hideValues: false, partnerName: 'Parceiro' },
 };
 
 beforeEach(() => {
@@ -343,11 +343,12 @@ describe('FinanceProvider (modo API)', () => {
     await act(async () => {
       result.current.toggleTheme();
     });
-    expect(result.current.snapshot.settings.theme).toBe('light');
+    // Padrão CAJU é claro; alternar leva ao escuro.
+    expect(result.current.snapshot.settings.theme).toBe('dark');
 
     // Qualquer mutação remonta o snapshot a partir da API; a preferência local
     // não pode voltar ao padrão no meio do caminho.
-    expect(window.localStorage.getItem('mf.settings.v1')).toContain('light');
+    expect(window.localStorage.getItem('mf.settings.v1')).toContain('dark');
   });
 
   it('aporte em meta vai para o endpoint de aportes (histórico no servidor)', async () => {

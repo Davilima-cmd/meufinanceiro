@@ -4,13 +4,13 @@ import { DialogProvider } from '@/components/dialog';
 import { FinanceProvider } from '@/lib/store';
 
 export const metadata: Metadata = {
-  title: 'Meu Financeiro — finanças a dois',
+  title: 'CAJU Finance — espaço financeiro do casal',
   description:
-    'Painel financeiro para duas pessoas: contas, lançamentos, orçamentos e metas em um só lugar.',
+    'Saldo consolidado, movimentações, orçamentos e metas de um casal, com transparência e privacidade.',
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0b0d12',
+  themeColor: '#176b45',
   width: 'device-width',
   initialScale: 1,
 };

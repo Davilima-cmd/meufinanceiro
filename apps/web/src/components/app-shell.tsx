@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useFinance } from '@/lib/store';
 import { initialOf } from '@/lib/format';
 import { greetingFor, hourOfDay, sessionLabel } from '@/lib/narrative';
+import { BrandLockup, BrandMark } from '@/components/brand';
 
 type NavItem = {
   href: string;
@@ -142,7 +143,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!hydrated) {
     return (
       <div className="boot" aria-busy="true">
-        <span className="boot-mark">mf</span>
+        <BrandMark size={48} />
         <span>Carregando seu painel…</span>
       </div>
     );
@@ -159,13 +160,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="shell" data-theme={theme}>
       <aside className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
         <Link className="brand" href="/" onClick={() => setMenuOpen(false)}>
-          <span aria-hidden="true" className="brand-mark">
-            mf
-          </span>
-          <span className="brand-text">
-            meu financeiro
-            <small>finanças a dois</small>
-          </span>
+          <BrandMark />
+          <BrandLockup />
         </Link>
 
         <nav aria-label="Navegação principal" className="nav">
