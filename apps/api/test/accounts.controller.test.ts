@@ -154,3 +154,58 @@ describe('AccountsController — arquivar e excluir', () => {
     expect(txMock.financialAccount.update).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Forma pública da conta.
+ *
+ * O `select` precisa de `userId` para decidir quem é o dono, mas o id interno do
+ * usuário não é dado de resposta: o JSON devolvia `userId` em cada item (o
+ * cliente usa `ownerId`, que é explícito).
+ */
+describe('AccountsController — não vaza userId na resposta', () => {
+  const row = {
+    id: 'acc-1',
+    userId: 'user-1',
+    name: 'Conta corrente',
+    institution: 'Banco',
+    type: 'checking',
+    currency: 'BRL',
+    balanceCents: 100000,
+    isActive: true,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  };
+
+  it('lista contas próprias sem o campo userId', async () => {
+    (prismaMock.financialAccount.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([row]);
+    (
+      prismaMock as unknown as { accountShare: { findMany: ReturnType<typeof vi.fn> } }
+    ).accountShare = { findMany: vi.fn(async () => []) };
+
+    const [account] = await controller().list(req);
+
+    expect(account).not.toHaveProperty('userId');
+    expect(account.ownerId).toBe('user-1');
+    expect(account.balanceCents).toBe('100000');
+  });
+
+  it('list contas compartilhadas também sem userId e com o dono correto', async () => {
+    (prismaMock.financialAccount.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { ...row, id: 'acc-2', userId: 'user-2' },
+    ]);
+    (
+      prismaMock as unknown as { accountShare: { findMany: ReturnType<typeof vi.fn> } }
+    ).accountShare = {
+      findMany: vi.fn(async () => [
+        { accountId: 'acc-2', level: 'BALANCE_ONLY', owner: { id: 'user-2', name: 'Parceiro' } },
+      ]),
+    };
+
+    const [account] = await controller().list(req);
+
+    expect(account).not.toHaveProperty('userId');
+    expect(account.ownerId).toBe('user-2');
+    expect(account.ownerName).toBe('Parceiro');
+    expect(account.access).toMatchObject({ readOnly: true, canSeeTransactions: false });
+  });
+});

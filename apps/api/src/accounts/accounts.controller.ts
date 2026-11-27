@@ -55,8 +55,26 @@ const ACCOUNT_SELECT = {
 /** Dono da conta: vê tudo e escreve. Compartilhada: somente leitura. */
 const OWNER_ACCESS = { canSeeBalance: true, canSeeTransactions: true, readOnly: false };
 
+/**
+ * Forma pública da conta.
+ *
+ * Campos são listados um a um de propósito: o `select` precisa trazer `userId`
+ * para decidir quem é o dono, mas ele **não** é dado de resposta. O
+ * `{ ...account }` anterior vazava o id interno do usuário em cada item —
+ * `ownerId` (que o cliente realmente usa) já é devolvido explicitamente.
+ */
 function toJson(account: AccountRow) {
-  return { ...account, balanceCents: centsToString(account.balanceCents) };
+  return {
+    id: account.id,
+    name: account.name,
+    institution: account.institution,
+    type: account.type,
+    currency: account.currency,
+    balanceCents: centsToString(account.balanceCents),
+    isActive: account.isActive,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  };
 }
 
 @Controller('accounts')
