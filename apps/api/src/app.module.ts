@@ -20,6 +20,7 @@ import { SharingModule } from './sharing/sharing.module';
 import { AllocationsModule } from './allocations/allocations.module';
 import { RecurrencesModule } from './recurrences/recurrences.module';
 import { NetWorthModule } from './net-worth/net-worth.module';
+import { CronModule } from './cron/cron.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { NetWorthModule } from './net-worth/net-worth.module';
     AllocationsModule,
     RecurrencesModule,
     NetWorthModule,
+    CronModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
