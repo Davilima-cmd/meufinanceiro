@@ -28,13 +28,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/lib/store', () => ({
-  useFinance: () => ({
-    session: null,
-    hydrated: true,
-    startDemo: vi.fn(),
-    toggleTheme: vi.fn(),
-    snapshot: { settings: { theme: 'dark' } },
-  }),
+  useFinance: () => ({ session: null, hydrated: true, startDemo: vi.fn() }),
 }));
 
 beforeEach(() => {

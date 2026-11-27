@@ -4,14 +4,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFinance } from '@/lib/store';
 import { withTimeout } from '@/lib/api';
-import { BrandLogo } from '@/components/brand';
+import { BrandLockup, BrandMark } from '@/components/brand';
+import { Banknote, Coin, Spark } from '@/components/illustrations';
 import type { AuthResponse } from '@meufinanceiro/shared-types';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
 
 export default function LoginPage() {
-  const { session, hydrated, startDemo, snapshot, toggleTheme } = useFinance();
-  const theme = snapshot.settings.theme;
+  const { session, hydrated, startDemo } = useFinance();
   const router = useRouter();
   const [tab, setTab] = useState<'demo' | 'conta'>('demo');
   const [mode, setMode] = useState<Mode>('login');
@@ -28,13 +28,6 @@ export default function LoginPage() {
       router.replace('/');
     }
   }, [hydrated, session, router]);
-
-  // O login não usa o shell, então o tema precisa ser escrito aqui também —
-  // é o que faz a tela trocar entre a arte escura e a clara.
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-  }, [theme]);
 
   function enterDemo() {
     startDemo();
@@ -126,33 +119,40 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      {/* Fundo do manual: grafite com duas formas do "c" ampliadas, uma em
-          degradê laranja→coral→roxo em cada canto, e o fio curvo da marca. O
-          tema claro troca o grafite pelo off white e suaviza as formas. */}
+      {/* Fundo animado: moedas, notas e brilhos flutuando devagar, como nos
+          slides da referência. É puramente decorativo (aria-hidden) e some com
+          prefers-reduced-motion. */}
       <div aria-hidden="true" className="auth-bg">
-        <span className="auth-shape auth-shape-a" />
-        <span className="auth-shape auth-shape-b" />
-        <span className="auth-shape auth-shape-c" />
-        <span className="auth-hairline" />
+        <span className="auth-orb auth-orb-a" />
+        <span className="auth-orb auth-orb-b" />
+        <span className="auth-float float-1">
+          <Coin size={92} />
+        </span>
+        <span className="auth-float float-2">
+          <Banknote size={120} />
+        </span>
+        <span className="auth-float float-3">
+          <Coin size={58} />
+        </span>
+        <span className="auth-float float-4">
+          <Spark />
+        </span>
+        <span className="auth-float float-5">
+          <Spark />
+        </span>
+        <span className="auth-float float-6">
+          <Banknote size={84} />
+        </span>
       </div>
 
-      <button
-        aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
-        className="auth-theme icon-button"
-        onClick={toggleTheme}
-        title={theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
-        type="button"
-      >
-        {theme === 'dark' ? '☼' : '☾'}
-      </button>
-
       <div className="auth-form-wrap">
-        <BrandLogo />
+        <div className="auth-brand">
+          <BrandMark size={44} />
+          <BrandLockup />
+        </div>
         <div className="auth-card">
           <div>
-            <h1>
-              Entrar no <span className="auth-title-accent">painel</span>
-            </h1>
+            <h1>Entrar no painel</h1>
             <p className="page-description">
               Explore com dados de exemplo ou conecte-se à sua conta na API.
             </p>
@@ -166,14 +166,6 @@ export default function LoginPage() {
               role="tab"
               type="button"
             >
-              <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-                <path
-                  d="M4 19V9m5 10V5m5 14v-6m5 6V8"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeWidth="2"
-                />
-              </svg>
               Demonstração
             </button>
             <button
@@ -183,15 +175,6 @@ export default function LoginPage() {
               role="tab"
               type="button"
             >
-              <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-                <path
-                  d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="1.8"
-                />
-              </svg>
               Tenho uma conta
             </button>
           </div>
@@ -226,19 +209,8 @@ export default function LoginPage() {
                 </label>
               ) : null}
               {mode !== 'reset' ? (
-                <label className="field auth-field">
-                  <span>
-                    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-                      <path
-                        d="M4 6h16v12H4V6Zm0 1 8 6 8-6"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.7"
-                      />
-                    </svg>
-                    E-mail
-                  </span>
+                <label className="field">
+                  <span>E-mail</span>
                   <input
                     autoComplete="email"
                     className="input"
@@ -264,19 +236,8 @@ export default function LoginPage() {
                 </label>
               ) : null}
               {mode !== 'forgot' ? (
-                <label className="field auth-field">
-                  <span>
-                    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-                      <path
-                        d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v9H5v-9Z"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.7"
-                      />
-                    </svg>
-                    {mode === 'reset' ? 'Nova senha' : 'Senha'}
-                  </span>
+                <label className="field">
+                  <span>{mode === 'reset' ? 'Nova senha' : 'Senha'}</span>
                   <input
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     className="input"
@@ -313,15 +274,6 @@ export default function LoginPage() {
                       : mode === 'forgot'
                         ? 'Enviar link de redefinição'
                         : 'Definir nova senha'}
-                <svg aria-hidden="true" className="button-arrow" fill="none" viewBox="0 0 24 24">
-                  <path
-                    d="M5 12h13m0 0-5-5m5 5-5 5"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                  />
-                </svg>
               </button>
               {mode === 'login' ? (
                 <p className="auth-note">
@@ -370,16 +322,9 @@ export default function LoginPage() {
             </form>
           )}
 
-          <p className="auth-note auth-note-api">
-            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
-              <path d="M12 11v5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-              <circle cx="12" cy="7.8" fill="currentColor" r="1" />
-            </svg>
-            <span>
-              A API é servida separadamente (<code>NEXT_PUBLIC_API_BASE</code>). Se ela não estiver
-              disponível, use o modo demonstração.
-            </span>
+          <p className="auth-note">
+            A API é servida separadamente (<code>NEXT_PUBLIC_API_BASE</code>). Se ela não estiver
+            disponível, use o modo demonstração.
           </p>
         </div>
       </div>

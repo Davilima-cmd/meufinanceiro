@@ -50,24 +50,3 @@ export function BrandLockup({ children }: { children?: ReactNode }) {
     </span>
   );
 }
-
-/** Logo horizontal do login: símbolo + "caju" + divisória + assinatura. */
-export function BrandLogo({ tagline = true }: { tagline?: boolean }) {
-  return (
-    <span className="brand-logo">
-      <span className="brand-logo-main">
-        <BrandMark size={46} />
-        <span className="brand-logo-word">caju</span>
-      </span>
-      {tagline ? (
-        <span className="brand-logo-rule" aria-hidden="true">
-          <span className="brand-logo-tagline">
-            Ideias que conectam.
-            <br />
-            <em>Soluções que transformam.</em>
-          </span>
-        </span>
-      ) : null}
-    </span>
-  );
-}
