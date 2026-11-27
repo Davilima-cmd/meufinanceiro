@@ -179,6 +179,7 @@ export default function RecurrencesPage() {
             <label className="field">
               <span>Descrição</span>
               <input
+                className="input"
                 maxLength={128}
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="Aluguel"
@@ -222,17 +223,26 @@ export default function RecurrencesPage() {
               placeholder="Sem categoria"
               value={categoryId}
             />
-            <label className="field">
-              <span>Dia do mês</span>
-              <input
-                inputMode="numeric"
-                max={28}
-                min={1}
-                onChange={(event) => setDayOfMonth(event.target.value)}
-                type="number"
-                value={dayOfMonth}
-              />
-            </label>
+            <div className="field">
+              <label htmlFor="recurrence-day">Dia do mês</label>
+              <div className="day-field">
+                <input
+                  aria-describedby="day-of-month-hint"
+                  className="input"
+                  id="recurrence-day"
+                  inputMode="numeric"
+                  max={28}
+                  min={1}
+                  onChange={(event) => setDayOfMonth(event.target.value.replace(/\D/g, ''))}
+                  type="number"
+                  value={dayOfMonth}
+                />
+                <span className="day-suffix">de cada mês</span>
+              </div>
+              <small className="field-hint" id="day-of-month-hint">
+                até dia 28, para existir em todo mês
+              </small>
+            </div>
             <button className="button button-primary" disabled={busy} type="submit">
               {busy ? 'Salvando…' : 'Criar recorrência'}
             </button>

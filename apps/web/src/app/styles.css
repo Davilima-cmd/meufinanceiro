@@ -2928,3 +2928,129 @@ a.notice:hover {
     transition: none;
   }
 }
+
+/* -------- formulários: mesma altura, mesmo alinhamento -------- */
+
+/* Todo campo de texto/numero/seleção tem a mesma altura do .input, inclusive
+   dentro do placeholder do select, para as linhas de formulário ficarem retas. */
+.form-row .select-trigger,
+.money-field,
+.day-field .input {
+  min-height: 40px;
+}
+
+.form-row {
+  gap: 14px 12px;
+}
+
+.form-row .field {
+  flex: 1 1 170px;
+}
+
+.form-row .button {
+  align-self: flex-start;
+  margin-top: 22px;
+  min-height: 40px;
+}
+
+/* Campo "dia do mês": o sufixo mora dentro da moldura, como o R$ do dinheiro. */
+.day-field {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.day-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.day-field .input {
+  width: 56px;
+  padding-right: 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: center;
+}
+
+.day-field .input:focus {
+  box-shadow: none;
+}
+
+.day-suffix {
+  padding-right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Sem as setinhas do input number, que desalinhavam o campo. */
+.day-field .input::-webkit-outer-spin-button,
+.day-field .input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.day-field .input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* -------- cabeçalho de página com ações sempre no mesmo lugar -------- */
+
+/* A frase do mês tem tamanho variável ("maio de 2026 ainda está em branco" é
+   bem mais longa que "junho de 2026 fechou no azul"). Com align-items:
+   flex-end, o bloco de ações descia ou subia junto e pulava de lado ao trocar
+   de mês. Aqui o texto ocupa a coluna da esquerda, limitado, e as ações ficam
+   ancoradas à direita, alinhadas pelo topo do título. */
+.page-header {
+  align-items: flex-start;
+  column-gap: 24px;
+}
+
+.page-header > div:first-child {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.page-header h1 {
+  max-width: 26ch;
+}
+
+.page-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  /* alinha a altura do botão com a linha do título, descontando o eyebrow */
+  padding-top: 22px;
+}
+
+@media (max-width: 720px) {
+  .page-actions {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 4px;
+  }
+}
+
+/* Rótulo de campo fora do <label> envolvente (quando há mais de um texto
+   dentro do campo, como o "de cada mês"). */
+.field > label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
