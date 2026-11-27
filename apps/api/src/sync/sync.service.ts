@@ -12,6 +12,7 @@ interface SyncResult {
 
 interface ProviderIdRow {
   providerId: string | null;
+  id: string;
 }
 
 interface IdRow {
@@ -104,12 +105,16 @@ export class SyncService {
           // recriado pela sincronização seguinte (o provedor continua mandando).
           deletedAt: null,
         },
-        select: { providerId: true },
+        select: { providerId: true, id: true },
       });
-      const existingProviderIds = new Set(existing.map((tx) => tx.providerId));
+      const existingByProviderId = new Map(
+        existing.map((tx) => [tx.providerId ?? '', tx.id] as const)
+      );
 
-      const toCreate = providerTransactions.filter((tx) => !existingProviderIds.has(tx.providerId));
-      const toUpdate = providerTransactions.filter((tx) => existingProviderIds.has(tx.providerId));
+      const toCreate = providerTransactions.filter(
+        (tx) => !existingByProviderId.has(tx.providerId)
+      );
+      const toUpdate = providerTransactions.filter((tx) => existingByProviderId.has(tx.providerId));
 
       // Inserção em lote dos lançamentos novos.
       if (toCreate.length > 0) {
@@ -133,10 +138,20 @@ export class SyncService {
       }
       transactionsSynced += toCreate.length;
 
-      // Atualização apenas dos lançamentos que já existem.
+      /**
+       * Atualização **pelo `id`** que já sabemos ser deste usuário.
+       *
+       * O `providerId` é único no banco, mas não por usuário: dois usuários que
+       * conectam o mesmo banco (o mesmo `providerAccountId`) recebem o mesmo id
+       * do provedor. Um `update({ where: { providerId } })` podia escrever na
+       * linha do outro usuário — descrição, valor e data de um lançamento
+       * alheio eram sobrescritos pela sincronização de outra pessoa.
+       */
       for (const tx of toUpdate) {
-        await this.prisma.transaction.update({
-          where: { providerId: tx.providerId },
+        const id = existingByProviderId.get(tx.providerId);
+        if (!id) continue;
+        await this.prisma.transaction.updateMany({
+          where: { id, userId },
           data: {
             description: tx.description,
             amountCents: String(tx.amountCents),
@@ -147,9 +162,9 @@ export class SyncService {
         transactionsSynced++;
       }
 
-      // Saldo é caixa realizado: soma só o que já está liquidado.
+      // Saldo é caixa realizado: soma só o que já está liquidado e não apagado.
       const balance = await this.prisma.transaction.aggregate({
-        where: { accountId: connection.accountId, status: 'paid' },
+        where: { accountId: connection.accountId, status: 'paid', deletedAt: null },
         _sum: { amountCents: true },
       });
       await this.prisma.financialAccount.update({

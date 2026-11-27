@@ -76,11 +76,16 @@ export class TransactionsService {
   ): Promise<T & { account: { userId: string } }> {
     const row = (await this.prisma.transaction.findFirst({
       where: { id, deletedAt: null },
-      select: { ...select, account: { select: { userId: true } } } as never,
-    })) as unknown as (T & { account: { userId: string } }) | null;
+      select: { ...select, account: { select: { userId: true, deletedAt: true } } } as never,
+    })) as unknown as (T & { account: { userId: string; deletedAt: Date | null } }) | null;
 
     if (!row) throw new NotFoundException('Lançamento não encontrado');
     if (row.account.userId !== userId) throw readOnlyAccountError();
+    // Conta excluída não aceita escrita: sem esta checagem, dava para liquidar
+    // um pendente e injetar saldo numa conta que o usuário já apagou.
+    if (row.account.deletedAt) {
+      throw new BadRequestException('A conta deste lançamento foi excluída.');
+    }
     return row;
   }
 
@@ -328,12 +333,15 @@ export class TransactionsService {
         data: {
           amountCents: next.toString(),
           ...(dto.description !== undefined ? { description: dto.description } : {}),
-          ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId ?? null } : {}),
+          ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId || null } : {}),
           ...(dto.date !== undefined ? { date: new Date(dto.date) } : {}),
           ...(dto.competenceDate !== undefined
             ? { competenceDate: new Date(dto.competenceDate) }
             : {}),
-          ...(dto.dueDate !== undefined ? { dueDate: new Date(dto.dueDate) } : {}),
+          // `null` limpa o vencimento; `new Date(null)` gravaria 1970.
+          ...(dto.dueDate !== undefined
+            ? { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }
+            : {}),
         },
         include: { account: { select: { id: true, name: true } } },
       });
@@ -381,21 +389,44 @@ export class TransactionsService {
     }
 
     const when = paidAt ? new Date(paidAt) : new Date();
+    if (Number.isNaN(when.getTime())) {
+      throw new BadRequestException('Data de liquidação inválida.');
+    }
     const amount = BigInt(centsToString(target.amountCents));
 
     return this.prisma.$transaction(async (tx) => {
-      const settled = await tx.transaction.update({
-        where: { id: target.id },
-        data: { status: 'paid', paidAt: when, date: when },
-        include: { account: { select: { id: true, name: true } } },
+      /**
+       * `date` **não** é reescrita ao liquidar: ela é a data de caixa do
+       * lançamento e foi escolhida na criação (o dia da compra). Sobrescrever
+       * com `paidAt` jogava a compra do dia 5 para o mês em que o boleto foi
+       * quitado, mudando o total do mês retroativo. Quem responde "quando saiu
+       * do caixa" é `paidAt`; a listagem do mês continua pela data da compra.
+       */
+      /**
+       * Transição condicional (`status: 'pending'`) em vez de `update` direto.
+       *
+       * Dois cliques/toques simultâneos no botão "Liquidar" liam `pending` os
+       * dois e cada um incrementava o saldo: R$ 100 viravam R$ 200. Aqui só a
+       * requisição que realmente mudou a linha aplica o valor; a outra recebe
+       * 400 e não toca no saldo.
+       */
+      const transition = await tx.transaction.updateMany({
+        where: { id: target.id, status: 'pending', deletedAt: null },
+        data: { status: 'paid', paidAt: when },
       });
+      if (transition.count === 0) {
+        throw new BadRequestException('Este lançamento já foi liquidado ou cancelado.');
+      }
 
       await tx.financialAccount.update({
         where: { id: target.accountId },
         data: { balanceCents: { increment: decimalOperand(amount) } },
       });
 
-      return settled;
+      return tx.transaction.findUnique({
+        where: { id: target.id },
+        include: { account: { select: { id: true, name: true } } },
+      });
     });
   }
 
@@ -422,9 +453,15 @@ export class TransactionsService {
       throw new BadRequestException('Transferência se remove, não se cancela.');
     }
 
-    return this.prisma.transaction.update({
-      where: { id: target.id },
+    const canceled = await this.prisma.transaction.updateMany({
+      where: { id: target.id, status: 'pending', deletedAt: null },
       data: { status: 'canceled' },
+    });
+    if (canceled.count === 0) {
+      throw new BadRequestException('Este lançamento já foi liquidado ou cancelado.');
+    }
+    return this.prisma.transaction.findUnique({
+      where: { id: target.id },
       include: { account: { select: { id: true, name: true } } },
     });
   }
@@ -438,8 +475,11 @@ export class TransactionsService {
       throw new BadRequestException('A conta de origem e a de destino devem ser diferentes.');
     }
 
+    // Conta excluída logicamente não recebe nem envia dinheiro: sem o
+    // `deletedAt: null` a transferência passava e o saldo era aplicado numa
+    // conta que não aparece mais em tela nenhuma.
     const accounts = await this.prisma.financialAccount.findMany({
-      where: { id: { in: [dto.accountId, targetAccountId] } },
+      where: { id: { in: [dto.accountId, targetAccountId] }, deletedAt: null },
       select: { id: true, userId: true },
     });
     if (accounts.length !== 2) throw new NotFoundException('Conta não encontrada');

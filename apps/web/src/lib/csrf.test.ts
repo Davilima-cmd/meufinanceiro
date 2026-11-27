@@ -13,10 +13,13 @@ import { api, setCsrfToken } from './api';
 const CSRF = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4';
 
 function mockFetch(status = 200, body: unknown = {}) {
+  // O cliente lê `res.text()` e faz o parse do JSON (204/corpo vazio não têm
+  // JSON), então o mock precisa expor os dois métodos.
   const fetchMock = vi.fn(async () => ({
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
+    text: async () => (body === undefined ? '' : JSON.stringify(body)),
   }));
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -51,6 +54,7 @@ describe('CSRF entre domínios no cliente da web', () => {
       ok: true,
       status: 201,
       json: async () => ({ id: 'acc-1' }),
+      text: async () => JSON.stringify({ id: 'acc-1' }),
     } as never);
 
     await api.createAccount({ name: 'Conta corrente', type: 'checking' });
@@ -68,7 +72,12 @@ describe('CSRF entre domínios no cliente da web', () => {
     });
 
     await api.authStatus();
-    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => [] } as never);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => [],
+      text: async () => '[]',
+    } as never);
     await api.setShareLevel('acc-1', 'FULL');
 
     expect(headersOf(fetchMock, 1)['X-CSRF-Token']).toBe(CSRF);

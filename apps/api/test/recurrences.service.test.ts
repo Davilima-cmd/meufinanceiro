@@ -62,7 +62,7 @@ describe('RecurrencesService', () => {
     expect(args.data.amountCents).toBe('-150000');
   });
 
-  it('dia 31 vira 28 (meses curtos não têm dia 31)', async () => {
+  it('dia 31 é preservado na regra (ajuste para o fim do mês só na geração)', async () => {
     prismaMock.recurrence.create.mockResolvedValue({ id: 'rec-1' });
 
     await service().create('user-1', {
@@ -76,7 +76,64 @@ describe('RecurrencesService', () => {
     const args = (prismaMock.recurrence.create.mock.calls[0] as unknown[])[0] as {
       data: { dayOfMonth: number };
     };
-    expect(args.data.dayOfMonth).toBe(28);
+    // Regressão: `Math.min(day, 28)` transformava dia 31 em 28 e o vencimento
+    // do aluguel caía três dias antes, todos os meses.
+    expect(args.data.dayOfMonth).toBe(31);
+  });
+
+  it('gera todas as ocorrências vencidas, não só a primeira', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-15T12:00:00Z'));
+    prismaMock.recurrence.findMany.mockResolvedValue([
+      {
+        id: 'rec-1',
+        userId: 'user-1',
+        accountId: 'acc-1',
+        categoryId: null,
+        description: 'Aluguel',
+        amountCents: '-150000',
+        type: 'expense',
+        dayOfMonth: 5,
+        // cursor parado em janeiro: fevereiro e março estavam faltando
+        nextRunAt: new Date('2026-01-05T12:00:00Z'),
+      },
+    ]);
+    prismaMock.financialAccount.findFirst.mockResolvedValue({ id: 'acc-1' });
+
+    const result = await service().run('user-1');
+
+    expect(result.created).toBe(3);
+    const dates = txMock.transaction.create.mock.calls.map((call) =>
+      (call[0] as { data: { date: Date } }).data.date.toISOString().slice(0, 10)
+    );
+    expect(dates).toEqual(['2026-01-05', '2026-02-05', '2026-03-05']);
+    vi.useRealTimers();
+  });
+
+  it('desativa a recorrência quando a conta foi excluída', async () => {
+    prismaMock.recurrence.findMany.mockResolvedValue([
+      {
+        id: 'rec-1',
+        userId: 'user-1',
+        accountId: 'acc-1',
+        categoryId: null,
+        description: 'Aluguel',
+        amountCents: '-150000',
+        type: 'expense',
+        dayOfMonth: 5,
+        nextRunAt: new Date('2026-01-05T12:00:00Z'),
+      },
+    ]);
+    prismaMock.financialAccount.findFirst.mockResolvedValue(null);
+
+    const result = await service().run('user-1');
+
+    expect(result.created).toBe(0);
+    expect(txMock.transaction.create).not.toHaveBeenCalled();
+    expect(prismaMock.recurrence.update).toHaveBeenCalledWith({
+      where: { id: 'rec-1' },
+      data: { active: false },
+    });
   });
 
   it('recusa conta de outra pessoa', async () => {

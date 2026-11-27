@@ -226,7 +226,16 @@ export class SharingService {
       select: {
         level: true,
         account: {
-          select: { id: true, name: true, institution: true, balanceCents: true, isActive: true },
+          select: {
+            id: true,
+            name: true,
+            institution: true,
+            // `type` é necessário para o cliente exibir a conta recebida com o
+            // tipo real (corrente, cartão…). Sem ele o front caía em `manual`.
+            type: true,
+            balanceCents: true,
+            isActive: true,
+          },
         },
         owner: { select: { id: true, name: true } },
       },
@@ -240,6 +249,7 @@ export class SharingService {
           id: string;
           name: string;
           institution: string | null;
+          type: string;
           balanceCents: { toString(): string };
           isActive: boolean;
         };

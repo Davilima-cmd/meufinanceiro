@@ -18,6 +18,7 @@ import { SyncService } from '../sync/sync.service';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 import { OPEN_FINANCE_PROVIDER, OpenFinanceProvider } from './open-finance.provider';
 import { PluggyOpenFinanceProvider } from './pluggy.provider';
+import { isUniqueViolation } from '../common/prisma-errors';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -154,59 +155,100 @@ export class OpenFinanceAccountsController {
       );
     }
 
-    const consent = await pluggy.createConsent(req.user.userId, dto.itemId);
-
-    // Um consentimento por item; as contas daquele item compartilham o registro.
-    const consentRow = await this.prisma.consent.create({
-      data: {
-        userId: req.user.userId,
+    /**
+     * Idempotência: se **todas** as contas do item já estão vinculadas, este
+     * `connect-item` é uma repetição (duplo clique, retry do widget, recarregar
+     * a página no meio). Antes, o fluxo criava um novo consentimento e nunca o
+     * usava — cada repetição deixava um consentimento órfão no banco, dizendo
+     * que havia autorização para um item que já estava conectado.
+     */
+    const alreadyLinked = await this.prisma.bankConnection.count({
+      where: {
         provider: 'pluggy',
-        externalId: consent.externalId,
-        status: consent.status,
-        expiresAt: consent.expiresAt,
+        providerAccountId: { in: accounts.map((account) => account.id) },
       },
-      select: { id: true },
     });
+    if (alreadyLinked === accounts.length) {
+      return {
+        itemId: dto.itemId,
+        status: item.status,
+        accounts: accounts.length,
+        created: 0,
+        skipped: accounts.length,
+        synced: false,
+      };
+    }
+
+    const consent = await pluggy.createConsent(req.user.userId, dto.itemId);
 
     let created = 0;
     let skipped = 0;
-    for (const account of accounts) {
-      const existing = await this.prisma.bankConnection.findFirst({
-        where: { provider: 'pluggy', providerAccountId: account.id },
-        select: { id: true, userId: true },
-      });
-      if (existing) {
-        // Já vinculada (inclusive por outro usuário): não duplicamos a conta.
-        skipped += 1;
-        continue;
-      }
+    // O consentimento só é gravado se alguma conta nascer de fato: sem isso,
+    // uma corrida entre duas requisições deixava um consentimento sem conta.
+    let consentRowId: string | null = null;
 
-      await this.prisma.$transaction(async (tx) => {
-        const row = await tx.financialAccount.create({
-          data: {
-            userId: req.user.userId,
-            name: account.name,
-            institution: account.institution ?? null,
-            type: account.type,
-            currency: account.currency,
-            balanceCents: account.balanceCents,
-          },
-          select: { id: true },
+    for (const account of accounts) {
+      // `create` com a conexão na mesma transação e a unique de
+      // `providerAccountId` como rede: duas requisições concorrentes não criam
+      // duas contas para a mesma conta bancária.
+      const result = await this.prisma
+        .$transaction(async (tx) => {
+          const existing = await tx.bankConnection.findFirst({
+            where: { provider: 'pluggy', providerAccountId: account.id },
+            select: { id: true, userId: true },
+          });
+          if (existing) return { skipped: true as const, created: false as const };
+
+          const row = await tx.financialAccount.create({
+            data: {
+              userId: req.user.userId,
+              name: account.name,
+              institution: account.institution ?? null,
+              type: account.type,
+              currency: account.currency,
+              balanceCents: account.balanceCents,
+            },
+            select: { id: true },
+          });
+
+          let consentId = consentRowId;
+          if (!consentId) {
+            const consentRow = await tx.consent.create({
+              data: {
+                userId: req.user.userId,
+                provider: 'pluggy',
+                externalId: consent.externalId,
+                status: consent.status,
+                expiresAt: consent.expiresAt,
+              },
+              select: { id: true },
+            });
+            consentId = consentRow.id;
+            consentRowId = consentId;
+          }
+
+          await tx.bankConnection.create({
+            data: {
+              userId: req.user.userId,
+              accountId: row.id,
+              provider: 'pluggy',
+              providerAccountId: account.id,
+              providerItemId: dto.itemId,
+              status: 'active',
+              consentId,
+              expiresAt: consent.expiresAt,
+            },
+          });
+          return { skipped: false as const, created: true as const };
+        })
+        .catch((error: unknown) => {
+          // Unique violação = outra requisição vinculou a mesma conta primeiro.
+          if (isUniqueViolation(error)) return { skipped: true as const, created: false as const };
+          throw error;
         });
-        await tx.bankConnection.create({
-          data: {
-            userId: req.user.userId,
-            accountId: row.id,
-            provider: 'pluggy',
-            providerAccountId: account.id,
-            providerItemId: dto.itemId,
-            status: 'active',
-            consentId: consentRow.id,
-            expiresAt: consent.expiresAt,
-          },
-        });
-      });
-      created += 1;
+
+      if (result.skipped) skipped += 1;
+      if (result.created) created += 1;
     }
 
     // Importa o histórico agora: conta sem lançamentos parece vazia, e o usuário

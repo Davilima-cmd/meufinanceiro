@@ -1,4 +1,12 @@
-import { IsDateString, IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  ValidateIf,
+} from 'class-validator';
 
 /** Centavos inteiros, negativo para despesa (ex.: "-15000" = -R$ 150,00). */
 const CENTS_PATTERN = /^-?\d{1,19}$/;
@@ -55,9 +63,15 @@ export class CreateTransactionDto {
   status?: string;
 
   /** Vencimento (contas a pagar/receber). */
+  /**
+   * `null` remove o vencimento (lançamento deixa de ser conta a pagar). O
+   * service já fazia `new Date(dto.dueDate)` em qualquer valor definido —
+   * `new Date(null)` virava 1970 e o vencimento ficava no passado distante.
+   */
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsDateString()
-  dueDate?: string;
+  dueDate?: string | null;
 }
 
 export class SettleTransactionDto {
@@ -77,9 +91,16 @@ export class UpdateTransactionDto {
   @Matches(CENTS_PATTERN, { message: 'amountCents deve ser um inteiro em centavos' })
   amountCents?: string;
 
+  /**
+   * `null` limpa a categoria (lançamento passa a "sem categoria"). O service
+   * já tratava `dto.categoryId !== undefined` com `?? null`; o DTO recusava o
+   * `null` e tornava essa limpeza impossível pela API.
+   */
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsString()
-  categoryId?: string;
+  @Length(1, 255)
+  categoryId?: string | null;
 
   @IsOptional()
   @IsDateString()
@@ -89,7 +110,13 @@ export class UpdateTransactionDto {
   @IsDateString()
   competenceDate?: string;
 
+  /**
+   * `null` remove o vencimento (lançamento deixa de ser conta a pagar). O
+   * service já fazia `new Date(dto.dueDate)` em qualquer valor definido —
+   * `new Date(null)` virava 1970 e o vencimento ficava no passado distante.
+   */
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsDateString()
-  dueDate?: string;
+  dueDate?: string | null;
 }

@@ -144,30 +144,66 @@ export class RecurrencesService {
       dayOfMonth: number;
       nextRunAt: Date;
     }>) {
-      const runAt = recurrence.nextRunAt;
-      // Lançamento pendente: o valor só entra no saldo quando for liquidado.
-      await this.prisma.$transaction(async (tx) => {
-        await tx.transaction.create({
-          data: {
-            accountId: recurrence.accountId,
-            userId: recurrence.userId,
-            categoryId: recurrence.categoryId,
-            description: recurrence.description,
-            amountCents: recurrence.amountCents.toString(),
-            type: recurrence.type,
-            origin: 'recurring',
-            date: runAt,
-            competenceDate: runAt,
-            dueDate: runAt,
-            status: 'pending',
-          },
+      /**
+       * Conta excluída não gera lançamento. Antes a rotina continuava criando
+       * pendentes numa conta que sumiu da interface — invisíveis, mas contando
+       * em "a pagar" para sempre.
+       */
+      const account = await this.prisma.financialAccount.findFirst({
+        where: { id: recurrence.accountId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!account) {
+        await this.prisma.recurrence.update({
+          where: { id: recurrence.id },
+          data: { active: false },
         });
+        continue;
+      }
+
+      /**
+       * Gera **todas** as ocorrências vencidas, não só uma.
+       *
+       * O cursor (`nextRunAt`) só avança uma vez por execução: se a rotina não
+       * rodou por dois meses (deploy parado, serviço fora do ar, mês sem
+       * ninguém abrir o app), o aluguel daquele período simplesmente não
+       * existia — o histórico ficava com buraco e o `nextRunAt` continuava
+       * meses atrás.
+       */
+      const runAt = recurrence.nextRunAt;
+      let cursor = nextOccurrence(runAt, recurrence.dayOfMonth);
+      const missed: Date[] = [runAt];
+      // Teto de segurança: 60 meses evita laço infinito por dado corrompido.
+      while (cursor.getTime() <= now.getTime() && missed.length < 60) {
+        missed.push(cursor);
+        cursor = nextOccurrence(cursor, recurrence.dayOfMonth);
+      }
+
+      // Lançamentos pendentes: o valor só entra no saldo quando liquidados.
+      await this.prisma.$transaction(async (tx) => {
+        for (const date of missed) {
+          await tx.transaction.create({
+            data: {
+              accountId: recurrence.accountId,
+              userId: recurrence.userId,
+              categoryId: recurrence.categoryId,
+              description: recurrence.description,
+              amountCents: recurrence.amountCents.toString(),
+              type: recurrence.type,
+              origin: 'recurring',
+              date,
+              competenceDate: date,
+              dueDate: date,
+              status: 'pending',
+            },
+          });
+        }
         await tx.recurrence.update({
           where: { id: recurrence.id },
-          data: { nextRunAt: nextOccurrence(runAt, recurrence.dayOfMonth) },
+          data: { nextRunAt: cursor },
         });
       });
-      created += 1;
+      created += missed.length;
     }
 
     return { created };
@@ -182,12 +218,19 @@ export class RecurrencesService {
   }
 }
 
-/** Dia 29–31 em mês curto vira o último dia disponível (28 na prática). */
+/**
+ * Valida o dia do mês da regra.
+ *
+ * Antes havia `Math.min(day, 28)`: quem escolhia dia 30 ou 31 tinha a regra
+ * silenciosamente transformada em dia 28 — o aluguel do dia 31 passava a vencer
+ * três dias antes, todo mês. O dia é guardado como veio; quem ajusta para o
+ * último dia do mês (fev = 28/29) é a geração, no `nextOccurrence`.
+ */
 function clampDay(day: number): number {
   if (!Number.isInteger(day) || day < 1 || day > 31) {
     throw new BadRequestException('Informe um dia do mês entre 1 e 31.');
   }
-  return Math.min(day, 28);
+  return day;
 }
 
 /**

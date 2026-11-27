@@ -31,6 +31,14 @@ interface GoalRow {
   updatedAt: Date;
 }
 
+/** `current / target` como fração (0 quando o alvo é zero/negativo). */
+function progressRatio(currentCentavos: DecimalLike, targetCentavos: DecimalLike): number {
+  const target = BigInt(centsToString(targetCentavos));
+  if (target <= 0n) return 0;
+  const current = BigInt(centsToString(currentCentavos));
+  return Math.round((Number(current) / Number(target)) * 10000) / 10000;
+}
+
 @Controller('financial-goals')
 @UseGuards(AuthGuard('jwt'))
 export class FinancialGoalsController {
@@ -46,8 +54,10 @@ export class FinancialGoalsController {
       ...goal,
       targetCents: centsToString(goal.targetCents),
       currentCents: centsToString(goal.currentCents),
-      progress:
-        Number(goal.targetCents) > 0 ? Number(goal.currentCents) / Number(goal.targetCents) : 0,
+      // Fração calculada em centavos inteiros: `Number(Decimal)` em valores
+      // grandes perde precisão e um alvo de R$ 10.000.000,00 dava progresso
+      // errado no arredondamento.
+      progress: progressRatio(goal.currentCents, goal.targetCents),
     }));
   }
 
@@ -141,14 +151,34 @@ export class FinancialGoalsController {
 
   @Post()
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateGoalDto) {
-    const goal = await this.prisma.financialGoal.create({
-      data: {
-        userId: req.user.userId,
-        name: dto.name,
-        targetCents: dto.targetCents,
-        currentCents: dto.currentCents ?? '0',
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-      },
+    const target = BigInt(dto.targetCents);
+    if (target <= 0n) {
+      throw new BadRequestException('O valor alvo da meta deve ser maior que zero.');
+    }
+    const initial = dto.currentCents ? BigInt(dto.currentCents) : 0n;
+
+    // O saldo da meta tem que ser explicado pelos aportes: o valor inicial da
+    // criação entra no histórico como primeiro aporte, na mesma transação.
+    const goal = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.financialGoal.create({
+        data: {
+          userId: req.user.userId,
+          name: dto.name,
+          targetCents: target.toString(),
+          currentCents: initial.toString(),
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        },
+      });
+      if (initial !== 0n) {
+        await tx.goalContribution.create({
+          data: {
+            goalId: created.id,
+            amountCents: initial.toString(),
+            note: 'Saldo inicial da meta',
+          },
+        });
+      }
+      return created;
     });
     return {
       ...goal,
@@ -168,42 +198,54 @@ export class FinancialGoalsController {
     @Param('id') id: string,
     @Body() dto: UpdateGoalDto
   ) {
-    const current = await this.prisma.financialGoal.findFirst({
-      where: { id, userId: req.user.userId },
-      select: { currentCents: true },
-    });
-    if (!current) {
-      throw new NotFoundException('Meta não encontrada');
+    if (dto.targetCents !== undefined && BigInt(dto.targetCents) <= 0n) {
+      throw new BadRequestException('O valor alvo da meta deve ser maior que zero.');
     }
 
-    const updated = await this.prisma.financialGoal.updateMany({
-      where: { id, userId: req.user.userId },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.targetCents !== undefined && { targetCents: dto.targetCents }),
-        ...(dto.currentCents !== undefined && {
-          currentCents: dto.currentCents,
-        }),
-        ...(dto.dueDate !== undefined && { dueDate: new Date(dto.dueDate) }),
-      },
-    });
-    if (updated.count === 0) {
-      throw new NotFoundException('Meta não encontrada');
-    }
-
-    if (dto.currentCents !== undefined) {
-      const delta = BigInt(dto.currentCents) - BigInt(centsToString(current.currentCents));
-      if (delta !== 0n) {
-        await this.prisma.goalContribution.create({
-          data: {
-            goalId: id,
-            amountCents: delta.toString(),
-            note: 'Ajuste manual do saldo',
-          },
-        });
+    // Saldo da meta + aporte de ajuste numa transação só: antes o PATCH gravava
+    // o novo saldo e, se a criação do aporte falhasse, o histórico deixava de
+    // explicar o `currentCents` até alguém notar.
+    const goal = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.financialGoal.findFirst({
+        where: { id, userId: req.user.userId },
+        select: { currentCents: true },
+      });
+      if (!current) {
+        throw new NotFoundException('Meta não encontrada');
       }
-    }
-    const goal = await this.prisma.financialGoal.findUnique({ where: { id } });
+
+      const updated = await tx.financialGoal.updateMany({
+        where: { id, userId: req.user.userId },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.targetCents !== undefined && { targetCents: dto.targetCents }),
+          ...(dto.currentCents !== undefined && {
+            currentCents: dto.currentCents,
+          }),
+          // `null` remove o prazo; `new Date(null)` gravaria 1970.
+          ...(dto.dueDate !== undefined && {
+            dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          }),
+        },
+      });
+      if (updated.count === 0) {
+        throw new NotFoundException('Meta não encontrada');
+      }
+
+      if (dto.currentCents !== undefined) {
+        const delta = BigInt(dto.currentCents) - BigInt(centsToString(current.currentCents));
+        if (delta !== 0n) {
+          await tx.goalContribution.create({
+            data: {
+              goalId: id,
+              amountCents: delta.toString(),
+              note: 'Ajuste manual do saldo',
+            },
+          });
+        }
+      }
+      return tx.financialGoal.findUnique({ where: { id } });
+    });
     if (!goal) {
       throw new NotFoundException('Meta não encontrada');
     }

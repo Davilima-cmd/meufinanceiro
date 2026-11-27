@@ -45,6 +45,49 @@ function transactionType(value: string): TransactionType {
 const DEFAULT_COLORS = ['#8b7bff', '#22c55e', '#f97316', '#0ea5e9', '#ec4899', '#eab308'];
 
 /**
+ * Preferências locais do navegador que **não** existem na API (tema e
+ * "esconder valores"). Sem elas aqui, cada snapshot remontado a partir da API
+ * voltava para `dark`/`false` — bastava salvar um lançamento para a tela
+ * "esquecer" o tema escolhido.
+ */
+export type StoredSettings = { theme?: 'dark' | 'light'; hideValues?: boolean };
+
+function readStoredSettings(): StoredSettings {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem('mf.settings.v1');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as StoredSettings;
+    return {
+      theme: parsed.theme === 'light' || parsed.theme === 'dark' ? parsed.theme : undefined,
+      hideValues: typeof parsed.hideValues === 'boolean' ? parsed.hideValues : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Espelha o `kind` da categoria.
+ *
+ * A API **aceita** `kind` no DTO de criação/edição, mas não guarda a coluna e
+ * não devolve no `GET /categories` (histórico de migrations). Então, quando ela
+ * manda, usamos; quando não manda, a heurística do nome é só o palpite de
+ * último recurso — e um palpite errado esconde a categoria de receita da
+ * seleção de receita.
+ */
+function categoryKind(category: ApiCategory & { kind?: string }): 'expense' | 'income' | 'both' {
+  if (category.kind === 'income' || category.kind === 'expense' || category.kind === 'both') {
+    return category.kind;
+  }
+  return /salário|salario|receita|rendimento|freelance|proventos|reembolso|venda/i.test(
+    category.name
+  )
+    ? 'income'
+    : 'expense';
+}
+
+/**
  * O parceiro vem da parceria (aceita ou ainda pendente). Sem parceria na API,
  * cai no dono das contas compartilhadas — se houver mais de um, fica o primeiro.
  */
@@ -81,9 +124,9 @@ export function mapApiSnapshot(
   goals: ApiGoal[],
   sharing: ApiSharingOverview | null = null
 ): FinanceSnapshot {
+  const storedSettings = readStoredSettings();
   const mappedCategories = categories.map((category, index) => {
-    const kind: 'expense' | 'income' | 'both' =
-      /salário|salario|receita|rendimento|freelance/i.test(category.name) ? 'income' : 'expense';
+    const kind = categoryKind(category as ApiCategory & { kind?: string });
     return {
       id: category.id,
       name: category.name,
@@ -150,7 +193,11 @@ export function mapApiSnapshot(
     })),
     partner: partnerFromSnapshot(accounts, user, sharing),
     invites: sharing?.invites ?? [],
-    settings: { theme: 'dark', hideValues: false, partnerName: 'Parceiro' },
+    settings: {
+      theme: storedSettings.theme ?? 'dark',
+      hideValues: storedSettings.hideValues ?? false,
+      partnerName: partnerFromSnapshot(accounts, user, sharing)?.name ?? 'Parceiro',
+    },
   };
 }
 
@@ -167,7 +214,10 @@ export function mapSharedAccounts(rows: ApiSharedAccount[], offset = 0): Finance
     id: row.account.id,
     name: row.account.name,
     institution: row.account.institution ?? null,
-    type: 'manual',
+    // A conta do parceiro é a mesma conta que ele criou: forçar `manual`
+    // apagava o tipo real (corrente, cartão, investimento) na visão de quem
+    // recebeu o compartilhamento.
+    type: row.account.type ? accountType(row.account.type) : 'manual',
     currency: 'BRL',
     balanceCents: String(row.account.balanceCents),
     shareLevel: row.level,

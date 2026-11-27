@@ -158,9 +158,17 @@ export function buildTrend(
 ): MonthlyPoint[] {
   const { visible } = coverage(transactions, accounts);
   return monthRange(endMonth, months).map((monthKey) => {
-    const items = transactionsOfMonth(visible, monthKey);
+    /**
+     * Mesma base do `buildOverview`: só o que foi liquidado. Antes a série de
+     * 6 meses somava `pending` (e usava a soma bruta de todos os lançamentos
+     * positivos como receita), então a barra do mês não batia com os cartões
+     * de receita/despesa logo acima do mesmo gráfico.
+     */
+    const items = transactionsOfMonth(visible, monthKey).filter(isSettled);
     const incomeCents = sumCents(
-      items.filter((item) => toCents(item.amountCents) > 0n).map((item) => item.amountCents)
+      items
+        .filter((item) => toCents(item.amountCents) > 0n && item.type !== 'transfer')
+        .map((item) => item.amountCents)
     );
     const expenseCents = -sumCents(
       items
@@ -291,10 +299,18 @@ export function buildOverview(
     dailyMap.set(day, bucket);
   }
 
+  /**
+   * Maior despesa do mês: despesas são negativas, então o **menor** valor (mais
+   * negativo) é a maior. O comparador antigo nunca devolvia 0 e não era
+   * transitivo — com três ou mais despesas a "maior" podia sair errada.
+   */
   const biggestExpense =
-    [...expenses].sort((left, right) =>
-      toCents(left.amountCents) < toCents(right.amountCents) ? -1 : 1
-    )[0] ?? null;
+    [...expenses].sort((left, right) => {
+      const a = toCents(left.amountCents);
+      const b = toCents(right.amountCents);
+      if (a === b) return 0;
+      return a < b ? -1 : 1;
+    })[0] ?? null;
 
   const monthExpenses = coverage(snapshot.transactions, accounts).visible.filter(
     (item) => toCents(item.amountCents) < 0n && item.type === 'expense' && isSettled(item)
@@ -347,7 +363,8 @@ export function buildOverview(
 
   return {
     monthKey,
-    monthLabel: monthKey,
+    // Era o `monthKey` cru ("2026-11") apesar do nome `monthLabel`.
+    monthLabel: formatMonthShort(monthKey),
     netWorthCents: personalBalanceCents + sharedBalanceCents,
     personalBalanceCents,
     sharedBalanceCents,
@@ -390,16 +407,25 @@ function previousMonth(monthKey: string): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-/** Total gasto por categoria em um mês (usado na tela de categorias e orçamentos). */
+/**
+ * Total gasto por categoria em um mês (usado na tela de categorias e orçamentos).
+ *
+ * Base: despesa **liquidada** do mês por `competenceDate` — a mesma do
+ * `GET /budgets` da API. Antes usava `date` e somava `pending`, então a tela
+ * de orçamentos mostrava um gasto diferente do que a API calculava para o
+ * mesmo orçamento (e o `remainingCents` do servidor não batia com a barra).
+ */
 export function spentByCategory(
   snapshot: FinanceSnapshot,
   monthKey: string,
   ownerId: string
 ): Map<string, bigint> {
   const accounts = visibleAccounts(snapshot, ownerId);
-  const transactions = coverage(snapshot.transactions, accounts).visible;
+  const transactions = coverage(snapshot.transactions, accounts).visible.filter(isSettled);
   const result = new Map<string, bigint>();
-  for (const transaction of transactionsOfMonth(transactions, monthKey)) {
+  for (const transaction of transactions.filter(
+    (item) => monthKeyOf((item.competenceDate ?? item.date).slice(0, 10)) === monthKey
+  )) {
     const cents = toCents(transaction.amountCents);
     // Transferências movem dinheiro entre contas: não são consumo e não
     // devem consumir orçamento de categoria.

@@ -6,6 +6,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 const prismaMock = {
   budget: {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
     updateMany: vi.fn(),
@@ -16,17 +17,22 @@ const prismaMock = {
   },
   transaction: {
     findMany: vi.fn(),
+    aggregate: vi.fn(),
   },
 } as unknown as {
   budget: {
     findMany: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     updateMany: ReturnType<typeof vi.fn>;
     deleteMany: ReturnType<typeof vi.fn>;
   };
   category: { findFirst: ReturnType<typeof vi.fn> };
-  transaction: { findMany: ReturnType<typeof vi.fn> };
+  transaction: {
+    findMany: ReturnType<typeof vi.fn>;
+    aggregate: ReturnType<typeof vi.fn>;
+  };
 };
 
 function makeController() {
@@ -48,7 +54,15 @@ const budgetRow = {
 };
 
 describe('BudgetsController', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // O PATCH passou a compor a resposta com o gasto do período.
+    prismaMock.budget.findFirst.mockResolvedValue({
+      periodStart: new Date('2026-01-01'),
+      periodEnd: new Date('2026-01-31'),
+    });
+    prismaMock.transaction.aggregate.mockResolvedValue({ _sum: { amountCents: '-3000' } });
+  });
 
   it('lista orçamentos com gasto realizado e restante', async () => {
     prismaMock.budget.findMany.mockResolvedValue([budgetRow]);
@@ -57,12 +71,16 @@ describe('BudgetsController', () => {
         categoryId: 'cat-1',
         amountCents: { toString: () => '-3000' },
         date: new Date('2026-01-15'),
+        competenceDate: new Date('2026-01-15'),
+        status: 'paid',
       },
-      // fora do período: não deve contar
+      // fora do período (competência em fevereiro): não deve contar
       {
         categoryId: 'cat-1',
         amountCents: { toString: () => '-9000' },
         date: new Date('2026-02-02'),
+        competenceDate: new Date('2026-02-02'),
+        status: 'paid',
       },
     ]);
 
@@ -74,13 +92,22 @@ describe('BudgetsController', () => {
       orderBy: { periodStart: 'desc' },
     });
     expect(prismaMock.transaction.findMany).toHaveBeenCalledWith({
-      select: { categoryId: true, amountCents: true, date: true },
+      select: {
+        categoryId: true,
+        amountCents: true,
+        date: true,
+        competenceDate: true,
+        status: true,
+      },
       where: {
         userId: 'user-1',
         type: 'expense',
+        // Conta a pagar só consome o orçamento quando é liquidada.
+        status: 'paid',
         // Lançamento excluído logicamente não consome orçamento.
         deletedAt: null,
-        date: { gte: budgetRow.periodStart, lte: budgetRow.periodEnd },
+        // Regime de competência: o mês a que o gasto pertence.
+        competenceDate: { gte: budgetRow.periodStart, lte: budgetRow.periodEnd },
       },
     });
     // Despesas são negativas no banco: o gasto usa o módulo.

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -35,6 +36,8 @@ interface ExpenseRow {
   categoryId: string | null;
   amountCents: DecimalLike;
   date: Date;
+  competenceDate: Date;
+  status: string;
 }
 
 @Controller('budgets')
@@ -59,14 +62,32 @@ export class BudgetsController {
     const minStart = new Date(Math.min(...budgets.map((b) => b.periodStart.getTime())));
     const maxEnd = new Date(Math.max(...budgets.map((b) => b.periodEnd.getTime())));
 
+    /**
+     * Gasto do orçamento = despesa **liquidada** do período por
+     * `competenceDate` (regime de competência), igual ao que a tela de rateio
+     * e o painel mostram.
+     *
+     * Antes somava `date` e incluía `pending`: um boleto do mês seguinte
+     * pagável hoje consumia o orçamento deste mês, um aluguel de dezembro pago
+     * em janeiro caía em janeiro, e a conta a pagar (que ainda não saiu do
+     * caixa) já aparecia como gasto. Agora os três números do produto usam a
+     * mesma base.
+     */
     const expenses: ExpenseRow[] = await this.prisma.transaction.findMany({
-      select: { categoryId: true, amountCents: true, date: true },
+      select: {
+        categoryId: true,
+        amountCents: true,
+        date: true,
+        competenceDate: true,
+        status: true,
+      },
       where: {
         userId,
         type: 'expense',
+        status: 'paid',
         // Lançamento excluído logicamente não consome orçamento.
         deletedAt: null,
-        date: { gte: minStart, lte: maxEnd },
+        competenceDate: { gte: minStart, lte: maxEnd },
       },
     });
 
@@ -76,7 +97,7 @@ export class BudgetsController {
       const bucket = spentByCategory.get(expense.categoryId) ?? [];
       bucket.push({
         amountCents: Number(centsToString(expense.amountCents)),
-        date: expense.date,
+        date: expense.competenceDate,
       });
       spentByCategory.set(expense.categoryId, bucket);
     }
@@ -107,6 +128,13 @@ export class BudgetsController {
     });
   }
 
+  /** `periodEnd` anterior ao início criaria um orçamento que nunca soma nada. */
+  private assertPeriod(periodStart: string, periodEnd: string): void {
+    if (new Date(periodEnd).getTime() < new Date(periodStart).getTime()) {
+      throw new BadRequestException('O fim do período não pode ser anterior ao início.');
+    }
+  }
+
   @Post()
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateBudgetDto) {
     // A categoria precisa existir e estar disponível para o usuário.
@@ -117,6 +145,7 @@ export class BudgetsController {
     if (!category) {
       throw new NotFoundException('Categoria não encontrada');
     }
+    this.assertPeriod(dto.periodStart, dto.periodEnd);
 
     const budget: BudgetWithCategory = await this.prisma.budget.create({
       data: {
@@ -144,6 +173,20 @@ export class BudgetsController {
     @Param('id') id: string,
     @Body() dto: UpdateBudgetDto
   ) {
+    const existing = await this.prisma.budget.findFirst({
+      where: { id, userId: req.user.userId },
+      select: { periodStart: true, periodEnd: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Orçamento não encontrado');
+    }
+    // Só um dos lados do período pode vir no PATCH: a checagem de ordem usa o
+    // valor atual do outro lado, senão daria para gravar fim < início.
+    this.assertPeriod(
+      dto.periodStart ?? existing.periodStart.toISOString(),
+      dto.periodEnd ?? existing.periodEnd.toISOString()
+    );
+
     // Chave composta sem `id` é inválida no Prisma: usamos updateMany para
     // filtrar por dono e depois buscamos o registro retornado.
     const updated = await this.prisma.budget.updateMany({
@@ -165,7 +208,35 @@ export class BudgetsController {
     if (!budget) {
       throw new NotFoundException('Orçamento não encontrado');
     }
-    return { ...budget, amountCents: centsToString(budget.amountCents) };
+    // Mesmo contrato do GET/POST: o cliente atualiza a lista com a resposta do
+    // PATCH, então ela precisa trazer `spentCents`/`remainingCents` também.
+    return this.withSpending(budget);
+  }
+
+  /**
+   * Gasto do período de um único orçamento, na mesma base do `list()`
+   * (despesa liquidada por competência).
+   */
+  private async withSpending(budget: BudgetWithCategory) {
+    const spent = await this.prisma.transaction.aggregate({
+      where: {
+        userId: budget.userId,
+        categoryId: budget.categoryId,
+        type: 'expense',
+        status: 'paid',
+        deletedAt: null,
+        competenceDate: { gte: budget.periodStart, lte: budget.periodEnd },
+      },
+      _sum: { amountCents: true },
+    });
+    const spentCents = Math.abs(Number(centsToString(spent._sum.amountCents)));
+    const amountCents = Number(centsToString(budget.amountCents));
+    return {
+      ...budget,
+      amountCents: String(amountCents),
+      spentCents: String(spentCents),
+      remainingCents: String(amountCents - spentCents),
+    };
   }
 
   @Delete(':id')

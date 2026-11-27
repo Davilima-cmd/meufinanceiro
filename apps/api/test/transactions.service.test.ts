@@ -25,6 +25,7 @@ const txMock = {
     create: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
+    findUnique: vi.fn(),
     deleteMany: vi.fn(),
   },
   financialAccount: {
@@ -310,9 +311,12 @@ describe('TransactionsService — liquidação', () => {
 
   it('liquida um pendente aplicando o valor no saldo', async () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pending);
-    (txMock.transaction.update as ReturnType<typeof vi.fn>).mockImplementation(
-      async ({ data }: { data: Record<string, unknown> }) => ({ id: 'tx-1', ...data })
-    );
+    (txMock.transaction.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+    (txMock.transaction.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'tx-1',
+      status: 'paid',
+      paidAt: new Date('2026-11-20'),
+    });
 
     const result = (await service().settle('user-1', 'tx-1', '2026-11-20')) as {
       status: string;
@@ -327,17 +331,27 @@ describe('TransactionsService — liquidação', () => {
     });
   });
 
-  it('a data de caixa acompanha a liquidação', async () => {
+  it('a liquidação marca paidAt mas NÃO reescreve a data de caixa da compra', async () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pending);
-    (txMock.transaction.update as ReturnType<typeof vi.fn>).mockImplementation(
-      async ({ data }: { data: Record<string, unknown> }) => ({ id: 'tx-1', ...data })
-    );
+    (txMock.transaction.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
 
     await service().settle('user-1', 'tx-1', '2026-11-20');
 
-    const data = (txMock.transaction.update as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
-    expect(data.date).toEqual(new Date('2026-11-20'));
+    const data = (txMock.transaction.updateMany as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    // `date` é a data do lançamento escolhida na criação; sobrescrevê-la movia
+    // a despesa para o mês do pagamento no relatório.
+    expect(data.date).toBeUndefined();
     expect(data.status).toBe('paid');
+    expect(data.paidAt).toEqual(new Date('2026-11-20'));
+  });
+
+  it('não credita o saldo duas vezes quando a transição de status falha', async () => {
+    (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pending);
+    // Outra requisição já liquidou entre o SELECT e o UPDATE.
+    (txMock.transaction.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 0 });
+
+    await expect(service().settle('user-1', 'tx-1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(txMock.financialAccount.update).not.toHaveBeenCalled();
   });
 
   it('é idempotente por status: não liquida duas vezes', async () => {
@@ -374,13 +388,26 @@ describe('TransactionsService — liquidação', () => {
 
   it('cancela pendente sem mexer no saldo', async () => {
     (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pending);
-    (prismaMock.transaction as unknown as { update: ReturnType<typeof vi.fn> }).update = vi
+    (prismaMock.transaction as unknown as { updateMany: ReturnType<typeof vi.fn> }).updateMany = vi
+      .fn()
+      .mockResolvedValue({ count: 1 });
+    (prismaMock.transaction as unknown as { findUnique: ReturnType<typeof vi.fn> }).findUnique = vi
       .fn()
       .mockResolvedValue({ id: 'tx-1', status: 'canceled' });
 
-    await service().cancel('user-1', 'tx-1');
+    const result = (await service().cancel('user-1', 'tx-1')) as { status: string };
 
+    expect(result.status).toBe('canceled');
     expect(txMock.financialAccount.update).not.toHaveBeenCalled();
+  });
+
+  it('avisa quando o cancelamento perde a corrida em vez de fingir sucesso', async () => {
+    (prismaMock.transaction.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(pending);
+    (prismaMock.transaction as unknown as { updateMany: ReturnType<typeof vi.fn> }).updateMany = vi
+      .fn()
+      .mockResolvedValue({ count: 0 });
+
+    await expect(service().cancel('user-1', 'tx-1')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('recusa cancelar lançamento já liquidado (caminho é o estorno)', async () => {

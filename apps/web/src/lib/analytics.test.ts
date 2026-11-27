@@ -3,6 +3,7 @@ import { buildDemoSnapshot, DEMO_USER } from '@/lib/demo-data';
 import {
   basisTotals,
   buildOverview,
+  buildTrend,
   coverage,
   isSettled,
   spentByCategory,
@@ -225,5 +226,112 @@ describe('basisTotals (caixa × competência)', () => {
     expect(basisTotals(snapshot, '2026-12', 'user-1', 'cash').expenseCents).toBe(0n);
     expect(basisTotals(snapshot, '2027-01', 'user-1', 'cash').expenseCents).toBe(150000n);
     expect(basisTotals(snapshot, '2027-01', 'user-1', 'accrual').expenseCents).toBe(0n);
+  });
+});
+
+/**
+ * Consistência entre gráfico e cartões.
+ *
+ * O gráfico de 6 meses (`buildTrend`) somava `pending` e usava a soma bruta de
+ * lançamentos positivos como receita, enquanto os cartões (`buildOverview`)
+ * usam só liquidados e excluem transferência. O mesmo mês aparecia como dois
+ * valores diferentes na mesma tela.
+ */
+describe('buildTrend usa a mesma base do painel', () => {
+  const account = {
+    id: 'acc-1',
+    name: 'Conta',
+    institution: null,
+    type: 'checking' as const,
+    currency: 'BRL',
+    balanceCents: '0',
+    shareLevel: 'private' as const,
+    ownerId: 'user-1',
+    ownerName: 'Davi',
+    color: '#000',
+    isActive: true,
+  };
+
+  const snapshotWith = (
+    transactions: Array<Record<string, unknown>>
+  ): ReturnType<typeof buildDemoSnapshot> => ({
+    ...buildDemoSnapshot('2026-11-25'),
+    accounts: [account],
+    categories: [],
+    transactions: transactions as never,
+    budgets: [],
+    goals: [],
+  });
+
+  const tx = (over: Record<string, unknown>) => ({
+    id: 'tx',
+    accountId: 'acc-1',
+    categoryId: null,
+    description: 'x',
+    amountCents: '-10000',
+    type: 'expense',
+    origin: 'manual',
+    date: '2026-11-10',
+    competenceDate: '2026-11-10',
+    status: 'paid',
+    paidAt: '2026-11-10T12:00:00Z',
+    createdAt: '2026-11-10T12:00:00Z',
+    ...over,
+  });
+
+  it('ignora pendentes na série de meses', () => {
+    const data = snapshotWith([
+      tx({ id: 'a', amountCents: '-10000' }),
+      tx({ id: 'b', amountCents: '-50000', status: 'pending', paidAt: null }),
+    ]);
+
+    const point = buildTrend(data.transactions, visibleAccounts(data, 'user-1'), '2026-11', 1)[0];
+
+    expect(point.expenseCents).toBe(10000n);
+  });
+
+  it('não conta transferência como receita nem despesa', () => {
+    const data = snapshotWith([
+      tx({ id: 'a', amountCents: '-10000' }),
+      tx({ id: 'b', amountCents: '70000', type: 'transfer' }),
+      tx({ id: 'c', amountCents: '-70000', type: 'transfer' }),
+    ]);
+
+    const point = buildTrend(data.transactions, visibleAccounts(data, 'user-1'), '2026-11', 1)[0];
+
+    expect(point.incomeCents).toBe(0n);
+    expect(point.expenseCents).toBe(10000n);
+  });
+
+  it('bate com o painel no mesmo mês', () => {
+    const data = snapshotWith([
+      tx({ id: 'a', amountCents: '-10000' }),
+      tx({ id: 'b', amountCents: '30000', type: 'income' }),
+      tx({ id: 'c', amountCents: '-9900', status: 'pending', paidAt: null }),
+    ]);
+
+    const overview = buildOverview(data, '2026-11', 'user-1');
+    const point = buildTrend(data.transactions, visibleAccounts(data, 'user-1'), '2026-11', 1)[0];
+
+    expect(point.incomeCents).toBe(overview.incomeCents);
+    expect(point.expenseCents).toBe(overview.expenseCents);
+  });
+
+  it('monthLabel é legível, não a chave crua do mês', () => {
+    const overview = buildOverview(snapshotWith([]), '2026-11', 'user-1');
+    expect(overview.monthLabel).not.toBe('2026-11');
+    expect(overview.monthLabel.length).toBeGreaterThan(0);
+  });
+
+  it('maior despesa é a de maior valor absoluto', () => {
+    const data = snapshotWith([
+      tx({ id: 'a', amountCents: '-5000' }),
+      tx({ id: 'b', amountCents: '-90000' }),
+      tx({ id: 'c', amountCents: '-12000' }),
+    ]);
+
+    const overview = buildOverview(data, '2026-11', 'user-1');
+
+    expect(overview.biggestExpense?.id).toBe('b');
   });
 });

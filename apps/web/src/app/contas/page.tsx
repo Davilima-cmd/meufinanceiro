@@ -4,7 +4,14 @@ import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { Select, useDialog } from '@/components/dialog';
 import { Badge, Card, EmptyState, Money, PageHeader } from '@/components/ui';
-import { monthKeyOf, currentMonthKey, sumCents, toCents } from '@/lib/format';
+import {
+  centsFromInput,
+  formatBRL,
+  monthKeyOf,
+  currentMonthKey,
+  sumCents,
+  toCents,
+} from '@/lib/format';
 import { useFinance } from '@/lib/store';
 import { api, type ApiAvailableAccountsResponse } from '@/lib/api';
 import type { AccountType } from '@/lib/types';
@@ -25,6 +32,7 @@ export default function AccountsPage() {
   const [name, setName] = useState('');
   const [institution, setInstitution] = useState('');
   const [type, setType] = useState<AccountType>('checking');
+  const [initialBalance, setInitialBalance] = useState('');
   const [error, setError] = useState('');
 
   // Contas da instituição (Open Finance). `null` = ainda não perguntamos.
@@ -116,7 +124,20 @@ export default function AccountsPage() {
       setError('Dê um nome à conta.');
       return;
     }
-    const failure = await addAccount({ name, institution, type, shareLevel: 'private' });
+    /**
+     * Saldo inicial: sem ele, uma conta manual nasce com R$ 0,00 e o usuário
+     * não tem como dizer o que já tem no banco — o produto inteiro passa a
+     * mostrar um patrimônio que não existe. O valor vira o lançamento
+     * "Saldo inicial" na API (saldo continua derivado do histórico).
+     */
+    const balanceCents = centsFromInput(initialBalance);
+    const failure = await addAccount({
+      name,
+      institution,
+      type,
+      shareLevel: 'private',
+      ...(balanceCents !== 0n ? { balanceCents: balanceCents.toString() } : {}),
+    });
     if (failure) {
       setError(failure);
       return;
@@ -124,6 +145,7 @@ export default function AccountsPage() {
     setName('');
     setInstitution('');
     setType('checking');
+    setInitialBalance('');
   }
 
   return (
@@ -380,7 +402,25 @@ export default function AccountsPage() {
                   value={type}
                 />
               </div>
+              <label className="field">
+                <span>Saldo atual (opcional)</span>
+                <input
+                  aria-describedby="initial-balance-hint"
+                  className="input"
+                  inputMode="decimal"
+                  onChange={(event) => setInitialBalance(event.target.value)}
+                  placeholder="0,00"
+                  value={initialBalance}
+                />
+              </label>
             </div>
+            <p className="text-muted" id="initial-balance-hint" style={{ fontSize: 12 }}>
+              Quanto já existe nesta conta hoje.
+              {centsFromInput(initialBalance) !== 0n
+                ? ` Vira o lançamento “Saldo inicial” de ${formatBRL(centsFromInput(initialBalance))}.`
+                : ' Em branco, começa em R$ 0,00.'}{' '}
+              Em cartão de crédito, informe o valor negativo da fatura.
+            </p>
             {error ? <p className="form-error">{error}</p> : null}
             <div className="page-actions">
               <button className="button button-primary" type="submit">

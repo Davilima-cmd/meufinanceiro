@@ -95,7 +95,16 @@ export class ApiError extends Error {
     let code = `ERR_${status}`;
     if (body && typeof body === 'object') {
       const parsed = body as Partial<ApiErrorBody>;
-      if (parsed.message) message = String(parsed.message);
+      // Erro de validação do Nest traz `message` como array de strings; o
+      // `String(array)` antigo virava `"nome deve ser texto,valor inválido"` na
+      // tela. Aqui as mensagens são concatenadas de forma legível.
+      const raw = parsed.message as unknown;
+      if (Array.isArray(raw)) {
+        const parts = raw.filter((item): item is string => typeof item === 'string');
+        if (parts.length > 0) message = parts.join(' ');
+      } else if (typeof raw === 'string' && raw.trim()) {
+        message = raw;
+      }
       if (parsed.error) code = String(parsed.error);
     }
     return new ApiError(message, status, code);
@@ -233,12 +242,17 @@ class ApiClient {
       throw err;
     }
 
-    if (res.status === 204) {
+    // 204/205 e corpo vazio não têm JSON: `res.json()` lançava e o app
+    // mostrava "resposta inválida" em operações que deram certo (ex.: DELETE).
+    if (res.status === 204 || res.status === 205) {
       return undefined as T;
     }
 
+    const text = await res.text();
+    if (!text) return undefined as T;
+
     try {
-      return (await res.json()) as T;
+      return JSON.parse(text) as T;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
       throw new ApiError(

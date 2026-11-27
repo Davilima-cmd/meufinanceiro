@@ -45,6 +45,25 @@ export class ApiError extends Error {
 
 const TIMEOUT_MS = 15_000;
 
+/**
+ * Mensagem de erro da API.
+ *
+ * O Nest devolve `message` como **array** em erro de validação de DTO. O código
+ * antigo fazia `String(array)`, que produzia `"a,b,c"` — texto sem sentido na
+ * tela. Agora as mensagens são lidas uma a uma.
+ */
+export function errorMessage(body: unknown): string {
+  if (body && typeof body === 'object' && 'message' in body) {
+    const message = (body as { message: unknown }).message;
+    if (Array.isArray(message)) {
+      const parts = message.filter((item): item is string => typeof item === 'string');
+      if (parts.length > 0) return parts.join(' ');
+    }
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return 'Não foi possível concluir a operação.';
+}
+
 export class ApiClient {
   private token: string | null = null;
   private readonly baseUrl: string;
@@ -90,14 +109,25 @@ export class ApiClient {
       }
 
       const text = await response.text();
-      const body = text ? (JSON.parse(text) as unknown) : null;
+      // Resposta não-JSON (proxy, 502 em HTML) não pode virar "sem conexão":
+      // é erro do servidor e precisa aparecer com o status certo.
+      let body: unknown = null;
+      if (text) {
+        try {
+          body = JSON.parse(text) as unknown;
+        } catch {
+          if (!response.ok) {
+            throw new ApiError(
+              `O servidor respondeu ${response.status}. Tente de novo.`,
+              response.status
+            );
+          }
+          throw new ApiError('Resposta inesperada do servidor.', response.status);
+        }
+      }
 
       if (!response.ok) {
-        const message =
-          body && typeof body === 'object' && 'message' in body
-            ? String((body as { message: unknown }).message)
-            : 'Não foi possível concluir a operação.';
-        throw new ApiError(message, response.status);
+        throw new ApiError(errorMessage(body), response.status);
       }
 
       return body as T;
@@ -152,12 +182,16 @@ export class ApiClient {
   }
 
   /**
-   * Liquida um lançamento pendente (`PATCH /transactions/:id/settle`).
+   * Liquida um lançamento pendente (`POST /transactions/:id/settle`).
    * É o que permite o app fazer algo de verdade, não só ler.
+   *
+   * O método é `POST`, não `PATCH`: o controller da API expõe `@Post(':id/settle')`
+   * e o Nest responde 405 para o método errado — o botão "Liquidar" do app
+   * falhava em toda liquidação.
    */
   async settleTransaction(id: string, paidAt?: string): Promise<void> {
     await this.request(`/transactions/${id}/settle`, {
-      method: 'PATCH',
+      method: 'POST',
       body: JSON.stringify(paidAt ? { paidAt } : {}),
     });
   }

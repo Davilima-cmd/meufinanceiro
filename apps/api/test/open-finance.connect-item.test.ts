@@ -49,7 +49,7 @@ const ACCOUNTS = [
 ];
 
 const prismaMock = {
-  bankConnection: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+  bankConnection: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), create: vi.fn() },
   consent: { create: vi.fn() },
   financialAccount: { create: vi.fn() },
   $transaction: vi.fn(),
@@ -96,10 +96,16 @@ beforeEach(() => {
   });
   prismaMock.consent.create.mockResolvedValue({ id: 'consent-1' });
   prismaMock.bankConnection.findFirst.mockResolvedValue(null);
+  prismaMock.bankConnection.count.mockResolvedValue(0);
   prismaMock.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
     const tx = {
       financialAccount: { create: vi.fn(async () => ({ id: 'acc-new' })) },
-      bankConnection: { create: vi.fn(async () => ({ id: 'conn-new' })) },
+      bankConnection: {
+        // A checagem de vínculo existente roda dentro da transação.
+        findFirst: vi.fn(async () => prismaMock.bankConnection.findFirst()),
+        create: vi.fn(async () => ({ id: 'conn-new' })),
+      },
+      consent: { create: vi.fn(async () => ({ id: 'consent-1' })) },
     };
     const result = await fn(tx);
     return result ?? { account: { id: 'acc-new' }, connection: { id: 'conn-new' } };
@@ -145,11 +151,13 @@ describe('POST /open-finance/connect-item', () => {
       fn({
         financialAccount: { create: vi.fn(async () => ({ id: 'acc-new' })) },
         bankConnection: {
+          findFirst: vi.fn(async () => null),
           create: vi.fn(async (args: { data: unknown }) => {
             created.push(args.data);
             return { id: 'conn-new' };
           }),
         },
+        consent: { create: vi.fn(async () => ({ id: 'consent-1' })) },
       })
     );
 
@@ -161,11 +169,14 @@ describe('POST /open-finance/connect-item', () => {
 
   it('não duplica conta já vinculada', async () => {
     prismaMock.bankConnection.findFirst.mockResolvedValue({ id: 'conn-x', userId: 'user-1' });
+    prismaMock.bankConnection.count.mockResolvedValue(2);
 
     const result = await controller().connectItem(req, { itemId: 'item-1' });
 
     expect(result).toMatchObject({ created: 0, skipped: 2, synced: false });
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    // Repetir o connect-item não pode criar consentimento órfão.
+    expect(prismaMock.consent.create).not.toHaveBeenCalled();
   });
 
   it('recusa item de outro usuário (o itemId vem do navegador)', async () => {

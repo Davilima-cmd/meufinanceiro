@@ -17,6 +17,7 @@ const { apiMock, snapshotMock } = vi.hoisted(() => ({
     removeAccount: vi.fn(),
     createCategory: vi.fn(),
     deleteCategory: vi.fn(),
+    getBudgets: vi.fn(),
     createBudget: vi.fn(),
     updateBudget: vi.fn(),
     deleteBudget: vi.fn(),
@@ -259,6 +260,9 @@ describe('FinanceProvider (modo API)', () => {
 
   it('salvar orçamento usa a API (criando ou atualizando)', async () => {
     const result = await renderApiSession();
+    // O id do orçamento existente é consultado na API (não no snapshot local):
+    // com snapshot velho, dois cliques criavam orçamento duplicado.
+    apiMock.getBudgets.mockResolvedValue([]);
     let failure: string | null = null;
     await act(async () => {
       failure = await result.current.setBudget({
@@ -275,6 +279,54 @@ describe('FinanceProvider (modo API)', () => {
       periodStart: '2026-11-01',
       periodEnd: '2026-11-30',
     });
+  });
+
+  it('saldo inicial da conta vai para a API (não fica só na tela)', async () => {
+    const result = await renderApiSession();
+
+    await act(async () => {
+      await result.current.addAccount({
+        name: 'Conta corrente',
+        institution: 'Banco',
+        type: 'checking',
+        shareLevel: 'private',
+        balanceCents: '250000',
+      });
+    });
+
+    // Regressão: o formulário não tinha campo de saldo e a conta manual nascia
+    // zerada no servidor, apagando o valor na primeira sincronização.
+    expect(apiMock.createAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Conta corrente', balanceCents: '250000' })
+    );
+  });
+
+  it('conta sem saldo informado não manda balanceCents (usa o padrão 0 do servidor)', async () => {
+    const result = await renderApiSession();
+
+    await act(async () => {
+      await result.current.addAccount({
+        name: 'Carteira',
+        type: 'cash',
+        shareLevel: 'private',
+      });
+    });
+
+    const payload = apiMock.createAccount.mock.calls[0][0];
+    expect(payload.balanceCents).toBeUndefined();
+  });
+
+  it('tema escolhido sobrevive a uma nova sincronização com a API', async () => {
+    const result = await renderApiSession();
+
+    await act(async () => {
+      result.current.toggleTheme();
+    });
+    expect(result.current.snapshot.settings.theme).toBe('light');
+
+    // Qualquer mutação remonta o snapshot a partir da API; a preferência local
+    // não pode voltar ao padrão no meio do caminho.
+    expect(window.localStorage.getItem('mf.settings.v1')).toContain('light');
   });
 
   it('aporte em meta vai para o endpoint de aportes (histórico no servidor)', async () => {

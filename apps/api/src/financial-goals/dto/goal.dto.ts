@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsDateString, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
 
 const CENTS_PATTERN = /^\d{1,19}$/;
 
@@ -38,9 +38,11 @@ export class UpdateGoalDto {
   @Matches(CENTS_PATTERN)
   currentCents?: string;
 
+  /** `null` remove o prazo da meta (o service já tratava o valor definido). */
   @IsOptional()
+  @ValidateIf((_, value) => value !== null)
   @IsDateString()
-  dueDate?: string;
+  dueDate?: string | null;
 }
 
 /** Aporte em uma meta: valor positivo entra, negativo resgata. */

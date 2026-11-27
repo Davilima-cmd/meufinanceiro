@@ -37,7 +37,13 @@ describe('C3 - calculo do gasto do orcamento', () => {
       transaction: {
         // Despesas no banco têm amountCents NEGATIVO.
         findMany: vi.fn(async () => [
-          { categoryId: 'cat-1', amountCents: '-18740', date: new Date('2026-11-10') },
+          {
+            categoryId: 'cat-1',
+            amountCents: '-18740',
+            date: new Date('2026-11-10'),
+            competenceDate: new Date('2026-11-10'),
+            status: 'paid',
+          },
         ]),
       },
     } as never;

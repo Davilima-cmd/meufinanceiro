@@ -51,12 +51,50 @@ export function subtract(a: Centavos, b: Centavos): Centavos {
   return centavos(a - b);
 }
 
+/**
+ * Multiplica centavos por um fator decimal, arredondando para o centavo.
+ *
+ * `1.5` vira `150/100` e o produto é dividido por 100 **depois** de
+ * multiplicado — a ordem inversa truncaria os centavos do resultado.
+ */
 export function multiply(a: Centavos, multiplicador: number): Centavos {
-  return centavos((a * BigInt(Math.round(multiplicador * 100))) / 100n);
+  const fator = BigInt(Math.round(multiplicador * 100));
+  return centavos((a * fator) / 100n);
 }
 
+/**
+ * Divide centavos por um divisor (inteiro ou decimal), arredondando para baixo.
+ *
+ * `divide(1000n, 0.5)` = `1000 * 100 / 50` = 2000 centavos. A versão anterior
+ * fazia `(a / 50) * 100`, que descartava os centavos da divisão e devolvia
+ * valores múltiplos de R$ 1,00 — errado para qualquer valor que não fosse
+ * múltiplo de 100 centavos.
+ */
 export function divide(a: Centavos, divisor: number): Centavos {
-  return centavos((a / BigInt(Math.round(divisor * 100))) * 100n);
+  const fator = BigInt(Math.round(divisor * 100));
+  if (fator === 0n) throw new RangeError('Divisão por zero em valores monetários');
+  return centavos((a * 100n) / fator);
+}
+
+/**
+ * Rateia um valor em `partes` parcelas iguais **sem perder nem inventar
+ * centavos**: a sobra da divisão inteira é distribuída nas primeiras parcelas.
+ *
+ * Ex.: `allocate(1000n, 3)` = `[334n, 333n, 333n]` (soma exata de 1000).
+ */
+export function allocate(a: Centavos, partes: number): Centavos[] {
+  if (!Number.isInteger(partes) || partes <= 0) {
+    throw new RangeError('Número de partes inválido para rateio');
+  }
+  const total = BigInt(partes);
+  const base = a / total;
+  const sobra = a % total;
+  const resultado: Centavos[] = [];
+  for (let indice = 0; indice < partes; indice += 1) {
+    const extra = BigInt(indice) < (sobra < 0n ? -sobra : sobra) ? (sobra < 0n ? -1n : 1n) : 0n;
+    resultado.push(centavos(base + extra));
+  }
+  return resultado;
 }
 
 export function isZero(value: Centavos): boolean {

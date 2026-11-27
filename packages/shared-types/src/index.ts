@@ -124,6 +124,12 @@ export type CreateAccountDto = {
   institution?: string;
   type?: string;
   currency?: string;
+  /**
+   * Saldo que a conta já tem no momento do cadastro (centavos, inteiro em
+   * texto). A API grava como lançamento "Saldo inicial" liquidado, então o
+   * saldo continua derivado do histórico.
+   */
+  balanceCents?: string;
 };
 
 /** Lançamento financeiro retornado pela API. */
@@ -341,6 +347,8 @@ export type ApiSharedAccount = {
     id: string;
     name: string;
     institution?: string | null;
+    /** Tipo da conta (`checking`, `credit`, `wallet`…): preserva o ícone/rótulo. */
+    type?: string;
     balanceCents: string;
     isActive: boolean;
   };

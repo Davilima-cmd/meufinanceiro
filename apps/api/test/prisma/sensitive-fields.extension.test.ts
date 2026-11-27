@@ -246,3 +246,94 @@ describe('sensitiveFieldsExtension', () => {
     expect(result).toBe('ok');
   });
 });
+
+/**
+ * Regressão P0: busca por igualdade em campo cifrado.
+ *
+ * Com IV aleatório, o ciphertext gravado nunca é igual ao texto da consulta, então
+ * `findFirst({ where: { providerAccountId } })` devolvia `null` para uma linha que
+ * existia. Efeito prático: `alreadyLinked` sempre `false` e cada reconexão do mesmo
+ * banco criava outra conta com o mesmo saldo.
+ */
+describe('sensitiveFieldsExtension — busca por campo cifrado', () => {
+  let encryption: EncryptionService;
+
+  beforeEach(() => {
+    encryption = makeEncryption();
+  });
+
+  it('o valor gravado é idêntico ao valor usado no filtro', async () => {
+    let stored: string | undefined;
+
+    await applySensitiveFields(
+      'bankConnection',
+      'create',
+      { data: { providerAccountId: 'acc-9' } } as never,
+      encryption,
+      async (next) => {
+        stored = (next as { data: { providerAccountId: string } }).data.providerAccountId;
+        return {};
+      }
+    );
+
+    let filter: string | undefined;
+    await applySensitiveFields(
+      'bankConnection',
+      'findFirst',
+      { where: { providerAccountId: 'acc-9' } } as never,
+      encryption,
+      async (next) => {
+        filter = (next as { where: { providerAccountId: string } }).where.providerAccountId;
+        return null;
+      }
+    );
+
+    expect(stored).toMatch(/^enc:/);
+    expect(filter).toBe(stored);
+    // E o valor devolvido ao código continua em claro.
+    expect(encryption.decrypt(filter)).toBe('acc-9');
+  });
+
+  it('cifra valores dentro de operadores (in/equals/not)', async () => {
+    let where: Record<string, unknown> | undefined;
+
+    await applySensitiveFields(
+      'bankConnection',
+      'findMany',
+      {
+        where: {
+          providerAccountId: { in: ['acc-1', 'acc-2'] },
+        },
+      } as never,
+      encryption,
+      async (next) => {
+        where = (next as { where: Record<string, unknown> }).where;
+        return [];
+      }
+    );
+
+    const inValues = (where as { providerAccountId: { in: string[] } }).providerAccountId.in;
+    expect(inValues).toHaveLength(2);
+    for (const value of inValues) expect(value).toMatch(/^enc:/);
+    expect(encryption.decrypt(inValues[0])).toBe('acc-1');
+  });
+
+  it('não mexe em campos não sensíveis nem em valores já cifrados', async () => {
+    const already = encryption.encryptDeterministic('acc-7') as string;
+    let where: Record<string, unknown> | undefined;
+
+    await applySensitiveFields(
+      'bankConnection',
+      'findFirst',
+      { where: { providerAccountId: already, status: 'active' } } as never,
+      encryption,
+      async (next) => {
+        where = (next as { where: Record<string, unknown> }).where;
+        return null;
+      }
+    );
+
+    expect((where as { providerAccountId: string }).providerAccountId).toBe(already);
+    expect((where as { status: string }).status).toBe('active');
+  });
+});

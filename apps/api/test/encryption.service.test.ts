@@ -60,3 +60,51 @@ describe('EncryptionService (AES-256-GCM)', () => {
     expect(() => svc.onModuleInit()).toThrow(/32 bytes/);
   });
 });
+
+/**
+ * Blind index: cifra determinística para campos buscados por igualdade.
+ *
+ * O AES-GCM com IV aleatório é o certo para "guardar e ler", mas quebra a busca:
+ * `where: { providerAccountId: x }` comparava o texto em claro com o ciphertext
+ * gravado e nunca encontrava a linha. Resultado em produção: `alreadyLinked`
+ * sempre `false` e reconectar o mesmo banco duplicava conta, saldo e histórico.
+ */
+describe('EncryptionService — criptografia determinística', () => {
+  it('o mesmo texto gera sempre o mesmo ciphertext (buscável por igualdade)', () => {
+    const svc = makeService();
+    const first = svc.encryptDeterministic('acc-123') as string;
+    const second = svc.encryptDeterministic('acc-123') as string;
+
+    expect(first).toBe(second);
+    expect(first.startsWith('enc:')).toBe(true);
+  });
+
+  it('textos diferentes geram ciphertexts diferentes', () => {
+    const svc = makeService();
+    expect(svc.encryptDeterministic('acc-1')).not.toBe(svc.encryptDeterministic('acc-2'));
+  });
+
+  it('faz roundtrip e continua autenticado (GCM)', () => {
+    const svc = makeService();
+    const encrypted = svc.encryptDeterministic('item-abc') as string;
+
+    expect(svc.decrypt(encrypted)).toBe('item-abc');
+
+    // Qualquer bit alterado invalida a autenticação.
+    const tampered = `enc:${Buffer.from('lixo').toString('base64')}`;
+    expect(() => svc.decrypt(tampered)).toThrow();
+  });
+
+  it('não vaza o texto puro no ciphertext', () => {
+    const svc = makeService();
+    const encrypted = svc.encryptDeterministic('saldo-secreto') as string;
+    expect(encrypted).not.toContain('saldo-secreto');
+  });
+
+  it('chaves diferentes produzem ciphertexts diferentes para o mesmo texto', () => {
+    const other = Buffer.alloc(32, 7).toString('base64');
+    const a = makeService().encryptDeterministic('acc-1') as string;
+    const b = makeService(other).encryptDeterministic('acc-1') as string;
+    expect(a).not.toBe(b);
+  });
+});

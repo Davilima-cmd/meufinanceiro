@@ -134,6 +134,8 @@ export type NewAccount = {
   institution?: string;
   type: AccountType;
   shareLevel: ShareLevel;
+  /** Saldo que a conta já tem hoje (centavos, pode ser negativo em cartão). */
+  balanceCents?: string;
 };
 
 export type TransactionStatus = 'pending' | 'paid' | 'canceled';

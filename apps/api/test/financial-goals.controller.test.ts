@@ -100,6 +100,26 @@ describe('FinancialGoalsController', () => {
         dueDate: new Date('2026-12-31'),
       },
     });
+    // O saldo inicial precisa aparecer no histórico, senão o `currentCents`
+    // fica sem explicação (a soma dos aportes não fecha).
+    expect(prismaMock.goalContribution.create).toHaveBeenCalledWith({
+      data: { goalId: 'g-1', amountCents: '2500', note: 'Saldo inicial da meta' },
+    });
+  });
+
+  it('recusa meta com alvo zero ou negativo', async () => {
+    await expect(
+      makeController().create(req(), { name: 'Zero', targetCents: '0' })
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      makeController().create(req(), { name: 'Negativa', targetCents: '-100' })
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('recusa PATCH de alvo zero ou negativo', async () => {
+    await expect(
+      makeController().update(req(), 'g-1', { targetCents: '0' })
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('atualiza e remove apenas meta própria', async () => {

@@ -114,14 +114,15 @@ describe('ApiClient', () => {
     expect(api.getToken()).toBeNull();
   });
 
-  it('liquida lançamento pendente via PATCH', async () => {
+  it('liquida lançamento pendente via POST (rota real da API)', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ id: 'tx-1', status: 'paid' }));
 
     await client(fetchImpl as unknown as typeof fetch).settleTransaction('tx-1', '2026-11-25');
 
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.test/api/transactions/tx-1/settle');
-    expect(init.method).toBe('PATCH');
+    // Regressão: era `PATCH`, que a API responde com 405.
+    expect(init.method).toBe('POST');
     expect(JSON.parse(init.body as string)).toEqual({ paidAt: '2026-11-25' });
   });
 });

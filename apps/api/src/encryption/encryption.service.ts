@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'crypto';
 
 /**
  * Criptografia simétrica AES-256-GCM para campos sensíveis do banco.
@@ -40,6 +40,34 @@ export class EncryptionService implements OnModuleInit {
     }
     const text = String(plaintext);
     const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.key, iv);
+    const ciphertext = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `enc:${Buffer.concat([iv, tag, ciphertext]).toString('base64')}`;
+  }
+
+  /**
+   * Criptografia **determinística** (blind index) para campos que precisam ser
+   * buscados por igualdade no banco.
+   *
+   * O AES-GCM normal usa IV aleatório: o mesmo texto gera ciphertexts
+   * diferentes, então `where: { providerAccountId: 'abc' }` **nunca casa** com
+   * nada gravado. Era exatamente o que acontecia com `BankConnection`:
+   * `alreadyLinked` era sempre `false` e reconectar o mesmo banco criava a
+   * conta e o vínculo de novo, duplicando saldo e histórico.
+   *
+   * Aqui o IV é derivado do próprio texto (`HMAC-SHA256(chave, texto)`), então
+   * o mesmo valor produz sempre o mesmo `enc:`. O que se abre mão é a
+   * propriedade de esconder igualdade — que é justamente a que a busca exige;
+   * o conteúdo continua cifrado com GCM e autenticado.
+   */
+  encryptDeterministic(plaintext: string | null | undefined): string | null {
+    if (plaintext === null || plaintext === undefined) return null;
+    const text = String(plaintext);
+    const iv = createHmac('sha256', this.key)
+      .update(`blind-index:${text}`)
+      .digest()
+      .subarray(0, 12);
     const cipher = createCipheriv('aes-256-gcm', this.key, iv);
     const ciphertext = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();

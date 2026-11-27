@@ -31,6 +31,8 @@ import { monthBounds, todayISO } from './format';
 
 const DEMO_SNAPSHOT_KEY = 'mf.demo.snapshot.v1';
 const SESSION_KEY = 'mf.session.v1';
+/** Preferências de exibição (tema/valores ocultos) — sobrevivem a recarregar. */
+const SETTINGS_KEY = 'mf.settings.v1';
 
 export type Session = { mode: SessionMode; user: FinanceUser };
 
@@ -493,7 +495,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             institution: input.institution?.trim() || null,
             type: input.type,
             currency: 'BRL',
-            balanceCents: '0',
+            balanceCents: input.balanceCents ?? '0',
             shareLevel: input.shareLevel,
             ownerId: owner.id,
             ownerName: owner.name,
@@ -507,6 +509,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             name: input.name.trim(),
             institution: input.institution?.trim() || undefined,
             type: input.type,
+            // Sem isto o saldo informado na criação ficava só na tela: a API
+            // criava a conta zerada e o primeiro refresh apagava o valor.
+            ...(input.balanceCents && input.balanceCents !== '0'
+              ? { balanceCents: input.balanceCents }
+              : {}),
           })
       ),
     [mutate]
@@ -616,10 +623,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const setBudget = useCallback(
     (input: { categoryId: string; amountCents: string; monthKey: string }) => {
       const { start, end } = monthBounds(input.monthKey);
-      const existing =
-        snapshot.budgets.find(
-          (budget) => budget.categoryId === input.categoryId && budget.periodStart === start
-        ) ?? null;
+      /**
+       * O id do orçamento existente é resolvido **dentro** do `mutate`, com o
+       * estado mais recente. Antes vinha do `snapshot` capturado no closure:
+       * dois cliques rápidos no mesmo mês liam o mesmo estado velho e o segundo
+       * `POST` criava um orçamento duplicado para a mesma categoria/período.
+       */
       return mutate(
         (current) => {
           const local = current.budgets.find(
@@ -648,6 +657,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           };
         },
         async () => {
+          // Fonte da verdade é a API: perguntamos o que já existe no mês em vez
+          // de confiar no snapshot em memória (que pode estar velho).
+          const remote = await api.getBudgets();
+          const existing = remote.find(
+            (budget) =>
+              budget.categoryId === input.categoryId && budget.periodStart.slice(0, 10) === start
+          );
           if (existing) {
             await api.updateBudget(existing.id, { amountCents: input.amountCents });
             return;
@@ -661,7 +677,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
       );
     },
-    [mutate, snapshot.budgets]
+    [mutate]
   );
 
   const deleteBudget = useCallback(
@@ -708,47 +724,43 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
    */
   const contributeGoal = useCallback(
     (id: string, amountCents: string, note?: string) => {
-      const goal = snapshot.goals.find((item) => item.id === id) ?? null;
-      const nextCents = goal ? (BigInt(goal.currentCents) + BigInt(amountCents)).toString() : '0';
+      // O novo saldo é calculado a partir do estado corrente **dentro** do
+      // updater: ler `snapshot.goals` do closure fazia dois aportes seguidos
+      // usarem o mesmo valor base e o segundo "engolir" o primeiro.
       return mutate(
         (current) => ({
           ...current,
           goals: current.goals.map((item) =>
-            item.id === id ? { ...item, currentCents: nextCents } : item
+            item.id === id
+              ? {
+                  ...item,
+                  currentCents: (BigInt(item.currentCents) + BigInt(amountCents)).toString(),
+                }
+              : item
           ),
         }),
         () => api.addGoalContribution(id, { amountCents, note })
       );
     },
-    [mutate, snapshot.goals]
+    [mutate]
   );
 
   /**
-   * Histórico de aportes. No modo demonstração não existe servidor: devolvemos
-   * o próprio saldo como um único aporte, para a tela não ficar vazia.
+   * Histórico de aportes.
+   *
+   * No modo demonstração NÃO existe histórico: antes a tela inventava um único
+   * "aporte" com o saldo atual da meta, datado no **vencimento** — um dado
+   * fictício apresentado como histórico real. Agora devolve lista vazia e a
+   * tela diz que não há aportes registrados.
    */
-  const goalHistory = useCallback(
-    async (id: string): Promise<ApiGoalContribution[]> => {
-      if (sessionRef.current?.mode !== 'api') {
-        const goal = snapshot.goals.find((item) => item.id === id);
-        if (!goal || BigInt(goal.currentCents) === 0n) return [];
-        return [
-          {
-            id: `demo-${id}`,
-            amountCents: goal.currentCents,
-            note: 'Saldo atual (demonstração)',
-            occurredAt: goal.dueDate ?? new Date().toISOString().slice(0, 10),
-          },
-        ];
-      }
-      try {
-        return await api.getGoalContributions(id);
-      } catch {
-        return [];
-      }
-    },
-    [snapshot.goals]
-  );
+  const goalHistory = useCallback(async (id: string): Promise<ApiGoalContribution[]> => {
+    if (sessionRef.current?.mode !== 'api') return [];
+    try {
+      return await api.getGoalContributions(id);
+    } catch {
+      return [];
+    }
+  }, []);
 
   /** Bem ou dívida: entra no patrimônio, não no caixa. */
   const addNetWorthItem = useCallback(
@@ -810,25 +822,42 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [mutate]
   );
 
+  /**
+   * Tema e "esconder valores" são preferências **do navegador**, não dado
+   * financeiro: ficam em `mf.settings.v1` e sobrevivem a recarregar a página.
+   *
+   * Antes só viviam no snapshot, que é remontado a partir da API a cada
+   * mutação — na prática, salvar um lançamento no modo API devolvia o tema para
+   * escuro e reexibia os valores.
+   */
+  const persistSettings = useCallback((settings: FinanceSnapshot['settings']) => {
+    saveStored(SETTINGS_KEY, { theme: settings.theme, hideValues: settings.hideValues });
+  }, []);
+
   const setHideValues = useCallback(
     (value: boolean) => {
-      updateSnapshot((current) => ({
-        ...current,
-        settings: { ...current.settings, hideValues: value },
-      }));
+      updateSnapshot((current) => {
+        const next = { ...current, settings: { ...current.settings, hideValues: value } };
+        persistSettings(next.settings);
+        return next;
+      });
     },
-    [updateSnapshot]
+    [updateSnapshot, persistSettings]
   );
 
   const toggleTheme = useCallback(() => {
-    updateSnapshot((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        theme: current.settings.theme === 'dark' ? 'light' : 'dark',
-      },
-    }));
-  }, [updateSnapshot]);
+    updateSnapshot((current) => {
+      const next = {
+        ...current,
+        settings: {
+          ...current.settings,
+          theme: current.settings.theme === 'dark' ? ('light' as const) : ('dark' as const),
+        },
+      };
+      persistSettings(next.settings);
+      return next;
+    });
+  }, [updateSnapshot, persistSettings]);
 
   const setShareLevel = useCallback(
     (accountId: string, level: ShareLevel) =>
