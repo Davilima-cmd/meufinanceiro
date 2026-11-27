@@ -20,6 +20,7 @@ const prismaMock = {
     findMany: vi.fn(),
     createMany: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
     aggregate: vi.fn(),
   },
   financialAccount: {
@@ -40,6 +41,7 @@ const prismaMock = {
     findMany: ReturnType<typeof vi.fn>;
     createMany: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
   };
   financialAccount: { update: ReturnType<typeof vi.fn> };
@@ -100,6 +102,7 @@ describe('SyncService', () => {
     prismaMock.transaction.findMany.mockResolvedValue([]);
     prismaMock.transaction.createMany.mockResolvedValue({ count: 0 });
     prismaMock.transaction.update.mockResolvedValue({});
+    prismaMock.transaction.updateMany.mockResolvedValue({ count: 1 });
     prismaMock.transaction.aggregate.mockResolvedValue({
       _sum: { amountCents: '281255' },
     });
@@ -159,18 +162,22 @@ describe('SyncService', () => {
     prismaMock.transaction.findMany.mockResolvedValueOnce([]);
     // Segunda execução: os dois lançamentos já existem.
     prismaMock.transaction.findMany.mockResolvedValueOnce([
-      { providerId: 'prov_pa-1_1001' },
-      { providerId: 'prov_pa-1_1002' },
+      { providerId: 'prov_pa-1_1001', id: 'tx-1001' },
+      { providerId: 'prov_pa-1_1002', id: 'tx-1002' },
     ]);
 
     await makeService().reconcileUser('user-1', { trigger: 'manual' });
     await makeService().reconcileUser('user-1', { trigger: 'manual' });
 
     expect(prismaMock.transaction.createMany).toHaveBeenCalledTimes(1);
-    expect(prismaMock.transaction.update).toHaveBeenCalledTimes(2);
+    // Atualização por `id` + `userId`: `providerId` é único global no banco (e
+    // dois usuários do mesmo banco têm os mesmos ids do provedor), então um
+    // `update({ where: { providerId } })` podia escrever na linha de outro.
+    expect(prismaMock.transaction.updateMany).toHaveBeenCalledTimes(2);
+    expect(prismaMock.transaction.update).not.toHaveBeenCalled();
     expect(
-      prismaMock.transaction.update.mock.calls.filter(
-        (call) => call[0].where.providerId === 'prov_pa-1_1001'
+      prismaMock.transaction.updateMany.mock.calls.filter(
+        (call) => call[0].where.id === 'tx-1001' && call[0].where.userId === 'user-1'
       )
     ).toHaveLength(1);
   });

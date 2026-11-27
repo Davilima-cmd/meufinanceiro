@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `main` mais as branches de trabalho (`arena/**`): antes, push numa branch
+    # de trabalho não rodava nada e o erro só aparecia na hora do merge.
+    branches: [main, 'arena/**']
   pull_request:
 
 permissions:
@@ -21,6 +23,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Gera o cliente Prisma tipado (sem binários de engine: o typecheck não
+      # executa consultas). O build da API também roda o generate.
+      - run: pnpm --filter @meufinanceiro/api exec prisma generate --no-engine
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -32,11 +37,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Histórico completo: o Gitleaks precisa ver commits antigos, não só o
+          # diff do push.
           fetch-depth: 0
       - name: Run Gitleaks
-        run: >
-          docker run --rm
-          -v ${{ github.workspace }}:/repo
-          -w /repo
-          zricethezav/gitleaks:latest
-          --source=/repo --config=.gitleaks.toml --report-path=gitleaks-report.json --report-format=json --verbose
+        # Imagem oficial do Gitleaks com `--redact`: o log público do CI não
+        # pode ser o lugar onde um segredo vaza.
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            -w /repo \
+            zricethezav/gitleaks:v8.28.0 \
+            detect --source=/repo --config=/repo/.gitleaks.toml \
+            --report-path=/repo/gitleaks-report.json --report-format=json \
+            --redact --verbose

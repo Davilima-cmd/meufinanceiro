@@ -8,9 +8,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../sync/sync.service';
+import { asJson } from '../common/json';
+import { isUniqueViolation } from '../common/prisma-errors';
 import { OPEN_FINANCE_PROVIDER, OpenFinanceProvider } from './open-finance.provider';
 
 interface WebhookBody {
@@ -18,10 +19,6 @@ interface WebhookBody {
   event_id?: string;
   type?: string;
   payload?: unknown;
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 /**
@@ -81,7 +78,7 @@ export class SandboxController {
         data: {
           provider: 'sandbox',
           eventId,
-          payload: body as unknown as Prisma.JsonObject,
+          payload: asJson(body),
           processed: false,
         },
       });

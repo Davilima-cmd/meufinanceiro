@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'crypto';
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { OpenFinanceController } from '../src/open-finance/open-finance.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -20,10 +20,8 @@ const prismaMock = {
 const syncMock = { reconcileUser: vi.fn() } as any;
 
 function makeController() {
-  return new OpenFinanceController(prismaMock, syncMock);
+  return new OpenFinanceController(prismaMock as unknown as PrismaService, syncMock);
 }
-
-const req = (userId = 'user-1') => ({ user: { userId } }) as any;
 
 function signRequest(body: string, secret: string) {
   return {
@@ -42,39 +40,11 @@ describe('OpenFinanceController', () => {
     delete process.env.OPEN_FINANCE_WEBHOOK_SECRET;
   });
 
-  it('rejeita conectar a uma conta que não pertence ao usuário', async () => {
-    (prismaMock.financialAccount.findFirst as any).mockResolvedValue(null);
-
-    await expect(
-      makeController().connect(req('user-1'), {
-        provider: 'bank',
-        providerAccountId: 'acc-1',
-        accountId: 'conta-de-outro',
-      })
-    ).rejects.toBeInstanceOf(NotFoundException);
-
-    expect(prismaMock.bankConnection.create).not.toHaveBeenCalled();
-  });
-
-  it('conecta quando a conta pertence ao usuário', async () => {
-    (prismaMock.financialAccount.findFirst as any).mockResolvedValue({ id: 'conta-1' });
-    (prismaMock.bankConnection.create as any).mockResolvedValue({ id: 'bc-1' });
-
-    await makeController().connect(req('user-1'), {
-      provider: 'bank',
-      providerAccountId: 'acc-1',
-      accountId: 'conta-1',
-    });
-
-    expect(prismaMock.bankConnection.create).toHaveBeenCalledWith({
-      data: {
-        userId: 'user-1',
-        provider: 'bank',
-        providerAccountId: 'acc-1',
-        accountId: 'conta-1',
-        status: 'active',
-      },
-    });
+  it('vínculo manual direto não existe mais (evita conexão sem consentimento)', () => {
+    // A rota criava `BankConnection` "active" a partir do corpo, sem nada no
+    // provedor: a sincronização do usuário passava a falhar inteira.
+    const controller = makeController() as unknown as Record<string, unknown>;
+    expect(controller.connect).toBeUndefined();
   });
 
   it('rejeita webhook sem assinatura quando há segredo configurado', async () => {
@@ -94,6 +64,23 @@ describe('OpenFinanceController', () => {
         rawBody: Buffer.from('{}'),
       } as any)
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejeita evento maior que o teto (enchimento de webhook_events)', async () => {
+    // Sem assinatura em desenvolvimento: o limite de tamanho não depende dela.
+    const grande = { event_id: 'e1', filler: 'x'.repeat(65 * 1024) };
+
+    await expect(makeController().webhook('bank', grande, {} as any)).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+    expect(prismaMock.webhookEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('rejeita provider fora do formato em vez de criar chave arbitrária', async () => {
+    await expect(
+      makeController().webhook('../../etc/passwd', { event_id: 'e1' }, {} as any)
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prismaMock.webhookEvent.create).not.toHaveBeenCalled();
   });
 
   it('aceita webhook com assinatura valida', async () => {

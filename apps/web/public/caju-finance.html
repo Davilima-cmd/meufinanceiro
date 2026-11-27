@@ -1,0 +1,2663 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>CAJU Finance — Espaço financeiro do casal</title>
+    <meta
+      name="description"
+      content="CAJU Finance: o espaço financeiro do casal. Saldo consolidado, movimentações, planejamento e transparência a dois."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* =====================================================================
+         CAJU Finance — protótipo de interface
+         Uma folha de estilo, um arquivo. Paleta e ritmo definidos em tokens.
+         ===================================================================== */
+
+      :root {
+        --verde-escuro: #123d2b;
+        --verde: #176b45;
+        --verde-vivo: #35a66f;
+        --verde-claro: #ddf3e5;
+        --fundo: #f5f8f5;
+
+        --branco: #ffffff;
+        --texto: #14301f;
+        --texto-suave: #5d6f64;
+        --texto-fraco: #8a998f;
+        --divisoria: #e6ece7;
+        --divisoria-forte: #d7e2da;
+
+        --despesa: #c0453d;
+        --despesa-claro: #fdeceb;
+        --receita: #176b45;
+        --receita-claro: #e2f5ea;
+        --alerta: #b07a16;
+        --alerta-claro: #fdf3e1;
+
+        --raio-lg: 18px;
+        --raio-md: 14px;
+        --raio-sm: 12px;
+
+        --sombra-sm: 0 1px 2px rgba(18, 61, 43, 0.05), 0 6px 18px -12px rgba(18, 61, 43, 0.18);
+        --sombra-md: 0 2px 4px rgba(18, 61, 43, 0.04), 0 18px 40px -24px rgba(18, 61, 43, 0.35);
+        --sombra-lg: 0 30px 80px -30px rgba(18, 61, 43, 0.45);
+
+        --fonte: 'Inter', 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        --transicao: 160ms ease;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background: var(--fundo);
+        color: var(--texto);
+        font-family: var(--fonte);
+        font-size: 15px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      svg {
+        display: block;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--verde-vivo);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      /* ------------------------------------------------------------- layout */
+
+      .app {
+        display: grid;
+        min-height: 100vh;
+        grid-template-columns: 264px minmax(0, 1fr);
+      }
+
+      /* -------- menu lateral (desktop) -------- */
+
+      .sidebar {
+        position: sticky;
+        top: 0;
+        display: flex;
+        height: 100vh;
+        flex-direction: column;
+        gap: 26px;
+        padding: 26px 16px 20px;
+        border-right: 1px solid var(--divisoria);
+        background: var(--branco);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 0 8px;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        flex: none;
+        place-items: center;
+        border-radius: 13px;
+        background: linear-gradient(150deg, var(--verde-escuro), var(--verde) 55%, var(--verde-vivo));
+        color: #eafff2;
+        box-shadow: 0 10px 22px -12px rgba(18, 61, 43, 0.7);
+      }
+
+      .brand-mark svg {
+        width: 21px;
+        height: 21px;
+      }
+
+      .brand-copy {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+      }
+
+      .brand-copy strong {
+        font-size: 15.5px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .brand-copy small {
+        margin-top: 2px;
+        color: var(--texto-fraco);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+      }
+
+      .nav {
+        display: grid;
+        gap: 3px;
+      }
+
+      .nav-label {
+        margin: 0 0 6px;
+        padding: 0 12px;
+        color: var(--texto-fraco);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        width: 100%;
+        min-height: 44px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: var(--raio-sm);
+        background: transparent;
+        color: var(--texto-suave);
+        font-size: 14px;
+        font-weight: 500;
+        text-align: left;
+        transition:
+          background var(--transicao),
+          color var(--transicao);
+      }
+
+      .nav-item svg {
+        width: 19px;
+        height: 19px;
+        flex: none;
+        opacity: 0.85;
+      }
+
+      .nav-item:hover {
+        background: var(--fundo);
+        color: var(--texto);
+      }
+
+      .nav-item[aria-current='page'] {
+        background: var(--verde-claro);
+        color: var(--verde-escuro);
+        font-weight: 600;
+      }
+
+      .nav-item[aria-current='page'] svg {
+        opacity: 1;
+      }
+
+      .sidebar-foot {
+        display: grid;
+        gap: 12px;
+        margin-top: auto;
+      }
+
+      .couple-card {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid var(--divisoria);
+        border-radius: var(--raio-md);
+        background: var(--fundo);
+      }
+
+      .couple-avatars {
+        display: flex;
+        align-items: center;
+      }
+
+      .avatar {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border: 2px solid var(--branco);
+        border-radius: 50%;
+        background: var(--verde-claro);
+        color: var(--verde-escuro);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .avatar + .avatar {
+        margin-left: -10px;
+        background: var(--verde);
+        color: #eafff2;
+      }
+
+      .couple-card strong {
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+
+      .couple-card small {
+        color: var(--texto-fraco);
+        font-size: 11.5px;
+      }
+
+      .privacy-note {
+        display: flex;
+        gap: 8px;
+        color: var(--texto-fraco);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .privacy-note svg {
+        width: 14px;
+        height: 14px;
+        flex: none;
+        margin-top: 1px;
+      }
+
+      /* -------- conteúdo -------- */
+
+      .main {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 64px;
+        padding: 10px clamp(18px, 3vw, 40px);
+        border-bottom: 1px solid var(--divisoria);
+        background: color-mix(in srgb, var(--fundo) 88%, transparent);
+        backdrop-filter: blur(12px);
+      }
+
+      .topbar-title {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+        min-width: 0;
+      }
+
+      .topbar-title small {
+        color: var(--texto-fraco);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .topbar-title strong {
+        overflow: hidden;
+        font-size: 14.5px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+      }
+
+      .icon-button {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border: 1px solid var(--divisoria);
+        border-radius: 11px;
+        background: var(--branco);
+        color: var(--texto-suave);
+        transition:
+          border-color var(--transicao),
+          color var(--transicao),
+          background var(--transicao);
+      }
+
+      .icon-button:hover {
+        border-color: var(--divisoria-forte);
+        color: var(--verde);
+      }
+
+      .icon-button svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .content {
+        padding: clamp(18px, 2.6vw, 34px) clamp(18px, 3vw, 40px) 120px;
+      }
+
+      .screen[hidden] {
+        display: none;
+      }
+
+      .screen {
+        display: grid;
+        gap: clamp(14px, 1.8vw, 22px);
+        max-width: 1080px;
+        animation: rise 220ms ease both;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* -------- cabeçalho de tela -------- */
+
+      .page-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 14px;
+        justify-content: space-between;
+      }
+
+      .eyebrow {
+        margin-bottom: 6px;
+        color: var(--verde);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .page-head h1 {
+        font-size: clamp(1.45rem, 1.1rem + 1.2vw, 1.95rem);
+        font-weight: 700;
+        letter-spacing: -0.032em;
+        line-height: 1.15;
+        text-wrap: balance;
+      }
+
+      .page-head p {
+        max-width: 58ch;
+        margin-top: 6px;
+        color: var(--texto-suave);
+        font-size: 13.5px;
+      }
+
+      /* -------- cartões -------- */
+
+      .card {
+        padding: clamp(16px, 2vw, 22px);
+        border: 1px solid var(--divisoria);
+        border-radius: var(--raio-lg);
+        background: var(--branco);
+        box-shadow: var(--sombra-sm);
+      }
+
+      .card-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+
+      .card-head h2 {
+        font-size: 15px;
+        font-weight: 650;
+        letter-spacing: -0.015em;
+      }
+
+      .card-head p {
+        margin-top: 3px;
+        color: var(--texto-suave);
+        font-size: 12.5px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--fundo);
+        color: var(--texto-suave);
+        font-size: 11.5px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .pill.is-positive {
+        background: var(--receita-claro);
+        color: var(--verde);
+      }
+
+      .pill.is-negative {
+        background: var(--despesa-claro);
+        color: var(--despesa);
+      }
+
+      .pill.is-warning {
+        background: var(--alerta-claro);
+        color: var(--alerta);
+      }
+
+      /* -------- saldo em destaque -------- */
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        gap: 18px;
+        padding: clamp(22px, 2.6vw, 30px);
+        border-radius: var(--raio-lg);
+        background:
+          radial-gradient(120% 130% at 85% 0%, rgba(53, 166, 111, 0.55), transparent 58%),
+          radial-gradient(90% 120% at 0% 100%, rgba(23, 107, 69, 0.6), transparent 62%),
+          linear-gradient(150deg, var(--verde-escuro), #16543a 60%, #17683f);
+        color: #f2fbf6;
+        box-shadow: var(--sombra-md);
+      }
+
+      .hero-top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        justify-content: space-between;
+      }
+
+      .hero-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(242, 251, 246, 0.78);
+        font-size: 12.5px;
+        font-weight: 500;
+      }
+
+      .hero-label svg {
+        width: 15px;
+        height: 15px;
+        opacity: 0.9;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 11px;
+        border: 1px solid rgba(221, 243, 229, 0.28);
+        border-radius: 999px;
+        background: rgba(221, 243, 229, 0.14);
+        color: #e6fbf0;
+        font-size: 11.5px;
+        font-weight: 600;
+        backdrop-filter: blur(6px);
+      }
+
+      .hero-badge svg {
+        width: 13px;
+        height: 13px;
+      }
+
+      .hero-value {
+        display: block;
+        margin-top: 2px;
+        font-size: clamp(2.1rem, 1.5rem + 2.4vw, 3rem);
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        letter-spacing: -0.045em;
+        line-height: 1.02;
+      }
+
+      .hero-sub {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        margin-top: 12px;
+        color: rgba(242, 251, 246, 0.72);
+        font-size: 12.5px;
+      }
+
+      .hero-sub strong {
+        color: #f2fbf6;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+
+      .hero-split {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+
+      .hero-mini {
+        display: grid;
+        gap: 4px;
+        padding: 13px 15px;
+        border: 1px solid rgba(221, 243, 229, 0.18);
+        border-radius: var(--raio-md);
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(8px);
+      }
+
+      .hero-mini span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: rgba(242, 251, 246, 0.75);
+        font-size: 12px;
+      }
+
+      .hero-mini span svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .hero-mini strong {
+        font-size: 18px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+      }
+
+      /* -------- grade -------- */
+
+      .grid {
+        display: grid;
+        gap: clamp(14px, 1.8vw, 20px);
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      }
+
+      .stack {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+
+      /* -------- números avulsos -------- */
+
+      .stat {
+        display: grid;
+        gap: 5px;
+        padding: 16px 18px;
+        border: 1px solid var(--divisoria);
+        border-radius: var(--raio-md);
+        background: var(--branco);
+      }
+
+      .stat-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--texto-suave);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .stat-label svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .stat-value {
+        font-size: clamp(1.15rem, 1rem + 0.5vw, 1.4rem);
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .stat-hint {
+        color: var(--texto-fraco);
+        font-size: 11.5px;
+      }
+
+      .is-positive {
+        color: var(--receita);
+      }
+
+      .is-negative {
+        color: var(--despesa);
+      }
+
+      /* -------- visão financeira: barra + legenda -------- */
+
+      .split-bar {
+        display: flex;
+        gap: 3px;
+        height: 12px;
+        margin-bottom: 4px;
+        border-radius: 999px;
+        background: var(--fundo);
+        overflow: hidden;
+      }
+
+      .split-bar span {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        transition: width 320ms ease;
+      }
+
+      .split-bar .is-income {
+        background: linear-gradient(90deg, var(--verde), var(--verde-vivo));
+      }
+
+      .split-bar .is-expense {
+        background: linear-gradient(90deg, #d8736c, #c0453d);
+      }
+
+      .legend {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        justify-content: space-between;
+        font-size: 12.5px;
+      }
+
+      .legend-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--texto-suave);
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        flex: none;
+        border-radius: 3px;
+      }
+
+      .dot.is-income {
+        background: var(--verde-vivo);
+      }
+
+      .dot.is-expense {
+        background: var(--despesa);
+      }
+
+      .legend-row strong {
+        font-variant-numeric: tabular-nums;
+        font-weight: 650;
+      }
+
+      /* -------- gráfico de barras -------- */
+
+      .bars {
+        display: flex;
+        align-items: flex-end;
+        gap: clamp(8px, 2vw, 20px);
+        height: 168px;
+        padding-top: 6px;
+      }
+
+      .bar-col {
+        display: grid;
+        flex: 1;
+        gap: 7px;
+        height: 100%;
+        grid-template-rows: 1fr auto;
+        justify-items: center;
+      }
+
+      .bar-pair {
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+        width: 100%;
+        height: 100%;
+        justify-content: center;
+      }
+
+      .bar {
+        width: min(15px, 38%);
+        border-radius: 6px 6px 3px 3px;
+        transition: height 300ms ease;
+      }
+
+      .bar.is-income {
+        background: linear-gradient(180deg, var(--verde-vivo), #a8e0c2);
+      }
+
+      .bar.is-expense {
+        background: linear-gradient(180deg, #d8736c, #f2c7c3);
+      }
+
+      .bar-label {
+        color: var(--texto-fraco);
+        font-size: 11px;
+        text-transform: capitalize;
+      }
+
+      /* -------- donut -------- */
+
+      .donut-wrap {
+        display: grid;
+        align-items: center;
+        gap: 20px;
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .donut {
+        position: relative;
+        width: 148px;
+        height: 148px;
+        flex: none;
+      }
+
+      .donut svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+
+      .donut-track {
+        stroke: var(--fundo);
+      }
+
+      .donut-center {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 1px;
+        text-align: center;
+      }
+
+      .donut-center small {
+        color: var(--texto-fraco);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .donut-center strong {
+        font-size: 16px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+      }
+
+      /* -------- movimentações -------- */
+
+      .list {
+        display: grid;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .list-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-top: 1px solid var(--divisoria);
+      }
+
+      .list-row:first-child {
+        border-top: 0;
+        padding-top: 2px;
+      }
+
+      .row-mark {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        flex: none;
+        place-items: center;
+        border-radius: 12px;
+        background: var(--verde-claro);
+        color: var(--verde);
+      }
+
+      .row-mark.is-expense {
+        background: var(--despesa-claro);
+        color: var(--despesa);
+      }
+
+      .row-mark svg {
+        width: 17px;
+        height: 17px;
+      }
+
+      .row-copy {
+        display: grid;
+        min-width: 0;
+        gap: 1px;
+      }
+
+      .row-copy strong {
+        overflow: hidden;
+        font-size: 13.5px;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .row-copy small {
+        color: var(--texto-fraco);
+        font-size: 11.5px;
+      }
+
+      .row-amount {
+        margin-left: auto;
+        font-size: 13.5px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      /* -------- filtros -------- */
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .chip {
+        padding: 7px 14px;
+        border: 1px solid var(--divisoria);
+        border-radius: 999px;
+        background: var(--branco);
+        color: var(--texto-suave);
+        font-size: 12.5px;
+        font-weight: 600;
+        transition:
+          background var(--transicao),
+          border-color var(--transicao),
+          color var(--transicao);
+      }
+
+      .chip:hover {
+        border-color: var(--divisoria-forte);
+        color: var(--texto);
+      }
+
+      .chip[aria-pressed='true'] {
+        border-color: transparent;
+        background: var(--verde-escuro);
+        color: #eafff2;
+      }
+
+      /* -------- progressos -------- */
+
+      .track {
+        overflow: hidden;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--fundo);
+      }
+
+      .track span {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--verde), var(--verde-vivo));
+      }
+
+      .track span.is-negative {
+        background: linear-gradient(90deg, #d8736c, var(--despesa));
+      }
+
+      .progress-row {
+        display: grid;
+        gap: 6px;
+        padding: 12px 0;
+        border-top: 1px solid var(--divisoria);
+      }
+
+      .progress-row:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .progress-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: space-between;
+        font-size: 12.5px;
+      }
+
+      .progress-top strong {
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* -------- casal -------- */
+
+      .person {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .person-avatar {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        flex: none;
+        place-items: center;
+        border-radius: 14px;
+        background: var(--verde-claro);
+        color: var(--verde-escuro);
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .person-avatar.is-partner {
+        background: var(--verde);
+        color: #eafff2;
+      }
+
+      .person-copy {
+        display: grid;
+        gap: 1px;
+      }
+
+      .person-copy strong {
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      .person-copy small {
+        color: var(--texto-fraco);
+        font-size: 11.5px;
+      }
+
+      .person-amount {
+        margin-left: auto;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 650;
+      }
+
+      .notice {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 13px 15px;
+        border: 1px solid #cbe7d6;
+        border-radius: var(--raio-md);
+        background: var(--verde-claro);
+        color: #17402c;
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+
+      .notice svg {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        margin-top: 1px;
+      }
+
+      /* -------- ajustes -------- */
+
+      .settings-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        justify-content: space-between;
+        padding: 14px 0;
+        border-top: 1px solid var(--divisoria);
+      }
+
+      .settings-row:first-of-type {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .settings-copy {
+        display: grid;
+        gap: 2px;
+      }
+
+      .settings-copy strong {
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      .settings-copy small {
+        color: var(--texto-fraco);
+        font-size: 12px;
+      }
+
+      .switch {
+        position: relative;
+        width: 44px;
+        height: 26px;
+        flex: none;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: var(--divisoria-forte);
+        transition: background var(--transicao);
+      }
+
+      .switch::after {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--branco);
+        box-shadow: 0 1px 3px rgba(18, 61, 43, 0.25);
+        content: '';
+        transition: transform var(--transicao);
+      }
+
+      .switch[aria-checked='true'] {
+        background: var(--verde-vivo);
+      }
+
+      .switch[aria-checked='true']::after {
+        transform: translateX(18px);
+      }
+
+      /* -------- botão flutuante + modal -------- */
+
+      .fab {
+        position: fixed;
+        right: clamp(18px, 3vw, 40px);
+        bottom: clamp(86px, 4vw, 34px);
+        z-index: 45;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        height: 52px;
+        padding: 0 20px 0 16px;
+        border: 0;
+        border-radius: 999px;
+        background: linear-gradient(140deg, var(--verde-escuro), var(--verde));
+        color: #f0fff7;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: 0 18px 34px -16px rgba(18, 61, 43, 0.75);
+        transition:
+          transform var(--transicao),
+          filter var(--transicao);
+      }
+
+      .fab:hover {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+      }
+
+      .fab svg {
+        width: 19px;
+        height: 19px;
+      }
+
+      .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: grid;
+        align-items: end;
+        padding: 0;
+        background: rgba(11, 34, 23, 0.42);
+        backdrop-filter: blur(3px);
+      }
+
+      .backdrop[hidden] {
+        display: none;
+      }
+
+      @media (min-width: 720px) {
+        .backdrop {
+          place-items: center;
+          padding: 24px;
+        }
+      }
+
+      .modal {
+        display: grid;
+        width: min(100%, 460px);
+        gap: 16px;
+        justify-self: center;
+        padding: 22px;
+        border-radius: var(--raio-lg) var(--raio-lg) 0 0;
+        background: var(--branco);
+        box-shadow: var(--sombra-lg);
+        animation: sheet 220ms ease both;
+      }
+
+      @media (min-width: 720px) {
+        .modal {
+          border-radius: var(--raio-lg);
+        }
+      }
+
+      @keyframes sheet {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      .modal-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        justify-content: space-between;
+      }
+
+      .modal-head h2 {
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .modal-head p {
+        margin-top: 3px;
+        color: var(--texto-suave);
+        font-size: 12.5px;
+      }
+
+      .type-options {
+        display: grid;
+        gap: 10px;
+      }
+
+      .type-option {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 13px 14px;
+        border: 1px solid var(--divisoria);
+        border-radius: var(--raio-md);
+        background: var(--branco);
+        text-align: left;
+        transition:
+          border-color var(--transicao),
+          background var(--transicao);
+      }
+
+      .type-option:hover {
+        border-color: var(--verde-vivo);
+        background: #f7fbf8;
+      }
+
+      .type-icon {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        flex: none;
+        place-items: center;
+        border-radius: 12px;
+        background: var(--verde-claro);
+        color: var(--verde);
+      }
+
+      .type-icon.is-expense {
+        background: var(--despesa-claro);
+        color: var(--despesa);
+      }
+
+      .type-icon.is-transfer {
+        background: #eaeff6;
+        color: #3d5a7a;
+      }
+
+      .type-icon svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .type-copy {
+        display: grid;
+        gap: 1px;
+      }
+
+      .type-copy strong {
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      .type-copy small {
+        color: var(--texto-fraco);
+        font-size: 11.5px;
+      }
+
+      .type-option > svg {
+        width: 16px;
+        height: 16px;
+        margin-left: auto;
+        color: var(--texto-fraco);
+      }
+
+      .form {
+        display: grid;
+        gap: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .field > span {
+        color: var(--texto-suave);
+      }
+
+      .input {
+        width: 100%;
+        min-height: 44px;
+        padding: 0 13px;
+        border: 1px solid var(--divisoria-forte);
+        border-radius: var(--raio-sm);
+        background: var(--branco);
+        color: var(--texto);
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .input:focus {
+        border-color: var(--verde-vivo);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(53, 166, 111, 0.18);
+      }
+
+      .input-amount {
+        font-size: 20px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+
+      .form-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 2px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border: 1px solid transparent;
+        border-radius: var(--raio-sm);
+        font-size: 13.5px;
+        font-weight: 600;
+        transition:
+          filter var(--transicao),
+          background var(--transicao);
+      }
+
+      .button-primary {
+        flex: 1;
+        background: var(--verde);
+        color: #f0fff7;
+        box-shadow: 0 12px 24px -14px rgba(18, 61, 43, 0.8);
+      }
+
+      .button-primary:hover {
+        filter: brightness(1.07);
+      }
+
+      .button-ghost {
+        border-color: var(--divisoria-forte);
+        background: var(--branco);
+        color: var(--texto-suave);
+      }
+
+      .button-ghost:hover {
+        color: var(--texto);
+      }
+
+      /* -------- aviso de dados ilustrativos -------- */
+
+      .disclaimer {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        padding: 12px 14px;
+        border: 1px dashed var(--divisoria-forte);
+        border-radius: var(--raio-md);
+        color: var(--texto-fraco);
+        font-size: 11.5px;
+        line-height: 1.5;
+      }
+
+      .disclaimer svg {
+        width: 15px;
+        height: 15px;
+        flex: none;
+        margin-top: 1px;
+      }
+
+      /* -------- toast -------- */
+
+      .toast {
+        position: fixed;
+        bottom: 26px;
+        left: 50%;
+        z-index: 80;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 12px 18px;
+        border-radius: 999px;
+        background: var(--verde-escuro);
+        color: #eafff2;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: var(--sombra-lg);
+        transform: translate(-50%, 20px);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity var(--transicao),
+          transform var(--transicao);
+      }
+
+      .toast.is-visible {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+
+      .toast svg {
+        width: 16px;
+        height: 16px;
+        color: var(--verde-vivo);
+      }
+
+      /* -------- navegação inferior (mobile) -------- */
+
+      .tabbar {
+        display: none;
+      }
+
+      @media (max-width: 900px) {
+        .app {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .sidebar {
+          display: none;
+        }
+
+        .content {
+          padding-bottom: 132px;
+        }
+
+        .fab {
+          right: 16px;
+          bottom: 88px;
+          height: 48px;
+          padding: 0 17px 0 14px;
+          font-size: 13.5px;
+        }
+
+        .tabbar {
+          position: fixed;
+          right: 12px;
+          bottom: 12px;
+          left: 12px;
+          z-index: 50;
+          display: flex;
+          gap: 2px;
+          align-items: center;
+          justify-content: space-between;
+          padding: 6px;
+          border: 1px solid var(--divisoria);
+          border-radius: 20px;
+          background: color-mix(in srgb, var(--branco) 94%, transparent);
+          backdrop-filter: blur(14px);
+          box-shadow: var(--sombra-md);
+        }
+
+        .tab {
+          display: grid;
+          flex: 1;
+          gap: 3px;
+          justify-items: center;
+          padding: 8px 2px;
+          border: 0;
+          border-radius: 14px;
+          background: transparent;
+          color: var(--texto-fraco);
+          font-size: 10px;
+          font-weight: 600;
+        }
+
+        .tab svg {
+          width: 20px;
+          height: 20px;
+        }
+
+        .tab[aria-current='page'] {
+          background: var(--verde-claro);
+          color: var(--verde-escuro);
+        }
+      }
+
+      @media (max-width: 620px) {
+        .page-head {
+          align-items: flex-start;
+        }
+
+        .donut-wrap {
+          grid-template-columns: minmax(0, 1fr);
+          justify-items: center;
+        }
+
+        .legend {
+          width: 100%;
+        }
+
+        .hero-split {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <!-- ============================================ menu lateral (desktop) -->
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 21c4-2.5 6-6 6-10a6 6 0 1 0-12 0c0 4 2 7.5 6 10Z" />
+              <path d="M12 11V7" />
+            </svg>
+          </span>
+          <span class="brand-copy">
+            <strong>CAJU Finance</strong>
+            <small>Espaço financeiro do casal</small>
+          </span>
+        </div>
+
+        <nav class="nav" aria-label="Navegação principal">
+          <p class="nav-label">Casal</p>
+          <button class="nav-item" data-go="inicio" aria-current="page" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5" /></svg>
+            Início
+          </button>
+          <button class="nav-item" data-go="movimentacoes" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h13" /></svg>
+            Movimentações
+          </button>
+          <button class="nav-item" data-go="planejamento" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15v-4M12.5 15V7M17 15v-6" /></svg>
+            Planejamento
+          </button>
+          <button class="nav-item" data-go="casal" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 19v-1a4 4 0 0 0-4-4h-4a4 4 0 0 0-4 4v1" /><circle cx="9.5" cy="7.5" r="3.5" /><path d="M16.5 19v-1a4 4 0 0 0-2.6-3.7" /><path d="M15.5 4.2a3.5 3.5 0 0 1 0 6.6" /></svg>
+            Casal
+          </button>
+          <button class="nav-item" data-go="ajustes" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" /></svg>
+            Ajustes
+          </button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="couple-card">
+            <div class="couple-avatars" aria-hidden="true">
+              <span class="avatar">D</span>
+              <span class="avatar">A</span>
+            </div>
+            <div>
+              <strong>Davi &amp; Ana</strong><br />
+              <small>Carteira compartilhada ativa</small>
+            </div>
+          </div>
+          <p class="privacy-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+            Cada um controla o que divide. Despesas individuais ficam privadas até você compartilhar.
+          </p>
+        </div>
+      </aside>
+
+      <!-- ======================================================= conteúdo -->
+      <div class="main">
+        <header class="topbar">
+          <div class="topbar-title">
+            <small>CAJU Finance</small>
+            <strong id="topbar-screen">Início</strong>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" type="button" aria-label="Notificações">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" /><path d="M10.3 20a2 2 0 0 0 3.4 0" /></svg>
+            </button>
+            <button class="icon-button" type="button" aria-label="Buscar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            </button>
+          </div>
+        </header>
+
+        <main class="content">
+          <!-- =================================================== INÍCIO -->
+          <section class="screen" id="screen-inicio" aria-labelledby="title-inicio">
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Espaço financeiro do casal</p>
+                <h1 id="title-inicio">Tudo o que vocês têm, num só lugar</h1>
+                <p>Saldo consolidado das contas do casal, o mês em andamento e o que ainda vai passar.</p>
+              </div>
+              <span class="pill">Novembro 2026</span>
+            </div>
+
+            <!-- saldo em destaque -->
+            <div class="hero">
+              <div class="hero-top">
+                <span class="hero-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3" /><path d="M3 11h18" /></svg>
+                  Saldo total do casal
+                </span>
+                <span class="hero-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6" /></svg>
+                  +12,5% neste mês
+                </span>
+              </div>
+
+              <div>
+                <strong class="hero-value">R$ 8.450,00</strong>
+                <div class="hero-sub">
+                  <span>Davi <strong>R$ 5.120,00</strong></span>
+                  <span>Ana <strong>R$ 3.330,00</strong></span>
+                </div>
+              </div>
+
+              <div class="hero-split">
+                <div class="hero-mini">
+                  <span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>
+                    Receitas
+                  </span>
+                  <strong>R$ 6.800,00</strong>
+                </div>
+                <div class="hero-mini">
+                  <span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></svg>
+                    Despesas
+                  </span>
+                  <strong>R$ 3.250,00</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- visão financeira -->
+            <div class="grid grid-2">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Visão financeira</h2>
+                    <p>Novembro 2026 · como o mês está distribuído</p>
+                  </div>
+                  <span class="pill is-positive">saldo positivo</span>
+                </div>
+
+                <div class="split-bar" role="img" aria-label="Receitas 68% e despesas 32%">
+                  <span class="is-income" style="width: 68%"></span>
+                  <span class="is-expense" style="width: 32%"></span>
+                </div>
+
+                <div class="legend">
+                  <div class="legend-row">
+                    <span class="legend-name"><i class="dot is-income"></i> Receitas</span>
+                    <strong class="is-positive">68% · R$ 6.800,00</strong>
+                  </div>
+                  <div class="legend-row">
+                    <span class="legend-name"><i class="dot is-expense"></i> Despesas</span>
+                    <strong class="is-negative">32% · R$ 3.250,00</strong>
+                  </div>
+                </div>
+
+                <div class="grid grid-3" style="margin-top: 18px">
+                  <div class="stat" style="padding: 14px 15px">
+                    <span class="stat-label">Sobra do mês</span>
+                    <strong class="stat-value is-positive">R$ 3.550,00</strong>
+                    <span class="stat-hint">52% do que entrou</span>
+                  </div>
+                  <div class="stat" style="padding: 14px 15px">
+                    <span class="stat-label">Média por dia</span>
+                    <strong class="stat-value">R$ 108,33</strong>
+                    <span class="stat-hint">30 dias corridos</span>
+                  </div>
+                  <div class="stat" style="padding: 14px 15px">
+                    <span class="stat-label">Próximo vencimento</span>
+                    <strong class="stat-value">28 nov</strong>
+                    <span class="stat-hint">Aluguel · R$ 1.450,00</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Evolução do ano</h2>
+                    <p>Receitas e despesas, mês a mês</p>
+                  </div>
+                </div>
+                <div class="bars" role="img" aria-label="Gráfico de receitas e despesas de junho a novembro">
+                  <div class="bar-col"><div class="bar-pair"><span class="bar is-income" style="height: 62%"></span><span class="bar is-expense" style="height: 40%"></span></div><span class="bar-label">jun</span></div>
+                  <div class="bar-col"><div class="bar-pair"><span class="bar is-income" style="height: 70%"></span><span class="bar is-expense" style="height: 48%"></span></div><span class="bar-label">jul</span></div>
+                  <div class="bar-col"><div class="bar-pair"><span class="bar is-income" style="height: 58%"></span><span class="bar is-expense" style="height: 52%"></span></div><span class="bar-label">ago</span></div>
+                  <div class="bar-col"><div class="bar-pair"><span class="bar is-income" style="height: 76%"></span><span class="bar is-expense" style="height: 44%"></span></div><span class="bar-label">set</span></div>
+                  <div class="bar-col"><div class="bar-pair"><span class="bar is-income" style="height: 66%"></span><span class="bar is-expense" style="height: 57%"></span></div><span class="bar-label">out</span></div>
+                  <div class="bar-col"><div class="bar-pair"><span class="bar is-income" style="height: 88%"></span><span class="bar is-expense" style="height: 42%"></span></div><span class="bar-label">nov</span></div>
+                </div>
+                <div class="legend" style="grid-template-columns: repeat(2, minmax(0, 1fr)); display: grid">
+                  <span class="legend-name" style="font-size: 11.5px"><i class="dot is-income"></i> Receitas</span>
+                  <span class="legend-name" style="font-size: 11.5px"><i class="dot is-expense"></i> Despesas</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- últimas movimentações -->
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h2>Últimas movimentações</h2>
+                  <p>O que passou pela conta do casal nos últimos dias</p>
+                </div>
+                <button class="button button-ghost" type="button" data-go="movimentacoes" style="min-height: 36px; padding: 0 14px">
+                  Ver tudo
+                </button>
+              </div>
+              <ul class="list" id="ultimas-lista">
+                <li class="list-row">
+                  <span class="row-mark is-expense" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1.2 12H7.2L6 7Z" /><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Supermercado</strong><small>hoje às 10:30 · Alimentação</small></span>
+                  <span class="row-amount is-negative">− R$ 250,00</span>
+                </li>
+                <li class="list-row">
+                  <span class="row-mark is-expense" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 14h5l-1 7 8-11h-5l1-7Z" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Conta de energia</strong><small>ontem às 15:20 · Moradia</small></span>
+                  <span class="row-amount is-negative">− R$ 180,00</span>
+                </li>
+                <li class="list-row">
+                  <span class="row-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Salário</strong><small>25 nov às 08:00 · Receita</small></span>
+                  <span class="row-amount is-positive">+ R$ 3.400,00</span>
+                </li>
+              </ul>
+            </div>
+
+            <p class="disclaimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+              Exemplo conceitual. Valores e movimentações são ilustrativos.
+            </p>
+          </section>
+
+          <!-- ============================================ MOVIMENTAÇÕES -->
+          <section class="screen" id="screen-movimentacoes" aria-labelledby="title-movimentacoes" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Movimentações</p>
+                <h1 id="title-movimentacoes">Cada real, com procedência</h1>
+                <p>Despesas e receitas do casal, separadas entre o que é de cada um e o que é compartilhado.</p>
+              </div>
+              <span class="pill">Novembro 2026</span>
+            </div>
+
+            <div class="grid grid-3">
+              <div class="stat">
+                <span class="stat-label">Receitas</span>
+                <strong class="stat-value is-positive">R$ 6.800,00</strong>
+                <span class="stat-hint">2 entradas no mês</span>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Despesas</span>
+                <strong class="stat-value is-negative">R$ 3.250,00</strong>
+                <span class="stat-hint">18 saídas no mês</span>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Resultado</span>
+                <strong class="stat-value is-positive">R$ 3.550,00</strong>
+                <span class="stat-hint">52% de sobra</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h2>Histórico</h2>
+                  <p>Filtre por tipo de movimentação</p>
+                </div>
+              </div>
+
+              <div class="filters" role="group" aria-label="Filtrar movimentações">
+                <button class="chip" type="button" aria-pressed="true" data-filter="all">Tudo</button>
+                <button class="chip" type="button" aria-pressed="false" data-filter="expense">Despesas</button>
+                <button class="chip" type="button" aria-pressed="false" data-filter="income">Receitas</button>
+                <button class="chip" type="button" aria-pressed="false" data-filter="transfer">Transferências</button>
+              </div>
+
+              <ul class="list" id="mov-lista">
+                <li class="list-row" data-kind="expense">
+                  <span class="row-mark is-expense" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1.2 12H7.2L6 7Z" /><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Supermercado</strong><small>hoje às 10:30 · Alimentação · compartilhada</small></span>
+                  <span class="row-amount is-negative">− R$ 250,00</span>
+                </li>
+                <li class="list-row" data-kind="expense">
+                  <span class="row-mark is-expense" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 5 14h5l-1 7 8-11h-5l1-7Z" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Conta de energia</strong><small>ontem às 15:20 · Moradia · compartilhada</small></span>
+                  <span class="row-amount is-negative">− R$ 180,00</span>
+                </li>
+                <li class="list-row" data-kind="expense">
+                  <span class="row-mark is-expense" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 9-9a2.5 2.5 0 0 0-3.5-3.5l-9 9L4 20Z" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Farmácia</strong><small>24 nov às 19:05 · Saúde · de Ana</small></span>
+                  <span class="row-amount is-negative">− R$ 96,40</span>
+                </li>
+                <li class="list-row" data-kind="income">
+                  <span class="row-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Salário</strong><small>25 nov às 08:00 · Receita · de Davi</small></span>
+                  <span class="row-amount is-positive">+ R$ 3.400,00</span>
+                </li>
+                <li class="list-row" data-kind="income">
+                  <span class="row-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Freelance de design</strong><small>18 nov às 14:10 · Receita · de Ana</small></span>
+                  <span class="row-amount is-positive">+ R$ 3.400,00</span>
+                </li>
+                <li class="list-row" data-kind="transfer">
+                  <span class="row-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Reserva de emergência</strong><small>15 nov às 09:00 · Transferência · do casal</small></span>
+                  <span class="row-amount">R$ 1.200,00</span>
+                </li>
+              </ul>
+            </div>
+
+            <p class="disclaimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+              Histórico fictício, para demonstrar a experiência. Nada aqui é uma conta real.
+            </p>
+          </section>
+
+          <!-- ============================================= PLANEJAMENTO -->
+          <section class="screen" id="screen-planejamento" aria-labelledby="title-planejamento" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Planejamento</p>
+                <h1 id="title-planejamento">Planejar junto é mais leve</h1>
+                <p>Orçamento do mês, limites por categoria e metas do casal — sem sustos no fim do mês.</p>
+              </div>
+              <span class="pill is-positive">no controle</span>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h2>Orçamento de novembro</h2>
+                  <p>R$ 3.250,00 gastos de R$ 4.200,00 planejados</p>
+                </div>
+                <span class="pill">77% usado</span>
+              </div>
+
+              <div class="progress-row">
+                <div class="progress-top">
+                  <span class="legend-name"><i class="dot is-income"></i> Alimentação</span>
+                  <strong>R$ 980,00 / R$ 1.200,00</strong>
+                </div>
+                <div class="track"><span style="width: 82%"></span></div>
+              </div>
+              <div class="progress-row">
+                <div class="progress-top">
+                  <span class="legend-name"><i class="dot is-income"></i> Moradia</span>
+                  <strong>R$ 1.630,00 / R$ 1.800,00</strong>
+                </div>
+                <div class="track"><span style="width: 91%"></span></div>
+              </div>
+              <div class="progress-row">
+                <div class="progress-top">
+                  <span class="legend-name"><i class="dot is-expense"></i> Lazer</span>
+                  <strong>R$ 480,00 / R$ 400,00</strong>
+                </div>
+                <div class="track"><span class="is-negative" style="width: 100%"></span></div>
+              </div>
+              <div class="progress-row">
+                <div class="progress-top">
+                  <span class="legend-name"><i class="dot is-income"></i> Transporte</span>
+                  <strong>R$ 160,00 / R$ 500,00</strong>
+                </div>
+                <div class="track"><span style="width: 32%"></span></div>
+              </div>
+            </div>
+
+            <div class="grid grid-2">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Metas do casal</h2>
+                    <p>O que vocês estão construindo juntos</p>
+                  </div>
+                </div>
+
+                <div class="stack">
+                  <div>
+                    <div class="progress-top" style="margin-bottom: 7px">
+                      <span class="legend-name">Viagem para a Bahia</span>
+                      <strong class="is-positive">68%</strong>
+                    </div>
+                    <div class="track"><span style="width: 68%"></span></div>
+                    <p class="stat-hint" style="margin-top: 6px">R$ 5.440,00 de R$ 8.000,00 · prazo em março</p>
+                  </div>
+                  <div>
+                    <div class="progress-top" style="margin-bottom: 7px">
+                      <span class="legend-name">Reserva de emergência</span>
+                      <strong class="is-positive">42%</strong>
+                    </div>
+                    <div class="track"><span style="width: 42%"></span></div>
+                    <p class="stat-hint" style="margin-top: 6px">R$ 4.200,00 de R$ 10.000,00 · sem prazo</p>
+                  </div>
+                  <div>
+                    <div class="progress-top" style="margin-bottom: 7px">
+                      <span class="legend-name">Troca do carro</span>
+                      <strong>15%</strong>
+                    </div>
+                    <div class="track"><span style="width: 15%"></span></div>
+                    <p class="stat-hint" style="margin-top: 6px">R$ 4.500,00 de R$ 30.000,00 · prazo em dez/2027</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Previsão de gastos</h2>
+                    <p>Se o ritmo continuar como está</p>
+                  </div>
+                </div>
+
+                <div class="donut-wrap">
+                  <div class="donut">
+                    <svg viewBox="0 0 120 120" role="img" aria-label="77% do orçamento consumido no mês">
+                      <circle class="donut-track" cx="60" cy="60" r="50" fill="none" stroke-width="12" />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="50"
+                        fill="none"
+                        stroke="var(--verde-vivo)"
+                        stroke-width="12"
+                        stroke-linecap="round"
+                        stroke-dasharray="242 314"
+                      />
+                    </svg>
+                    <div class="donut-center">
+                      <small>do orçamento</small>
+                      <strong>77%</strong>
+                    </div>
+                  </div>
+
+                  <div class="legend">
+                    <div class="legend-row">
+                      <span class="legend-name">Até o fim do mês</span>
+                      <strong>R$ 1.050,00</strong>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-name">Sobra projetada</span>
+                      <strong class="is-positive">R$ 3.550,00</strong>
+                    </div>
+                    <p class="notice" style="margin-top: 6px">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18" /><circle cx="12" cy="12" r="4" /></svg>
+                      <span>Lazer passou do limite em R$ 80,00 — dá para compensar com o que sobrou do transporte.</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p class="disclaimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+              Orçamentos e metas ilustrativos, apenas para mostrar como a tela funciona.
+            </p>
+          </section>
+
+          <!-- ==================================================== CASAL -->
+          <section class="screen" id="screen-casal" aria-labelledby="title-casal" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Casal</p>
+                <h1 id="title-casal">Dinheiro a dois, sem letra miúda</h1>
+                <p>Quem entrou com o quê, o que é compartilhado e o que continua sendo de cada um.</p>
+              </div>
+              <span class="pill is-positive">carteira compartilhada</span>
+            </div>
+
+            <div class="grid grid-2">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Quem é quem</h2>
+                    <p>Transparência com privacidade</p>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="person">
+                    <span class="person-avatar" aria-hidden="true">D</span>
+                    <span class="person-copy"><strong>Davi Lima</strong><small>4 contas · 2 compartilhadas</small></span>
+                    <span class="person-amount">R$ 5.120,00</span>
+                  </div>
+                  <div class="person">
+                    <span class="person-avatar is-partner" aria-hidden="true">A</span>
+                    <span class="person-copy"><strong>Ana Souza</strong><small>3 contas · 2 compartilhadas</small></span>
+                    <span class="person-amount">R$ 3.330,00</span>
+                  </div>
+                </div>
+
+                <p class="notice" style="margin-top: 16px">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+                  <span>Contas privadas mostram apenas o saldo. O histórico só aparece quando o dono libera.</span>
+                </p>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Divisão do mês</h2>
+                    <p>Despesas compartilhadas de novembro</p>
+                  </div>
+                  <span class="pill">R$ 2.140,00</span>
+                </div>
+
+                <div class="progress-row">
+                  <div class="progress-top">
+                    <span class="legend-name">Davi</span>
+                    <strong>R$ 1.120,00 · 52%</strong>
+                  </div>
+                  <div class="track"><span style="width: 52%"></span></div>
+                </div>
+                <div class="progress-row">
+                  <div class="progress-top">
+                    <span class="legend-name">Ana</span>
+                    <strong>R$ 1.020,00 · 48%</strong>
+                  </div>
+                  <div class="track"><span style="width: 48%"></span></div>
+                </div>
+
+                <div class="grid grid-3" style="margin-top: 16px">
+                  <div class="stat" style="padding: 13px 14px">
+                    <span class="stat-label">Aluguel</span>
+                    <strong class="stat-value" style="font-size: 15px">R$ 1.450,00</strong>
+                    <span class="stat-hint">50/50</span>
+                  </div>
+                  <div class="stat" style="padding: 13px 14px">
+                    <span class="stat-label">Mercado</span>
+                    <strong class="stat-value" style="font-size: 15px">R$ 430,00</strong>
+                    <span class="stat-hint">proporcional</span>
+                  </div>
+                  <div class="stat" style="padding: 13px 14px">
+                    <span class="stat-label">Internet</span>
+                    <strong class="stat-value" style="font-size: 15px">R$ 120,00</strong>
+                    <span class="stat-hint">50/50</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <h2>Carteira compartilhada</h2>
+                  <p>O que entra e sai da conta conjunta</p>
+                </div>
+                <span class="pill is-positive">R$ 4.310,00</span>
+              </div>
+              <ul class="list">
+                <li class="list-row">
+                  <span class="row-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Aporte do casal</strong><small>20 nov · Davi e Ana</small></span>
+                  <span class="row-amount is-positive">+ R$ 2.000,00</span>
+                </li>
+                <li class="list-row">
+                  <span class="row-mark is-expense" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9Z" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Aluguel</strong><small>5 nov · Moradia</small></span>
+                  <span class="row-amount is-negative">− R$ 1.450,00</span>
+                </li>
+                <li class="list-row">
+                  <span class="row-mark is-expense" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z" /></svg>
+                  </span>
+                  <span class="row-copy"><strong>Internet</strong><small>8 nov · Moradia</small></span>
+                  <span class="row-amount is-negative">− R$ 120,00</span>
+                </li>
+              </ul>
+            </div>
+
+            <p class="disclaimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+              Perfis e valores ilustrativos, usados para demonstrar a experiência do casal.
+            </p>
+          </section>
+
+          <!-- ================================================== AJUSTES -->
+          <section class="screen" id="screen-ajustes" aria-labelledby="title-ajustes" hidden>
+            <div class="page-head">
+              <div>
+                <p class="eyebrow">Ajustes</p>
+                <h1 id="title-ajustes">Do seu jeito, com segurança</h1>
+                <p>Dados pessoais, contas bancárias, gestão do casal, notificações e privacidade.</p>
+              </div>
+            </div>
+
+            <div class="grid grid-2">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Dados pessoais</h2>
+                    <p>Como você aparece no CAJU</p>
+                  </div>
+                </div>
+
+                <div class="person" style="margin-bottom: 6px">
+                  <span class="person-avatar" aria-hidden="true">D</span>
+                  <span class="person-copy"><strong>Davi Lima</strong><small>davi@exemplo.com</small></span>
+                  <button class="button button-ghost" type="button" style="margin-left: auto; min-height: 36px; padding: 0 14px">Editar</button>
+                </div>
+
+                <div class="settings-row">
+                  <div class="settings-copy">
+                    <strong>Moeda</strong>
+                    <small>Real brasileiro (BRL)</small>
+                  </div>
+                  <span class="pill">R$</span>
+                </div>
+                <div class="settings-row">
+                  <div class="settings-copy">
+                    <strong>Fuso horário</strong>
+                    <small>America/Bahia (UTC−3)</small>
+                  </div>
+                  <span class="pill">automático</span>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Segurança e privacidade</h2>
+                    <p>Quem consegue ver o quê</p>
+                  </div>
+                </div>
+
+                <div class="settings-row">
+                  <div class="settings-copy">
+                    <strong>Verificação em duas etapas</strong>
+                    <small>Um código do app autenticador além da senha</small>
+                  </div>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Verificação em duas etapas"></button>
+                </div>
+                <div class="settings-row">
+                  <div class="settings-copy">
+                    <strong>Despesas individuais privadas</strong>
+                    <small>Seu histórico só aparece para o parceiro se você liberar</small>
+                  </div>
+                  <button class="switch" type="button" role="switch" aria-checked="true" aria-label="Despesas individuais privadas"></button>
+                </div>
+                <div class="settings-row">
+                  <div class="settings-copy">
+                    <strong>Notificações de vencimento</strong>
+                    <small>Aviso um dia antes de cada conta</small>
+                  </div>
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Notificações de vencimento"></button>
+                </div>
+                <div class="settings-row">
+                  <div class="settings-copy">
+                    <strong>Aprovação para gastos acima do limite</strong>
+                    <small>Compras conjuntas acima de R$ 500,00 precisam do "ok" dos dois</small>
+                  </div>
+                  <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Aprovação para gastos acima do limite"></button>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-2">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Contas bancárias</h2>
+                    <p>Conexões do Open Finance</p>
+                  </div>
+                  <button class="button button-ghost" type="button" style="min-height: 36px; padding: 0 14px">Conectar</button>
+                </div>
+
+                <ul class="list">
+                  <li class="list-row">
+                    <span class="row-mark" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3" /><path d="M3 11h18" /></svg>
+                    </span>
+                    <span class="row-copy"><strong>Conta corrente · Davi</strong><small>conectada há 12 dias</small></span>
+                    <span class="pill is-positive">ativa</span>
+                  </li>
+                  <li class="list-row">
+                    <span class="row-mark" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="3" /><path d="M3 11h18" /></svg>
+                    </span>
+                    <span class="row-copy"><strong>Carteira · Ana</strong><small>manual</small></span>
+                    <span class="pill">manual</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <h2>Gerenciamento do casal</h2>
+                    <p>Quem participa deste espaço</p>
+                  </div>
+                </div>
+
+                <div class="person" style="margin-bottom: 12px">
+                  <span class="person-avatar is-partner" aria-hidden="true">A</span>
+                  <span class="person-copy"><strong>Ana Souza</strong><small>entrou em julho de 2026</small></span>
+                  <span class="pill is-positive" style="margin-left: auto">aceita</span>
+                </div>
+
+                <p class="notice">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.4-7-9.5A4.5 4.5 0 0 1 12 8a4.5 4.5 0 0 1 7 3.5C19 16.6 12 21 12 21Z" /></svg>
+                  <span>Vocês dividem 2 contas e 2 metas. Cada um pode sair a qualquer momento, sem perder o próprio histórico.</span>
+                </p>
+              </div>
+            </div>
+
+            <p class="disclaimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 16v-4M12 8h.01" /></svg>
+              Protótipo conceitual. Nenhuma conexão bancária real é feita nesta tela.
+            </p>
+          </section>
+        </main>
+      </div>
+
+      <!-- ============================================ navegação inferior -->
+      <nav class="tabbar" aria-label="Navegação principal">
+        <button class="tab" data-go="inicio" aria-current="page" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10.5V20h13v-9.5" /></svg>
+          Início
+        </button>
+        <button class="tab" data-go="movimentacoes" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h13" /></svg>
+          Movimentações
+        </button>
+        <button class="tab" data-go="planejamento" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15v-4M12.5 15V7M17 15v-6" /></svg>
+          Planejar
+        </button>
+        <button class="tab" data-go="casal" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 19v-1a4 4 0 0 0-4-4h-4a4 4 0 0 0-4 4v1" /><circle cx="9.5" cy="7.5" r="3.5" /><path d="M16.5 19v-1a4 4 0 0 0-2.6-3.7" /><path d="M15.5 4.2a3.5 3.5 0 0 1 0 6.6" /></svg>
+          Casal
+        </button>
+        <button class="tab" data-go="ajustes" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" /></svg>
+          Ajustes
+        </button>
+      </nav>
+    </div>
+
+    <!-- ============================================= botão de adicionar -->
+    <button class="fab" id="fab" type="button" aria-haspopup="dialog" aria-controls="modal-add">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+      Adicionar
+    </button>
+
+    <!-- ========================================================== modal -->
+    <div class="backdrop" id="backdrop" hidden>
+      <div class="modal" id="modal-add" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="modal-title">Nova movimentação</h2>
+            <p>O que você quer registrar agora?</p>
+          </div>
+          <button class="icon-button" id="modal-close" type="button" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+
+        <div class="type-options" id="type-options">
+          <button class="type-option" type="button" data-type="income">
+            <span class="type-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>
+            </span>
+            <span class="type-copy"><strong>Receita</strong><small>Salário, freelance, rendimento</small></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+          </button>
+
+          <button class="type-option" type="button" data-type="expense">
+            <span class="type-icon is-expense" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></svg>
+            </span>
+            <span class="type-copy"><strong>Despesa</strong><small>Mercado, contas, lazer</small></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+          </button>
+
+          <button class="type-option" type="button" data-type="transfer">
+            <span class="type-icon is-transfer" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3" /></svg>
+            </span>
+            <span class="type-copy"><strong>Transferência</strong><small>Entre contas ou para a reserva</small></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+          </button>
+        </div>
+
+        <form class="form" id="add-form" hidden>
+          <label class="field">
+            <span id="form-amount-label">Valor</span>
+            <input class="input input-amount" id="form-amount" inputmode="decimal" placeholder="R$ 0,00" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Descrição</span>
+            <input class="input" id="form-desc" placeholder="Ex.: Supermercado" autocomplete="off" />
+          </label>
+          <div class="form-actions">
+            <button class="button button-ghost" id="form-back" type="button">Voltar</button>
+            <button class="button button-primary" type="submit">Salvar movimentação</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7" /></svg>
+      <span id="toast-text">Movimentação adicionada</span>
+    </div>
+
+    <script>
+      /* =====================================================================
+         Comportamento do protótipo: trocar de tela, filtrar a lista, abrir o
+         modal de adicionar e inserir a movimentação na tela de início.
+         Sem framework, sem build — é um protótipo de interface.
+         ===================================================================== */
+
+      (function () {
+        'use strict';
+
+        var SCREENS = {
+          inicio: { title: 'Início', el: 'screen-inicio' },
+          movimentacoes: { title: 'Movimentações', el: 'screen-movimentacoes' },
+          planejamento: { title: 'Planejamento', el: 'screen-planejamento' },
+          casal: { title: 'Casal', el: 'screen-casal' },
+          ajustes: { title: 'Ajustes', el: 'screen-ajustes' },
+        };
+
+        var topbarScreen = document.getElementById('topbar-screen');
+
+        function goTo(name) {
+          if (!SCREENS[name]) return;
+
+          Object.keys(SCREENS).forEach(function (key) {
+            var section = document.getElementById(SCREENS[key].el);
+            var isCurrent = key === name;
+            section.hidden = !isCurrent;
+            if (isCurrent) {
+              // reinicia a animação de entrada
+              section.style.animation = 'none';
+              void section.offsetWidth;
+              section.style.animation = '';
+            }
+          });
+
+          document.querySelectorAll('[data-go]').forEach(function (button) {
+            if (button.getAttribute('data-go') === name) {
+              button.setAttribute('aria-current', 'page');
+            } else {
+              button.removeAttribute('aria-current');
+            }
+          });
+
+          topbarScreen.textContent = SCREENS[name].title;
+          window.scrollTo(0, 0);
+        }
+
+        document.querySelectorAll('[data-go]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            goTo(button.getAttribute('data-go'));
+          });
+        });
+
+        /* ------------------------------------------------ filtros da lista */
+
+        var movList = document.getElementById('mov-lista');
+
+        document.querySelectorAll('[data-filter]').forEach(function (chip) {
+          chip.addEventListener('click', function () {
+            var filter = chip.getAttribute('data-filter');
+
+            document.querySelectorAll('[data-filter]').forEach(function (other) {
+              other.setAttribute('aria-pressed', String(other === chip));
+            });
+
+            movList.querySelectorAll('.list-row').forEach(function (row) {
+              row.style.display =
+                filter === 'all' || row.getAttribute('data-kind') === filter ? '' : 'none';
+            });
+          });
+        });
+
+        /* --------------------------------------------- switches de ajustes */
+
+        document.querySelectorAll('.switch').forEach(function (toggle) {
+          toggle.addEventListener('click', function () {
+            var on = toggle.getAttribute('aria-checked') === 'true';
+            toggle.setAttribute('aria-checked', String(!on));
+          });
+        });
+
+        /* ------------------------------------------------------- modal */
+
+        var backdrop = document.getElementById('backdrop');
+        var modalTitle = document.getElementById('modal-title');
+        var typeOptions = document.getElementById('type-options');
+        var form = document.getElementById('add-form');
+        var amountInput = document.getElementById('form-amount');
+        var descInput = document.getElementById('form-desc');
+        var amountLabel = document.getElementById('form-amount-label');
+        var lastFocused = null;
+        var currentType = null;
+
+        var TYPES = {
+          income: { label: 'Nova receita', amount: 'Valor recebido', placeholder: 'Ex.: Salário' },
+          expense: { label: 'Nova despesa', amount: 'Valor gasto', placeholder: 'Ex.: Supermercado' },
+          transfer: {
+            label: 'Nova transferência',
+            amount: 'Valor transferido',
+            placeholder: 'Ex.: Reserva de emergência',
+          },
+        };
+
+        function openModal() {
+          lastFocused = document.activeElement;
+          backdrop.hidden = false;
+          resetForm();
+          document.querySelector('#type-options .type-option').focus();
+          document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+          backdrop.hidden = true;
+          resetForm();
+          document.body.style.overflow = '';
+          if (lastFocused && lastFocused.focus) lastFocused.focus();
+        }
+
+        function resetForm() {
+          currentType = null;
+          modalTitle.textContent = 'Nova movimentação';
+          typeOptions.hidden = false;
+          form.hidden = true;
+          amountInput.value = '';
+          descInput.value = '';
+        }
+
+        function pickType(type) {
+          var config = TYPES[type];
+          if (!config) return;
+          currentType = type;
+          modalTitle.textContent = config.label;
+          amountLabel.textContent = config.amount;
+          descInput.placeholder = config.placeholder;
+          typeOptions.hidden = true;
+          form.hidden = false;
+          amountInput.focus();
+        }
+
+        /** "1.234,56" / "250" / "R$ 89,90" -> 1234.56 */
+        function parseAmount(raw) {
+          var clean = String(raw).replace(/[^\d.,-]/g, '').trim();
+          if (!clean) return NaN;
+          var lastComma = clean.lastIndexOf(',');
+          var lastDot = clean.lastIndexOf('.');
+          var normalized;
+
+          if (lastComma > lastDot) {
+            // vírgula decimal: ponto é milhar
+            normalized = clean.replace(/\./g, '').replace(',', '.');
+          } else if (lastDot > lastComma) {
+            var decimals = clean.length - lastDot - 1;
+            normalized =
+              decimals === 3 ? clean.replace(/\./g, '') : clean.replace(/,/g, '');
+          } else {
+            normalized = clean.replace(/,/g, '');
+          }
+
+          return Number(normalized);
+        }
+
+        function formatBRL(value) {
+          return value.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+          });
+        }
+
+        function todayLabel() {
+          var now = new Date();
+          var hh = String(now.getHours()).padStart(2, '0');
+          var mm = String(now.getMinutes()).padStart(2, '0');
+          return 'agora às ' + hh + ':' + mm;
+        }
+
+        function iconFor(type) {
+          if (type === 'income') {
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
+          }
+          if (type === 'transfer') {
+            return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>';
+          }
+          return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1.2 12H7.2L6 7Z"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/></svg>';
+        }
+
+        function prependRow(list, type, description, amount) {
+          var signed =
+            type === 'income'
+              ? '+ ' + formatBRL(amount)
+              : type === 'expense'
+                ? '− ' + formatBRL(amount)
+                : formatBRL(amount);
+
+          var row = document.createElement('li');
+          row.className = 'list-row';
+          if (list.id === 'mov-lista') row.setAttribute('data-kind', type);
+          row.innerHTML =
+            '<span class="row-mark' +
+            (type === 'expense' ? ' is-expense' : '') +
+            '" aria-hidden="true">' +
+            iconFor(type) +
+            '</span>' +
+            '<span class="row-copy"><strong></strong><small>' +
+            todayLabel() +
+            ' · adicionada agora</small></span>' +
+            '<span class="row-amount ' +
+            (type === 'income' ? 'is-positive' : type === 'expense' ? 'is-negative' : '') +
+            '">' +
+            signed +
+            '</span>';
+
+          // texto sempre via textContent: descrição é entrada do usuário
+          row.querySelector('.row-copy strong').textContent = description;
+          list.insertBefore(row, list.firstElementChild);
+        }
+
+        var toast = document.getElementById('toast');
+        var toastText = document.getElementById('toast-text');
+        var toastTimer = null;
+
+        function showToast(message) {
+          toastText.textContent = message;
+          toast.classList.add('is-visible');
+          window.clearTimeout(toastTimer);
+          toastTimer = window.setTimeout(function () {
+            toast.classList.remove('is-visible');
+          }, 3200);
+        }
+
+        document.getElementById('fab').addEventListener('click', openModal);
+        document.getElementById('modal-close').addEventListener('click', closeModal);
+
+        backdrop.addEventListener('click', function (event) {
+          if (event.target === backdrop) closeModal();
+        });
+
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape' && !backdrop.hidden) closeModal();
+        });
+
+        document.querySelectorAll('#type-options .type-option').forEach(function (option) {
+          option.addEventListener('click', function () {
+            pickType(option.getAttribute('data-type'));
+          });
+        });
+
+        document.getElementById('form-back').addEventListener('click', function () {
+          resetForm();
+          document.querySelector('#type-options .type-option').focus();
+        });
+
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+
+          var amount = parseAmount(amountInput.value);
+          var description = descInput.value.trim();
+
+          if (!isFinite(amount) || amount <= 0) {
+            amountInput.focus();
+            amountInput.select();
+            showToast('Informe um valor maior que zero.');
+            return;
+          }
+
+          if (!description) {
+            descInput.focus();
+            showToast('Escreva uma descrição para a movimentação.');
+            return;
+          }
+
+          // Guarda antes de fechar: `closeModal()` limpa `currentType`, e sem
+          // isso o aviso sairia sempre como "Transferência".
+          var type = currentType;
+          var label =
+            type === 'income' ? 'Receita' : type === 'expense' ? 'Despesa' : 'Transferência';
+
+          prependRow(document.getElementById('ultimas-lista'), type, description, amount);
+          prependRow(movList, type, description, amount);
+
+          // mantém o filtro coerente com a nova linha
+          var activeFilter = document.querySelector('[data-filter][aria-pressed="true"]');
+          if (activeFilter) activeFilter.click();
+
+          closeModal();
+          showToast(label + ' de ' + formatBRL(amount) + ' registrada (exemplo).');
+        });
+      })();
+    </script>
+  </body>
+</html>

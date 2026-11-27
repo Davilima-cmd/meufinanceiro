@@ -1,7 +1,13 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as argon2 from 'argon2';
+import { AuditAction } from '../audit/audit-log.decorator';
 
 @Injectable()
 export class AuthService {
@@ -29,12 +35,42 @@ export class AuthService {
     }
   }
 
-  generateToken(userId: string): string {
-    return this.jwt.sign({ sub: userId, scope: 'full' });
+  /**
+   * Confere a senha atual do usuário (reautenticação para ação sensível).
+   *
+   * Resposta genérica de propósito: não diz se o usuário existe ou se a senha
+   * está errada por outro motivo.
+   */
+  async assertPassword(userId: string, password: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { password: true },
+    });
+    const matches = user ? await this.comparePassword(password, user.password) : false;
+    if (!matches) {
+      throw new UnauthorizedException('Senha incorreta.');
+    }
   }
 
   generateTempToken(userId: string): string {
     return this.jwt.sign({ sub: userId, scope: 'mfa_pending' }, { expiresIn: '5m' });
+  }
+
+  /** Dados públicos do usuário (sem senha/segredo de MFA). */
+  async profile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        mfaEnabled: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+    return user;
   }
 
   async register(dto: { email: string; name: string; password: string }) {
@@ -43,6 +79,11 @@ export class AuthService {
     });
 
     if (existing) {
+      // Enumeração de contas: o 409 confirma que o e-mail existe. Fechar isso
+      // exige cadastro assíncrono (responde 201 e manda e-mail de confirmação),
+      // o que muda o fluxo de entrada — decisão de produto registrada em
+      // docs/seguranca.md. Enquanto for 409, o limite de 5/min por IP em
+      // `POST /auth/register` é o que impede varredura em massa.
       throw new ConflictException('Email já cadastrado');
     }
 
@@ -129,7 +170,11 @@ export class AuthService {
     await this.prisma.auditLog.create({
       data: {
         userId,
-        action: 'ACCOUNT_DELETED',
+        // Mesma string do @AuditLog do controller: antes a exclusão gerava
+        // **dois** registros (ACCOUNT_DELETE pelo interceptor e
+        // ACCOUNT_DELETED aqui), e quem consultasse o histórico para provar o
+        // direito à exclusão (LGPD art. 18) via duas linhas para um ato só.
+        action: AuditAction.ACCOUNT_DELETE,
         target: userId,
         metadata: { deletedAt: deletedAt.toISOString() },
       },

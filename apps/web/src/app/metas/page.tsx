@@ -1,0 +1,336 @@
+'use client';
+
+import { useState } from 'react';
+import type { ApiGoalContribution } from '@meufinanceiro/shared-types';
+import { AppShell } from '@/components/app-shell';
+import { DateField } from '@/components/date-field';
+import { useDialog } from '@/components/dialog';
+import { Badge, Card, EmptyState, Money, PageHeader, ProgressBar } from '@/components/ui';
+import { centsFromInput, daysUntil, formatBRL, formatDay, toCents, todayISO } from '@/lib/format';
+import { useFinance } from '@/lib/store';
+import { MoneyInput } from '@/components/money-input';
+
+export default function GoalsPage() {
+  const { snapshot, addGoal, contributeGoal, deleteGoal, goalHistory } = useFinance();
+  const dialog = useDialog();
+  const [name, setName] = useState('');
+  const [target, setTarget] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [error, setError] = useState('');
+  const [contributions, setContributions] = useState<Record<string, string>>({});
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  // Histórico só é buscado quando a pessoa abre; sem isso a tela faria uma
+  // requisição por meta em cada visita.
+  const [openHistory, setOpenHistory] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, ApiGoalContribution[]>>({});
+  /**
+   * Histórico por meta, em vez de um booleano global.
+   *
+   * Com um `historyLoading` só, abrir a meta B enquanto a A carregava mostrava
+   * "Carregando histórico…" na B; e um erro na busca deixava a tela presa em
+   * "Carregando" para sempre. Agora cada meta tem o próprio estado e a falha
+   * aparece na linha da meta.
+   */
+  const [historyState, setHistoryState] = useState<Record<string, 'loading' | 'done' | 'error'>>(
+    {}
+  );
+
+  async function loadHistory(goalId: string, force = false) {
+    if (!force && (historyState[goalId] === 'done' || historyState[goalId] === 'loading')) return;
+    setHistoryState((current) => ({ ...current, [goalId]: 'loading' }));
+    try {
+      const rows = await goalHistory(goalId);
+      setHistory((current) => ({ ...current, [goalId]: rows }));
+      setHistoryState((current) => ({ ...current, [goalId]: 'done' }));
+    } catch {
+      setHistoryState((current) => ({ ...current, [goalId]: 'error' }));
+    }
+  }
+
+  function toggleHistory(goalId: string) {
+    if (openHistory === goalId) {
+      setOpenHistory(null);
+      return;
+    }
+    setOpenHistory(goalId);
+    void loadHistory(goalId);
+  }
+
+  function noteFor(goalId: string): string {
+    return notes[goalId] ?? '';
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError('');
+    if (!name.trim()) {
+      setError('Dê um nome à meta.');
+      return;
+    }
+    const cents = centsFromInput(target);
+    if (cents <= 0n) {
+      setError('Informe um valor alvo maior que zero.');
+      return;
+    }
+    const failure = await addGoal({
+      name,
+      targetCents: cents.toString(),
+      dueDate: dueDate || null,
+    });
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    setName('');
+    setTarget('');
+    setDueDate('');
+  }
+
+  const totalTarget = snapshot.goals.reduce((sum, goal) => sum + toCents(goal.targetCents), 0n);
+  const totalSaved = snapshot.goals.reduce((sum, goal) => sum + toCents(goal.currentCents), 0n);
+
+  return (
+    <AppShell>
+      <PageHeader
+        eyebrow="Objetivos"
+        title="Metas financeiras"
+        description="Junte dinheiro com propósito: viagens, reserva de emergência, compras planejadas."
+      />
+
+      <div className="stack">
+        <div className="stat-grid">
+          <div className="stat">
+            <span className="stat-label">Total das metas</span>
+            <strong className="stat-value">
+              <Money value={totalTarget} />
+            </strong>
+            <span className="stat-hint">{snapshot.goals.length} meta(s)</span>
+          </div>
+          <div className="stat">
+            <span className="stat-label">Já guardado</span>
+            <strong className="stat-value is-positive">
+              <Money value={totalSaved} />
+            </strong>
+          </div>
+          <div className="stat">
+            <span className="stat-label">Falta guardar</span>
+            <strong className="stat-value">
+              <Money value={totalTarget - totalSaved} />
+            </strong>
+          </div>
+        </div>
+
+        {snapshot.goals.length === 0 ? (
+          <EmptyState
+            description="Crie a primeira meta e registre aportes ao longo do tempo."
+            title="Nenhuma meta cadastrada"
+          />
+        ) : (
+          <div className="goal-grid">
+            {snapshot.goals.map((goal) => {
+              const target = toCents(goal.targetCents);
+              const current = toCents(goal.currentCents);
+              const percent =
+                target > 0n ? Math.round((Number(current) / Number(target)) * 100) : 0;
+              const remaining = target - current;
+              const days = goal.dueDate ? daysUntil(goal.dueDate) : null;
+              return (
+                <article className="goal-card" key={goal.id}>
+                  <div className="goal-head">
+                    <div>
+                      <strong style={{ fontSize: 14.5 }}>{goal.name}</strong>
+                      <div className="account-sub">
+                        {goal.dueDate
+                          ? days !== null && days >= 0
+                            ? `Prazo em ${days} dia(s)`
+                            : 'Prazo vencido'
+                          : 'Sem prazo definido'}
+                      </div>
+                    </div>
+                    <Badge
+                      tone={percent >= 100 ? 'positive' : percent >= 60 ? 'accent' : 'neutral'}
+                    >
+                      {percent}%
+                    </Badge>
+                  </div>
+                  <ProgressBar percent={percent} tone={percent >= 100 ? 'positive' : undefined} />
+                  <div className="goal-amounts">
+                    <strong>
+                      <Money value={goal.currentCents} />
+                    </strong>
+                    de <Money value={goal.targetCents} />
+                  </div>
+                  <span className="account-sub">
+                    {remaining > 0n
+                      ? `Faltam ${formatBRL(remaining)}`
+                      : 'Meta atingida — parabéns!'}
+                  </span>
+                  <div className="goal-actions">
+                    <input
+                      aria-label={`Aporte para ${goal.name}`}
+                      className="input"
+                      inputMode="decimal"
+                      onChange={(event) =>
+                        setContributions((current) => ({
+                          ...current,
+                          [goal.id]: event.target.value,
+                        }))
+                      }
+                      placeholder="Aporte R$"
+                      value={contributions[goal.id] ?? ''}
+                    />
+                    <input
+                      aria-label={`Observação do aporte em ${goal.name}`}
+                      className="input"
+                      onChange={(event) =>
+                        setNotes((current) => ({ ...current, [goal.id]: event.target.value }))
+                      }
+                      placeholder="De onde veio? (opcional)"
+                      value={noteFor(goal.id)}
+                    />
+                    <button
+                      className="button button-ghost"
+                      onClick={() => {
+                        const value = centsFromInput(contributions[goal.id] ?? '');
+                        if (value <= 0n) return;
+                        void contributeGoal(
+                          goal.id,
+                          value.toString(),
+                          noteFor(goal.id).trim() || undefined
+                        ).then((failure) => {
+                          if (failure) setError(failure);
+                          else setHistory((current) => ({ ...current, [goal.id]: [] }));
+                        });
+                        setContributions((current) => ({ ...current, [goal.id]: '' }));
+                        setNotes((current) => ({ ...current, [goal.id]: '' }));
+                      }}
+                      type="button"
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      className="button button-ghost"
+                      onClick={() => void toggleHistory(goal.id)}
+                      type="button"
+                    >
+                      {openHistory === goal.id ? 'Ocultar histórico' : 'Histórico'}
+                    </button>
+                    <button
+                      aria-label={`Excluir ${goal.name}`}
+                      className="icon-button"
+                      onClick={async () => {
+                        const confirmed = await dialog.confirm({
+                          title: `Excluir a meta “${goal.name}”?`,
+                          description:
+                            'O valor já guardado não volta para nenhuma conta — ajuste o saldo manualmente se precisar.',
+                          confirmLabel: 'Excluir meta',
+                        });
+                        if (!confirmed) return;
+                        void deleteGoal(goal.id).then((failure) => {
+                          if (failure) setError(failure);
+                        });
+                      }}
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {openHistory === goal.id ? (
+                    <div className="goal-history">
+                      {historyState[goal.id] === 'error' ? (
+                        <span className="account-sub">
+                          Não foi possível carregar o histórico.{' '}
+                          <button
+                            className="link-button"
+                            onClick={() => {
+                              // Tenta de novo sem fechar o painel.
+                              void loadHistory(goal.id, true);
+                            }}
+                            type="button"
+                          >
+                            Tentar de novo
+                          </button>
+                        </span>
+                      ) : historyState[goal.id] === 'loading' ? (
+                        <span className="account-sub">Carregando histórico…</span>
+                      ) : (history[goal.id] ?? []).length === 0 ? (
+                        <span className="account-sub">
+                          Nenhum aporte registrado ainda. Cada “Guardar” entra aqui.
+                        </span>
+                      ) : (
+                        <ul className="list">
+                          {(history[goal.id] ?? []).map((entry) => (
+                            <li className="list-row" key={entry.id}>
+                              <div className="row-copy">
+                                <strong>{entry.note ?? 'Aporte'}</strong>
+                                <small>{formatDay(entry.occurredAt.slice(0, 10))}</small>
+                              </div>
+                              <div className="row-end">
+                                <span
+                                  className={`row-amount ${entry.amountCents.startsWith('-') ? 'is-negative' : 'is-positive'}`}
+                                >
+                                  <Money value={entry.amountCents} signed />
+                                </span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        )}
+
+        <Card>
+          <div className="card-heading">
+            <div>
+              <h2>Nova meta</h2>
+              <p>Defina o objetivo e o prazo desejado</p>
+            </div>
+          </div>
+          <form className="form-row" onSubmit={handleSubmit}>
+            <label className="field">
+              <span>Nome da meta</span>
+              <input
+                className="input"
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Viagem para Jericoacoara"
+                value={name}
+              />
+            </label>
+            <MoneyInput
+              hint="quanto falta para chegar lá"
+              label="Valor alvo"
+              onChange={setTarget}
+              placeholder="9.000,00"
+              value={target}
+            />
+            <div className="field">
+              <span>Prazo (opcional)</span>
+              <DateField
+                allowClear
+                clearLabel="Sem prazo"
+                label="Prazo da meta"
+                min={todayISO()}
+                onChange={setDueDate}
+                placeholder="Sem prazo"
+                value={dueDate}
+              />
+            </div>
+            <button className="button button-primary" type="submit">
+              Criar meta
+            </button>
+          </form>
+          {error ? (
+            <p className="form-error" style={{ marginTop: 12 }}>
+              {error}
+            </p>
+          ) : null}
+        </Card>
+      </div>
+    </AppShell>
+  );
+}

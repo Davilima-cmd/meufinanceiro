@@ -8,6 +8,7 @@ import {
   subtract,
   multiply,
   divide,
+  allocate,
   isZero,
   isPositive,
   isNegative,
@@ -143,6 +144,34 @@ describe('money utilities', () => {
 
     it('divides by decimal', () => {
       expect(divide(centavos(1000n), 0.5)).toBe(centavos(2000n));
+    });
+
+    it('preserva centavos que não são múltiplos de 100', () => {
+      // Regressão: `(a / fator) * 100` devolvia 600n aqui (perdia 55 centavos).
+      expect(divide(centavos(1234n), 2)).toBe(centavos(617n));
+      expect(divide(centavos(999n), 3)).toBe(centavos(333n));
+    });
+
+    it('recusa divisão por zero', () => {
+      expect(() => divide(centavos(100n), 0)).toThrow(RangeError);
+    });
+  });
+
+  describe('allocate', () => {
+    it('distribui a sobra sem perder centavos', () => {
+      const partes = allocate(centavos(1000n), 3);
+      expect(partes).toEqual([centavos(334n), centavos(333n), centavos(333n)]);
+      expect(sum(partes)).toBe(centavos(1000n));
+    });
+
+    it('rateia valores negativos mantendo a soma', () => {
+      const partes = allocate(centavos(-1000n), 3);
+      expect(sum(partes)).toBe(centavos(-1000n));
+    });
+
+    it('recusa número de partes inválido', () => {
+      expect(() => allocate(centavos(100n), 0)).toThrow(RangeError);
+      expect(() => allocate(centavos(100n), 1.5)).toThrow(RangeError);
     });
   });
 

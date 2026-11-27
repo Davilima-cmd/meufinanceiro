@@ -137,7 +137,7 @@ describe('AuthService', () => {
       expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-1',
-          action: 'ACCOUNT_DELETED',
+          action: 'ACCOUNT_DELETE',
           target: 'user-1',
           metadata: { deletedAt: expect.any(String) },
         },

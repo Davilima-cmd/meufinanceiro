@@ -30,10 +30,26 @@ export type AuthResponse = {
    * memória — nunca é um segredo TOTP e nunca é gravado no localStorage.
    */
   tempToken?: string;
+  /**
+   * Valor para o header `X-CSRF-Token` quando a sessão é por cookie.
+   *
+   * A web e a API ficam em domínios diferentes: o navegador guarda o cookie
+   * `mf_csrf` no domínio da API e o JavaScript da página **não** consegue
+   * lê-lo. Devolver o valor no corpo (leitura same-origin-only) é o que permite
+   * à web montar o header; sem ele toda escrita autenticada por cookie caía em
+   * 403. Uso por bearer pode ignorar.
+   */
+  csrfToken?: string;
 };
 
-/** DTO de ativação do MFA: segredo base32 + código TOTP de confirmação. */
-export type MfaEnableRequest = { secret: string; token: string };
+/**
+ * DTO de ativação do MFA: **só** o código TOTP de confirmação.
+ *
+ * O segredo nasce no servidor (`GET /auth/mfa/secret`) e fica pendente na conta;
+ * aceitar `secret` aqui permitiria ativar o segundo fator com um segredo que o
+ * atacante conhece.
+ */
+export type MfaEnableRequest = { token: string };
 
 /** Resposta de ativação do MFA. */
 export type MfaEnableResponse = { mfaEnabled: boolean; user: ApiUser };
@@ -41,15 +57,69 @@ export type MfaEnableResponse = { mfaEnabled: boolean; user: ApiUser };
 /** Resposta de desativação do MFA. */
 export type MfaDisableResponse = { mfaEnabled: boolean; user: ApiUser };
 
-/** DTO de verificação de código TOTP (segundo fator no login). */
-export type MfaVerifyRequest = { code: string };
+/**
+ * DTO de verificação de código TOTP (segundo fator no login e desligamento).
+ *
+ * O campo é `token` — é o nome que o servidor valida. A web enviava `code`, o
+ * que fazia o `ValidationPipe` recusar com 400 justamente para quem tinha MFA
+ * ativo, ou seja, ninguém conseguia entrar com o segundo fator ligado.
+ */
+export type MfaVerifyRequest = { token: string };
 
-/** Resposta da geração do QR code de configuração do MFA. */
+/** Resposta de `GET /auth/status`: valida a sessão e devolve o usuário. */
+export type AuthStatus = {
+  authenticated: true;
+  user: ApiUser;
+  /** Id da sessão do token usado nesta requisição, quando houver. */
+  sessionId: string | null;
+  /** Quantas sessões abertas o usuário tem (contando esta). */
+  sessions: number;
+  /** Mesmo valor de `AuthResponse.csrfToken`, recalculado a cada chamada. */
+  csrfToken?: string | null;
+};
+
+/** Resposta de `GET /auth/mfa/secret`: segredo novo, gerado no servidor. */
+export type MfaSecretResponse = {
+  /** Segredo base32 — mostrado uma única vez, para digitar/copiar no app. */
+  secret: string;
+  /** A mesma configuração em `otpauth://`, para desenhar o QR no cliente. */
+  otpauthUrl: string;
+};
+
+/** Resposta de `GET /auth/mfa/qr-code`: QR do segredo pendente do usuário. */
 export type MfaQrCodeResponse = {
   /** URL otpauth://totp/... a ser lida pelo app autenticador (Google Authenticator etc.). */
-  otpAuthUrl: string;
+  otpauthUrl: string;
   /** Imagem do QR code em data URL, quando gerada pelo servidor. */
   qrCode?: string;
+};
+
+/** Recorrência mensal (aluguel, salário): gera o lançamento todo mês. */
+export type ApiRecurrence = {
+  id: string;
+  accountId: string;
+  categoryId: string | null;
+  description: string;
+  /** Centavos com sinal: negativo = despesa, positivo = receita. */
+  amountCents: string;
+  type: 'income' | 'expense' | string;
+  frequency: string;
+  /** Dia do mês (1–28) em que o lançamento é gerado. */
+  dayOfMonth: number;
+  /** Próxima data em que a rotina vai criar o lançamento. */
+  nextRunAt: string;
+  active: boolean;
+};
+
+/** DTO de criação de recorrência. */
+export type CreateRecurrenceDto = {
+  accountId: string;
+  categoryId?: string;
+  description: string;
+  amountCents: string;
+  type: 'income' | 'expense';
+  dayOfMonth?: number;
+  startAt?: string;
 };
 
 /** DTO de entrada de cadastro. */
@@ -66,6 +136,19 @@ export type LoginDto = {
 };
 
 /** Conta financeira retornada pela API (valores em centavos como string). */
+/** Níveis de compartilhamento de uma conta, do mais restrito ao mais aberto. */
+export type ShareLevel = 'private' | 'BALANCE_ONLY' | 'FULL';
+
+/**
+ * O que o usuário pode fazer numa conta. Conta que não é dele vem sempre
+ * `readOnly`; `BALANCE_ONLY` não mostra histórico.
+ */
+export type AccountAccess = {
+  canSeeBalance: boolean;
+  canSeeTransactions: boolean;
+  readOnly: boolean;
+};
+
 export type ApiAccount = {
   id: string;
   name: string;
@@ -74,6 +157,11 @@ export type ApiAccount = {
   currency: string;
   balanceCents: string;
   isActive: boolean;
+  /** Dono da conta (pode ser o parceiro, em conta compartilhada). */
+  ownerId?: string;
+  ownerName?: string | null;
+  shareLevel?: ShareLevel;
+  access?: AccountAccess;
   createdAt: string;
   updatedAt: string;
 };
@@ -84,12 +172,19 @@ export type CreateAccountDto = {
   institution?: string;
   type?: string;
   currency?: string;
+  /**
+   * Saldo que a conta já tem no momento do cadastro (centavos, inteiro em
+   * texto). A API grava como lançamento "Saldo inicial" liquidado, então o
+   * saldo continua derivado do histórico.
+   */
+  balanceCents?: string;
 };
 
 /** Lançamento financeiro retornado pela API. */
 export type ApiTransaction = {
   id: string;
   accountId: string;
+  transferId?: string | null;
   userId: string;
   categoryId?: string | null;
   description: string;
@@ -97,7 +192,15 @@ export type ApiTransaction = {
   type: string;
   origin: string;
   providerId?: string | null;
+  /** Data de caixa (quando o dinheiro entrou/saiu). */
   date: string;
+  /** Data de competência: o mês a que o lançamento pertence. */
+  competenceDate: string;
+  /** `pending` (a pagar/receber), `paid` (liquidado) ou `canceled`. */
+  status: 'pending' | 'paid' | 'canceled';
+  /** Momento da liquidação; nulo enquanto pendente. */
+  paidAt?: string | null;
+  dueDate?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -139,6 +242,32 @@ export type ApiGoal = {
   updatedAt: string;
 };
 
+/** Item de patrimônio declarado à mão (bem ou dívida). */
+export type ApiNetWorthItem = {
+  id: string;
+  name: string;
+  kind: 'asset' | 'liability';
+  valueCents: string;
+  note: string | null;
+};
+
+/** Patrimônio: contas + bens − dívidas. */
+export type ApiNetWorthSummary = {
+  accountsTotalCents: string;
+  assetsCents: string;
+  liabilitiesCents: string;
+  netCents: string;
+  items: ApiNetWorthItem[];
+};
+
+/** Aporte (ou resgate, valor negativo) no histórico de uma meta. */
+export type ApiGoalContribution = {
+  id: string;
+  amountCents: string;
+  note: string | null;
+  occurredAt: string;
+};
+
 /** DTO de entrada para criar um lançamento. */
 export type CreateTransactionDto = {
   accountId: string;
@@ -146,7 +275,16 @@ export type CreateTransactionDto = {
   amountCents: string;
   type: string;
   categoryId?: string;
+  /** Só para `type: 'transfer'`: conta que recebe o valor. */
+  transferAccountId?: string;
+  /** Data de caixa. */
   date: string;
+  /** Data de competência; sem ela, usa `date`. */
+  competenceDate?: string;
+  /** `pending` (padrão) ou `paid`. Transferências são sempre liquidadas. */
+  status?: 'pending' | 'paid' | 'canceled';
+  /** Vencimento, para contas a pagar/receber. */
+  dueDate?: string;
 };
 
 /** Erro padronizado da API (corpo do NestJS: { message, error, statusCode }). */
@@ -173,11 +311,36 @@ export type ApiBankConnection = {
   account: { id: string; name: string };
 };
 
-/** DTO de entrada para conectar uma instituição via sandbox. */
-export type ConnectConnectionDto = {
+/** Conta disponível na instituição para vincular (Open Finance). */
+export type ApiAvailableAccount = {
+  providerAccountId: string;
+  name: string;
+  institution: string | null;
+  type: string;
+  currency: string;
+  balanceCents: string;
+  alreadyLinked: boolean;
+};
+
+/**
+ * Resposta de `GET /open-finance/available-accounts`.
+ *
+ * `available: false` significa que a integração automática não está liberada
+ * neste ambiente (provedor real não integrado): a interface mostra a
+ * explicação e não oferece o botão de vincular.
+ */
+export type ApiAvailableAccountsResponse = {
+  provider: string;
+  available: boolean;
+  accounts: ApiAvailableAccount[];
+  reason?: string;
+};
+
+/** DTO de `POST /open-finance/link-account`: a conta nasce do provedor. */
+export type LinkAccountDto = {
   provider: string;
   providerAccountId: string;
-  accountId: string;
+  shareLevel?: 'private' | 'BALANCE_ONLY' | 'FULL';
 };
 
 /** Job de sincronização/reconciliação retornado por POST /open-finance/sync. */
@@ -200,4 +363,39 @@ export const LOCAL_STORAGE_KEYS = {
   hideValues: 'mf_hide_values',
 } as const;
 
-export { formatCents } from './format-money.js';
+export { formatCents, formatBRL } from './format-money.js';
+
+/** Parceria entre duas pessoas: quem convidou, quem recebeu e a situação. */
+export type ApiPartnership = {
+  id: string;
+  status: 'pending' | 'accepted' | 'revoked';
+  invitedByMe: boolean;
+  partnerId: string | null;
+};
+
+export type ApiSharingOverview = {
+  partnership: ApiPartnership | null;
+  partner: { id: string; name: string } | null;
+  accounts: Array<{ id: string; name: string; balanceCents: string; level: ShareLevel }>;
+  levels: ShareLevel[];
+  /** Convites recebidos e ainda pendentes (quem convidou e o id da parceria). */
+  invites: Array<{ id: string; from: { id: string; name: string } }>;
+};
+
+/** Conta que o parceiro compartilhou, já com o que o usuário pode ver. */
+export type ApiSharedAccount = {
+  account: {
+    id: string;
+    name: string;
+    institution?: string | null;
+    /** Tipo da conta (`checking`, `credit`, `wallet`…): preserva o ícone/rótulo. */
+    type?: string;
+    balanceCents: string;
+    isActive: boolean;
+  };
+  owner: { id: string; name: string };
+  level: ShareLevel;
+  canSeeBalance: boolean;
+  canSeeTransactions: boolean;
+  readOnly: boolean;
+};

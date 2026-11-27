@@ -1,7 +1,12 @@
 import { Module, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SyncService } from './sync.service';
-import { BankProviderAdapter, SandboxBankProviderAdapter } from './provider.adapter';
+import {
+  BankProviderAdapter,
+  PluggyBankProviderAdapter,
+  SandboxBankProviderAdapter,
+} from './provider.adapter';
+import { PluggyClient } from '../open-finance/pluggy.client';
 
 /**
  * Módulo de sincronização.
@@ -13,7 +18,15 @@ import { BankProviderAdapter, SandboxBankProviderAdapter } from './provider.adap
  */
 @Module({
   imports: [PrismaModule],
-  providers: [SyncService, { provide: BankProviderAdapter, useClass: SandboxBankProviderAdapter }],
+  providers: [
+    SyncService,
+    {
+      provide: BankProviderAdapter,
+      // Com credenciais do Pluggy, sincroniza dados reais; sem elas, sandbox
+      // (só faz sentido fora de produção).
+      useClass: PluggyClient.configured() ? PluggyBankProviderAdapter : SandboxBankProviderAdapter,
+    },
+  ],
   exports: [SyncService],
 })
 export class SyncModule implements OnModuleInit, OnModuleDestroy {

@@ -1,9 +1,10 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
+import { catchError, throwError } from 'rxjs';
 import { AuditLogService } from './audit-log.service';
+import { asJson } from '../common/json';
 import { AUDIT_LOG_ACTION } from './audit-log.decorator';
 import { Reflector } from '@nestjs/core';
-import { Prisma } from '@prisma/client';
 
 /**
  * Campos que nunca devem ser gravados no log de auditoria (secrets do corpo da requisição).
@@ -38,10 +39,16 @@ function sanitize(value: unknown): unknown {
 }
 
 /**
- * Mapeamento de rota -> ação para endpoints sensíveis que ainda não tenham
- * o decorador @AuditLog aplicado. Garante auditoria mesmo por padrão de rota.
+ * Mapeamento de rota -> ação, mantido como **rede de segurança** para rota
+ * sensível que esqueça o decorador.
+ *
+ * O mapa já foi a fonte principal, e aí ficava invisível: rota nova sem
+ * decorador não era auditada, rota decorada podia ter a ação trocada por
+ * engano numa reordenação de path, e não havia como notar. Os testes
+ * (`audit.coverage.test.ts`) agora exigem o decorador em toda rota sensível;
+ * este mapa é só o cinto.
  */
-const AUDIT_ACTIONS_BY_ROUTE: Record<string, string> = {
+export const AUDIT_ACTIONS_BY_ROUTE: Record<string, string> = {
   'POST /auth/login': 'LOGIN',
   'POST /auth/register': 'REGISTER',
   'POST /auth/mfa/enable': 'MFA_ENABLE',
@@ -69,34 +76,42 @@ export class AuditLogInterceptor implements NestInterceptor {
     const fallbackAction = AUDIT_ACTIONS_BY_ROUTE[`${request.method} ${request.route?.path ?? ''}`];
     const action = decoratedAction ?? fallbackAction;
 
+    if (!action) return next.handle();
+
+    const write = (result: unknown, statusCode: number | null) =>
+      this.auditLog
+        .log({
+          userId: userId ?? (result as { user?: { id?: string } } | null)?.user?.id ?? null,
+          action,
+          target:
+            request.params?.id ??
+            request.body?.accountId ??
+            ((result as { id?: string } | null)?.id ? String((result as { id: string }).id) : null),
+          metadata: asJson({
+            method: request.method,
+            path: request.path,
+            route: request.route?.path ?? null,
+            statusCode,
+            body: sanitize(request.body),
+            ip: request.ip ?? null,
+          }),
+        })
+        .catch(() => undefined);
+
     return next.handle().pipe(
-      tap(async (result) => {
-        let resolvedUserId = userId;
-        if (!resolvedUserId && result?.user?.id) {
-          resolvedUserId = String(result.user.id);
-        }
-
-        const target =
-          request.params?.id ??
-          request.body?.accountId ??
-          (result?.id ? String(result.id) : null) ??
-          null;
-
-        await this.auditLog
-          .log({
-            userId: resolvedUserId,
-            action,
-            target,
-            metadata: {
-              method: request.method,
-              path: request.path,
-              route: request.route?.path ?? null,
-              statusCode: response.statusCode ?? null,
-              body: sanitize(request.body),
-              ip: request.ip ?? null,
-            } as Prisma.InputJsonValue,
-          })
-          .catch(() => undefined);
+      tap((result) => void write(result, response.statusCode ?? null)),
+      /**
+       * A tentativa que **falha** é a que mais importa em auditoria: sem este
+       * ramo, um login com senha errada, um 403 de CSRF ou um 409 de cadastro
+       * duplicado não deixavam rastro nenhum — e força bruta ficava invisível.
+       */
+      catchError((error: unknown) => {
+        const status =
+          typeof error === 'object' && error !== null && 'getStatus' in error
+            ? Number((error as { getStatus: () => number }).getStatus())
+            : null;
+        void write(null, status);
+        return throwError(() => error);
       })
     );
   }

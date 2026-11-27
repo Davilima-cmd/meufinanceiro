@@ -1,96 +1,385 @@
 'use client';
 
-import { useAuth } from '@/contexts/auth-context';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useFinance } from '@/lib/store';
+import { initialOf } from '@/lib/format';
+import { greetingFor, hourOfDay, sessionLabel } from '@/lib/narrative';
+import { BrandLockup, BrandMark } from '@/components/brand';
 
 type NavItem = {
-  id: string;
-  label: string;
   href: string;
+  label: string;
+  icon: ReactNode;
 };
 
-const navigation: NavItem[] = [
-  { id: 'home', label: 'Visão geral', href: '/' },
-  { id: 'transactions', label: 'Movimentações', href: '/' },
-  { id: 'accounts', label: 'Contas', href: '/' },
-  { id: 'analysis', label: 'Análises', href: '/' },
-  { id: 'profile', label: 'Perfil', href: '/' },
-  { id: 'categories', label: 'Categorias', href: '/categories' },
-  { id: 'budgets', label: 'Orçamentos', href: '/budgets' },
-  { id: 'goals', label: 'Metas', href: '/goals' },
-];
-
-interface AppShellProps {
-  title: string;
-  children: React.ReactNode;
+function Icon({ path }: { path: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={path} />
+    </svg>
+  );
 }
 
-export function AppShell({ title, children }: AppShellProps) {
-  const { user, hideValues, setHideValues, logout } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
+const NAV: NavItem[] = [
+  { href: '/', label: 'Visão geral', icon: <Icon path="M3 12h5l2.5 6 4-14 2.5 8h4" /> },
+  {
+    href: '/lancamentos',
+    label: 'Lançamentos',
+    icon: <Icon path="M4 7h16M4 12h10M4 17h13" />,
+  },
+  {
+    href: '/vencimentos',
+    label: 'Vencimentos',
+    icon: (
+      <Icon path="M7 3v3m10-3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm4 8h2m4 0h2m-8 4h2" />
+    ),
+  },
+  {
+    href: '/contas',
+    label: 'Contas',
+    icon: (
+      <Icon path="M3 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Zm0 3h16" />
+    ),
+  },
+  {
+    href: '/recorrencias',
+    label: 'Recorrências',
+    icon: (
+      <Icon path="M4 4v6h6M20 20v-6h-6M20 9A8 8 0 0 0 6.3 6.3L4 9m16 6-2.3 2.7A8 8 0 0 1 4 15" />
+    ),
+  },
+  {
+    href: '/orcamentos',
+    label: 'Orçamentos',
+    icon: <Icon path="M12 3v18M5 8h9a3 3 0 0 1 0 6H7a3 3 0 0 0 0 6h10" />,
+  },
+  {
+    href: '/patrimonio',
+    label: 'Patrimônio',
+    icon: <Icon path="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />,
+  },
+  {
+    href: '/metas',
+    label: 'Metas',
+    icon: <Icon path="M6 21V4m0 0h11l-2.5 4L17 12H6" />,
+  },
+  {
+    href: '/categorias',
+    label: 'Categorias',
+    icon: <Icon path="M4 5h7v7H4V5Zm9 0h7v7h-7V5ZM4 14h7v5H4v-5Zm9 0h7v5h-7v-5Z" />,
+  },
+  {
+    href: '/casal',
+    label: 'Casal',
+    icon: (
+      <Icon path="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7 9v-1a4 4 0 0 0-3-3.9M15.5 10a3.5 3.5 0 1 0 0-7" />
+    ),
+  },
+  {
+    href: '/configuracoes',
+    label: 'Configurações',
+    icon: (
+      <Icon path="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.1l2-1.5-2-3.4-2.3.9a7.4 7.4 0 0 0-1.9-1.1L14.7 3H9.3l-.4 2.4a7.4 7.4 0 0 0-1.9 1.1L4.7 5.6l-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.2l-2 1.5 2 3.4 2.3-.9a7.4 7.4 0 0 0 1.9 1.1l.4 2.4h5.4l.4-2.4a7.4 7.4 0 0 0 1.9-1.1l2.3.9 2-3.4-2-1.5c.06-.36.1-.73.1-1.1Z" />
+    ),
+  },
+];
 
-  function isActive(item: NavItem) {
-    if (item.href === '/') {
-      return pathname === '/';
-    }
-    return pathname === item.href;
+/**
+ * O menu tinha 12 itens com o mesmo peso visual: "Categorias" e "Visão geral"
+ * pareciam igualmente importantes. Aqui os itens ficam em três grupos com
+ * rótulo — o dia a dia primeiro, depois planejamento e por fim a conta.
+ */
+const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
+  {
+    label: 'Todo dia',
+    items: NAV.filter((item) =>
+      ['/', '/lancamentos', '/vencimentos', '/contas', '/recorrencias'].includes(item.href)
+    ),
+  },
+  {
+    label: 'Planejar',
+    items: NAV.filter((item) =>
+      ['/orcamentos', '/metas', '/patrimonio', '/categorias'].includes(item.href)
+    ),
+  },
+  {
+    label: 'Conta',
+    items: NAV.filter((item) => ['/casal', '/configuracoes'].includes(item.href)),
+  },
+];
+
+const MOBILE_NAV = NAV.slice(0, 5);
+
+/** Chave da preferência de barra recolhida. */
+const COLLAPSE_KEY = 'mf.sidebar.collapsed';
+/** Evento interno para a sidebar reagir ao próprio clique no botão. */
+const COLLAPSE_EVENT = 'mf:sidebar-collapsed';
+
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function subscribeCollapsed(onChange: () => void): () => void {
+  window.addEventListener(COLLAPSE_EVENT, onChange);
+  window.addEventListener('storage', onChange);
+  return () => {
+    window.removeEventListener(COLLAPSE_EVENT, onChange);
+    window.removeEventListener('storage', onChange);
+  };
+}
+
+function writeCollapsed(next: boolean): void {
+  try {
+    window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+  } catch {
+    // sem armazenamento: o estado vale só para esta aba
+  }
+  window.dispatchEvent(new Event(COLLAPSE_EVENT));
+}
+
+/** Rótulo do caminho atual, inclusive nas telas que não estão no menu. */
+function currentTitle(pathname: string): string {
+  return NAV.find((item) => item.href === pathname)?.label ?? 'Painel';
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { snapshot, session, signOut, setHideValues, toggleTheme, hydrated, resetDemo } =
+    useFinance();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Barra lateral recolhível. A preferência mora no localStorage (é conforto de
+  // leitura, não dado da conta) e chega por useSyncExternalStore: no servidor a
+  // barra sai expandida, no navegador assume o que o usuário escolheu.
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
+
+  function toggleCollapsed() {
+    writeCollapsed(!collapsed);
   }
 
+  useEffect(() => {
+    if (hydrated && !session) {
+      router.replace('/login');
+    }
+  }, [hydrated, session, router]);
+
+  const theme = snapshot.settings.theme;
+
+  // O tema também vai para o <html>: login, tela de boot e qualquer página fora
+  // do shell passam a acompanhar a escolha, e o navegador pinta a barra de
+  // rolagem com a cor certa em vez de branco no meio do escuro.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
+
+  if (!hydrated) {
+    return (
+      <div className="boot" aria-busy="true">
+        <BrandMark size={48} />
+        <span>Carregando seu painel…</span>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  const user = session.user;
+  const initialName = user.name.trim().split(/\s+/)[0] || 'por aqui';
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <span aria-hidden="true" className="brand-mark">
-            mf
-          </span>
-          <span>meu financeiro</span>
+    <div className={`shell ${collapsed ? 'is-collapsed' : ''}`} data-theme={theme} key={pathname}>
+      <aside className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
+        <div className="sidebar-head">
+          <Link
+            aria-label="CAJU Finance — visão geral"
+            className="brand"
+            href="/"
+            onClick={() => setMenuOpen(false)}
+          >
+            <BrandMark />
+            <BrandLockup />
+          </Link>
+          <button
+            aria-label="Fechar menu"
+            className="sidebar-close icon-button"
+            onClick={() => setMenuOpen(false)}
+            type="button"
+          >
+            <Icon path="M6 6l12 12M18 6 6 18" />
+          </button>
         </div>
-        <nav aria-label="Navegação principal" className="sidebar-nav">
-          {navigation.map((item) => (
-            <button
-              key={item.id}
-              className={`nav-item ${isActive(item) ? 'is-active' : ''}`}
-              onClick={() => router.push(item.href)}
-              type="button"
-            >
-              <span>{item.label}</span>
-            </button>
+
+        <nav aria-label="Navegação principal" className="nav">
+          {NAV_GROUPS.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <p className="nav-group-label">{group.label}</p>
+              {group.items.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    aria-current={active ? 'page' : undefined}
+                    className={`nav-item ${active ? 'is-active' : ''}`}
+                    href={item.href}
+                    key={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <span className="nav-icon">{item.icon}</span>
+                    <span className="nav-text">{item.label}</span>
+                    {active ? <span aria-hidden="true" className="nav-pip" /> : null}
+                  </Link>
+                );
+              })}
+            </div>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <span className="user-avatar" aria-hidden="true">
-            {user?.name.slice(0, 1).toUpperCase()}
-          </span>
-          <span className="user-copy">
-            <strong>{user?.name ?? ''}</strong>
-            <span>{user?.email ?? ''}</span>
-          </span>
-          <button className="nav-item logout" onClick={logout} type="button">
-            <span>Sair</span>
+
+        <div className="sidebar-footer">
+          {(() => {
+            // Uma função pura decide o tom da sessão: a mesma frase não serve
+            // para "dados fictícios" e para "sua conta de verdade".
+            const status = sessionLabel(session.mode);
+            return (
+              <div className={`demo-chip ${status.live ? 'is-live' : ''}`}>
+                <span className="dot" aria-hidden="true" />
+                <span className="demo-chip-text">{status.text}</span>
+              </div>
+            );
+          })()}
+          <div className="user-box">
+            <span aria-hidden="true" className="avatar">
+              {initialOf(user.name)}
+            </span>
+            <span className="user-copy">
+              <strong>{user.name}</strong>
+              <small>{user.email}</small>
+            </span>
+            <button
+              aria-label="Sair"
+              className="icon-button user-signout"
+              onClick={() => void signOut()}
+              title="Sair"
+              type="button"
+            >
+              <Icon path="M15 18l-6-6 6-6M9 12h12" />
+            </button>
+          </div>
+          <button
+            aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+            aria-pressed={collapsed}
+            className="sidebar-collapse"
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            type="button"
+          >
+            <Icon path={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} />
+            <span className="sidebar-collapse-label">Recolher menu</span>
           </button>
         </div>
       </aside>
-      <div className="main-area">
+
+      <div className="main">
         <header className="topbar">
-          <span className="topbar-title">{title}</span>
+          <button
+            aria-label="Abrir menu"
+            className="icon-button menu-toggle"
+            onClick={() => setMenuOpen((open) => !open)}
+            type="button"
+          >
+            <Icon path="M4 7h16M4 12h16M4 17h16" />
+          </button>
+          <div className="topbar-title">
+            <span className="topbar-crumb">{currentTitle(pathname)}</span>
+            <span className="topbar-hello">
+              {greetingFor(hourOfDay())}, {initialName}
+            </span>
+          </div>
           <div className="topbar-actions">
-            <span className="demo-indicator">
-              <span />
-              Conectado à API
+            <span className="topbar-hint">
+              {snapshot.settings.partnerName} também usa este painel
             </span>
             <button
-              aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+              aria-label={snapshot.settings.hideValues ? 'Mostrar valores' : 'Ocultar valores'}
               className="icon-button"
-              onClick={() => setHideValues(!hideValues)}
+              onClick={() => setHideValues(!snapshot.settings.hideValues)}
+              title={snapshot.settings.hideValues ? 'Mostrar valores' : 'Ocultar valores'}
               type="button"
             >
-              {hideValues ? 'Mostrar' : 'Ocultar'}
+              {snapshot.settings.hideValues ? (
+                <Icon path="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A9.7 9.7 0 0 1 12 5c5 0 9 4.5 9 7 0 .9-.5 2-1.4 3.1M6.3 6.9C3.9 8.4 3 10.4 3 12c0 2.5 4 7 9 7 1.3 0 2.5-.3 3.6-.8" />
+              ) : (
+                <Icon path="M3 12s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7Zm9 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+              )}
+            </button>
+            <button
+              aria-label="Alternar tema"
+              className="icon-button"
+              onClick={toggleTheme}
+              title="Alternar tema"
+              type="button"
+            >
+              {theme === 'dark' ? (
+                <Icon path="M12 3v2m0 14v2M5.6 5.6l1.4 1.4m10 10 1.4 1.4M3 12h2m14 0h2M5.6 18.4l1.4-1.4m10-10 1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />
+              ) : (
+                <Icon path="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />
+              )}
             </button>
           </div>
         </header>
-        <main className="page-content">{children}</main>
+
+        <main className="content">
+          {/* Fio de progresso a cada troca de tela: a entrada do conteúdo é
+              curta, mas o traço deixa claro que a navegação aconteceu. */}
+          <span aria-hidden="true" className="page-transition" />
+          {children}
+        </main>
+
+        {session.mode === 'demo' ? (
+          <div className="demo-banner">
+            <span className="demo-banner-icon" aria-hidden="true">
+              ✦
+            </span>
+            <span>
+              <strong>Modo demonstração.</strong> Tudo aqui é fictício e fica só neste navegador —
+              experimente à vontade, nada vai para o servidor.
+            </span>
+            <button className="link-button" onClick={resetDemo} type="button">
+              Restaurar dados de exemplo
+            </button>
+          </div>
+        ) : null}
       </div>
+
+      <nav aria-label="Navegação rápida" className="mobile-nav">
+        {MOBILE_NAV.map((item) => (
+          <Link
+            aria-current={pathname === item.href ? 'page' : undefined}
+            className={`mobile-nav-item ${pathname === item.href ? 'is-active' : ''}`}
+            href={item.href}
+            key={item.href}
+          >
+            <span className="nav-icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

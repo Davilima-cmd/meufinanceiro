@@ -1,20 +1,23 @@
 import { cornerRadius, spacing, themes } from '@meufinanceiro/design-tokens';
 import { formatCents } from '@meufinanceiro/shared-types';
-import { useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { createClient, useFinanceApi } from './lib/use-finance-api';
+import { buildView, type DemoTransaction } from './lib/view';
 
 type Screen = 'home' | 'transactions' | 'accounts' | 'analysis' | 'profile';
 type ThemeName = 'light' | 'dark';
 type Filter = 'all' | 'income' | 'expense';
 type Palette = (typeof themes)[keyof typeof themes];
-
-type DemoTransaction = {
-  id: string;
-  description: string;
-  category: string;
-  date: string;
-  amountCents: bigint;
-};
 
 const transactions: DemoTransaction[] = [
   {
@@ -282,6 +285,16 @@ function makeStyles(palette: Palette) {
       backgroundColor: palette.accentSoft,
     },
     noticeText: { color: palette.accent, fontSize: 10, textAlign: 'center' },
+    input: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: palette.border,
+      borderRadius: cornerRadius.medium,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      color: palette.text,
+      backgroundColor: palette.surface,
+      fontSize: 13,
+    },
     tabBar: {
       flexDirection: 'row',
       paddingHorizontal: 3,
@@ -361,6 +374,14 @@ function TransactionList({
 
 export function FinanceApp() {
   const [screen, setScreen] = useState<Screen>('home');
+  // Sessão da API: o app só sai do modo demonstração quando alguém entra.
+  const [token, setToken] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const api = useFinanceApi(token);
+  const live = useMemo(() => buildView(api.snapshot), [api.snapshot]);
   const [theme, setTheme] = useState<ThemeName>('light');
   const [hidden, setHidden] = useState(false);
   const [joint, setJoint] = useState(false);
@@ -368,7 +389,14 @@ export function FinanceApp() {
   const [notice, setNotice] = useState('');
   const palette = themes[theme];
   const styles = makeStyles(palette);
-  const filteredTransactions = transactions.filter((item) => {
+  // Conectado usa o que veio da API; desconectado mantém a demonstração.
+  const activeTransactions = live?.transactions ?? transactions;
+  const activeCategories = live?.categories ?? categories;
+  const activeAccounts = live?.accounts ?? accounts;
+  const activeBalanceCents = live?.balanceCents ?? (joint ? 2841230n : 1482560n);
+  const activeIncomeCents = live?.incomeCents ?? 825000n;
+  const activeExpenseCents = live?.expenseCents ?? 225872n;
+  const filteredTransactions = activeTransactions.filter((item) => {
     if (filter === 'income') return item.amountCents > 0n;
     if (filter === 'expense') return item.amountCents < 0n;
     return true;
@@ -394,10 +422,14 @@ export function FinanceApp() {
           <View style={styles.balanceCard}>
             <Text style={styles.balanceLabel}>Saldo consolidado · exemplo</Text>
             <Text style={styles.balanceValue}>
-              {hidden ? '••••••' : formatCents(joint ? 2841230n : 1482560n)}
+              {hidden ? '••••••' : formatCents(activeBalanceCents)}
             </Text>
             <Text style={styles.balanceCaption}>
-              {joint ? 'Visão conjunta demonstrativa' : 'Minhas contas demonstrativas'}
+              {live
+                ? 'Dados da sua conta (API)'
+                : joint
+                  ? 'Visão conjunta demonstrativa'
+                  : 'Minhas contas demonstrativas'}
             </Text>
             <View style={styles.segment}>
               {([false, true] as const).map((value) => (
@@ -425,17 +457,19 @@ export function FinanceApp() {
             <View style={styles.metricCard}>
               <Text style={styles.metricLabel}>Entradas no mês</Text>
               <Text style={[styles.metricValue, styles.positive]}>
-                {hidden ? '••••' : formatCents(825000n)}
+                {hidden ? '••••' : formatCents(activeIncomeCents)}
               </Text>
             </View>
             <View style={styles.metricCard}>
               <Text style={styles.metricLabel}>Saídas no mês</Text>
-              <Text style={styles.metricValue}>{hidden ? '••••' : formatCents(225872n)}</Text>
+              <Text style={styles.metricValue}>
+                {hidden ? '••••' : formatCents(activeExpenseCents)}
+              </Text>
             </View>
           </View>
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Despesas por categoria</Text>
-            {categories.map((item) => (
+            {activeCategories.map((item) => (
               <View key={item.name}>
                 <View style={styles.categoryLine}>
                   <Text style={styles.categoryLabel}>{item.name}</Text>
@@ -451,10 +485,20 @@ export function FinanceApp() {
           </View>
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Movimentações recentes</Text>
-            <TransactionList hidden={hidden} items={transactions.slice(0, 4)} styles={styles} />
+            <TransactionList
+              hidden={hidden}
+              items={activeTransactions.slice(0, 4)}
+              styles={styles}
+            />
           </View>
           <Pressable
-            onPress={() => showNotice('Protótipo: este lançamento não foi salvo.')}
+            onPress={() =>
+              showNotice(
+                token
+                  ? 'Cadastro de lançamento ainda é feito pela versão web.'
+                  : 'Protótipo: este lançamento não foi salvo.'
+              )
+            }
             style={styles.actionButton}
           >
             <Text style={styles.actionText}>Novo lançamento</Text>
@@ -495,7 +539,13 @@ export function FinanceApp() {
             <TransactionList hidden={hidden} items={filteredTransactions} styles={styles} />
           </View>
           <Pressable
-            onPress={() => showNotice('Protótipo: este lançamento não foi salvo.')}
+            onPress={() =>
+              showNotice(
+                token
+                  ? 'Cadastro de lançamento ainda é feito pela versão web.'
+                  : 'Protótipo: este lançamento não foi salvo.'
+              )
+            }
             style={styles.actionButton}
           >
             <Text style={styles.actionText}>Novo lançamento</Text>
@@ -509,7 +559,7 @@ export function FinanceApp() {
         <>
           <Heading styles={styles} title="Contas e carteiras" />
           <View style={styles.card}>
-            {accounts.map((account) => (
+            {activeAccounts.map((account) => (
               <View key={account.name} style={styles.accountRow}>
                 <View style={styles.accountMark}>
                   <Text style={styles.markText}>{account.name.slice(0, 1)}</Text>
@@ -545,11 +595,13 @@ export function FinanceApp() {
           <Heading styles={styles} title="Análises" />
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>Saídas em novembro · fictícias</Text>
-            <Text style={styles.balanceValue}>{hidden ? '••••••' : formatCents(225872n)}</Text>
+            <Text style={styles.balanceValue}>
+              {hidden ? '••••••' : formatCents(activeExpenseCents)}
+            </Text>
           </View>
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Por categoria</Text>
-            {categories.map((item) => (
+            {activeCategories.map((item) => (
               <View key={item.name}>
                 <View style={styles.categoryLine}>
                   <Text style={styles.categoryLabel}>{item.name}</Text>
@@ -618,8 +670,88 @@ export function FinanceApp() {
             </View>
           </View>
         </View>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Conta e conexão</Text>
+          {api.mode === 'demo' ? (
+            <Text style={styles.note}>
+              Este app está no modo demonstração: sem `EXPO_PUBLIC_API_URL` ele não fala com o
+              servidor e nada do que aparece aqui é real.
+            </Text>
+          ) : token ? (
+            <>
+              <Text style={styles.note}>Conectado à API. Os dados das telas vêm do servidor.</Text>
+              {api.error ? <Text style={styles.note}>{api.error}</Text> : null}
+              <Pressable
+                onPress={async () => {
+                  const client = createClient();
+                  await client?.logout().catch(() => undefined);
+                  setToken(null);
+                  showNotice('Sessão encerrada.');
+                }}
+                style={styles.actionButton}
+              >
+                <Text style={styles.actionText}>{api.loading ? 'Carregando…' : 'Sair'}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.note}>Entre para ver seus lançamentos e contas reais.</Text>
+              <TextInput
+                autoCapitalize="none"
+                keyboardType="email-address"
+                onChangeText={setEmail}
+                placeholder="E-mail"
+                placeholderTextColor={palette.muted}
+                style={styles.input}
+                value={email}
+              />
+              <TextInput
+                onChangeText={setPassword}
+                placeholder="Senha"
+                placeholderTextColor={palette.muted}
+                secureTextEntry
+                style={styles.input}
+                value={password}
+              />
+              {loginError ? <Text style={styles.note}>{loginError}</Text> : null}
+              <Pressable
+                onPress={async () => {
+                  const client = createClient();
+                  if (!client) {
+                    setLoginError('Defina EXPO_PUBLIC_API_URL para conectar.');
+                    return;
+                  }
+                  setLoggingIn(true);
+                  setLoginError(null);
+                  try {
+                    const auth = await client.login(email, password);
+                    if (auth.mfaRequired) {
+                      // MFA ainda não tem tela no app: avisamos em vez de fingir.
+                      setLoginError('Sua conta usa MFA. Entre pela versão web por enquanto.');
+                      return;
+                    }
+                    setToken(client.getToken());
+                    setPassword('');
+                  } catch (failure) {
+                    setLoginError(
+                      failure instanceof Error ? failure.message : 'Não foi possível entrar.'
+                    );
+                  } finally {
+                    setLoggingIn(false);
+                  }
+                }}
+                style={styles.actionButton}
+              >
+                <Text style={styles.actionText}>{loggingIn ? 'Entrando…' : 'Entrar'}</Text>
+              </Pressable>
+            </>
+          )}
+          {api.expired ? (
+            <Text style={styles.note}>Sua sessão expirou. Entre de novo para continuar.</Text>
+          ) : null}
+        </View>
         <Text style={styles.note}>
-          Preferências ainda não são salvas. A autenticação será implementada depois.
+          Preferências de tela (tema, ocultar valores) valem só nesta sessão.
         </Text>
       </>
     );
@@ -630,7 +762,7 @@ export function FinanceApp() {
       <View style={styles.app}>
         <View style={styles.header}>
           <Text style={styles.brand}>MEU FINANCEIRO</Text>
-          <Text style={styles.demoPill}>DADOS FICTÍCIOS</Text>
+          <Text style={styles.demoPill}>{token ? 'CONECTADO' : 'DADOS FICTÍCIOS'}</Text>
         </View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
           <Text style={styles.eyebrow}>{pageTitles[screen]}</Text>

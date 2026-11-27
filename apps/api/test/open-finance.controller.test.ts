@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OpenFinanceController } from '../src/open-finance/open-finance.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { SyncService } from '../src/sync/sync.service';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 
 const prismaMock = {
   financialAccount: {
@@ -11,7 +11,7 @@ const prismaMock = {
   bankConnection: {
     findMany: vi.fn(),
     create: vi.fn(),
-    update: vi.fn(),
+    updateMany: vi.fn(),
   },
   consent: {
     findMany: vi.fn(),
@@ -29,7 +29,7 @@ const prismaMock = {
   bankConnection: {
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
-    update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
   };
   consent: { findMany: ReturnType<typeof vi.fn> };
   syncJob: { create: ReturnType<typeof vi.fn> };
@@ -62,36 +62,36 @@ describe('OpenFinanceController', () => {
     });
   });
 
-  it('conecta provedor vinculado ao usuário', async () => {
-    prismaMock.financialAccount.findFirst.mockResolvedValue({ id: 'acct-1' });
-    prismaMock.bankConnection.create.mockResolvedValue({ id: 'bc-1' });
-    await makeController().connect(req(), {
-      provider: 'caju',
-      providerAccountId: 'acc-123',
-      accountId: 'acct-1',
-    });
-    expect(prismaMock.financialAccount.findFirst).toHaveBeenCalledWith({
-      where: { id: 'acct-1', userId: 'user-1' },
-      select: { id: true },
-    });
-    expect(prismaMock.bankConnection.create).toHaveBeenCalledWith({
-      data: {
-        userId: 'user-1',
-        provider: 'caju',
-        providerAccountId: 'acc-123',
-        accountId: 'acct-1',
-        status: 'active',
-      },
-    });
-  });
-
   it('revoga apenas conexão própria', async () => {
-    prismaMock.bankConnection.update.mockResolvedValue({ id: 'bc-1', status: 'disconnected' });
-    await makeController().revoke(req(), 'bc-1');
-    expect(prismaMock.bankConnection.update).toHaveBeenCalledWith({
+    prismaMock.bankConnection.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(makeController().revoke(req(), 'bc-1')).resolves.toEqual({
+      id: 'bc-1',
+      status: 'disconnected',
+    });
+    expect(prismaMock.bankConnection.updateMany).toHaveBeenCalledWith({
       where: { id: 'bc-1', userId: 'user-1' },
       data: { status: 'disconnected' },
     });
+  });
+
+  it('revogar conexão de outra pessoa (ou já excluída) responde 404', async () => {
+    prismaMock.bankConnection.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(makeController().revoke(req(), 'de-outro')).rejects.toBeInstanceOf(
+      NotFoundException
+    );
+  });
+
+  it('revogar duas vezes não estoura (idempotente para o usuário)', async () => {
+    // `update({ where: { id, userId } })` dava erro genérico (500) no segundo
+    // toque; o filtro + contagem devolve o mesmo estado.
+    prismaMock.bankConnection.updateMany.mockResolvedValue({ count: 1 });
+
+    await makeController().revoke(req(), 'bc-1');
+    await makeController().revoke(req(), 'bc-1');
+
+    expect(prismaMock.bankConnection.updateMany).toHaveBeenCalledTimes(2);
   });
 
   it('lista consents do usuário', async () => {

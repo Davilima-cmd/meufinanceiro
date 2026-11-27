@@ -1,122 +1,115 @@
-import { test, expect, vi, beforeEach, type Mock } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import LoginPage from './page';
 
-vi.mock('@/lib/api', () => ({
-  api: {
+/**
+ * Fluxo de recuperação de senha (item 26.2): pedido pelo e-mail e definição da
+ * nova senha a partir do código recebido.
+ */
+
+const { apiMock, pushMock } = vi.hoisted(() => ({
+  apiMock: {
+    forgotPassword: vi.fn(),
+    resetPassword: vi.fn(),
     login: vi.fn(),
     register: vi.fn(),
-    setUnauthorizedHandler: vi.fn(),
     setToken: vi.fn(),
-    clearToken: vi.fn(),
   },
-  ApiError: class ApiError extends Error {},
+  pushMock: vi.fn(),
+}));
+
+vi.mock('@/lib/api', () => ({
+  api: apiMock,
+  withTimeout: (promise: Promise<unknown>) => promise,
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
-  usePathname: vi.fn(() => '/'),
+  useRouter: () => ({ push: pushMock, replace: vi.fn() }),
 }));
 
-import { api } from '@/lib/api';
-import { useRouter } from 'next/navigation';
-import { AuthProvider } from '@/contexts/auth-context';
-import LoginPage from './page';
-
-const mockApiLogin = vi.mocked(api.login);
-const mockApiRegister = vi.mocked(api.register);
-const mockUseRouter = vi.mocked(useRouter);
-
-function lastRouter() {
-  const push = vi.fn();
-  const replace = vi.fn();
-  for (const result of mockUseRouter.mock.results) {
-    const router = result.value as { push: Mock; replace: Mock } | undefined;
-    router?.push.mock.calls.forEach((args) => push(...args));
-    router?.replace.mock.calls.forEach((args) => replace(...args));
-  }
-  return { push, replace };
-}
-
-const user = {
-  id: 'u-1',
-  email: 'ana@email.com',
-  name: 'Ana',
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-01T00:00:00Z',
-};
+vi.mock('@/lib/store', () => ({
+  useFinance: () => ({ session: null, hydrated: true, startDemo: vi.fn() }),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockApiLogin.mockResolvedValue({ token: 'tok-1', user });
-  mockApiRegister.mockResolvedValue(user);
+  apiMock.forgotPassword.mockResolvedValue({ requested: true });
+  apiMock.resetPassword.mockResolvedValue({ reset: true });
 });
 
-test('login chama a API com as credenciais e redireciona para o dashboard', async () => {
-  render(
-    <AuthProvider>
-      <LoginPage />
-    </AuthProvider>
-  );
+async function openAccountTab() {
+  render(<LoginPage />);
+  fireEvent.click(screen.getByRole('tab', { name: 'Tenho uma conta' }));
+  await screen.findByRole('button', { name: 'Entrar' });
+}
 
-  fireEvent.change(screen.getByLabelText(/e-mail/i), {
-    target: { value: 'ana@email.com' },
+describe('Login — recuperação de senha', () => {
+  it('oferece o link "Esqueci minha senha" na aba de conta', async () => {
+    await openAccountTab();
+    expect(screen.getByRole('button', { name: 'Esqueci minha senha' })).toBeTruthy();
   });
-  fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: 'senha123' } });
-  fireEvent.click(screen.getByRole('button', { name: /entrar/i }));
 
-  await waitFor(() =>
-    expect(mockApiLogin).toHaveBeenCalledWith({ email: 'ana@email.com', password: 'senha123' })
-  );
-  const { push, replace } = lastRouter();
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/'));
-  expect(replace).not.toHaveBeenCalled();
+  it('pede o link, esconde a senha e avisa sem confirmar se o e-mail existe', async () => {
+    await openAccountTab();
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'davi@ex.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Esqueci minha senha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar link de redefinição' }));
+
+    await waitFor(() => expect(apiMock.forgotPassword).toHaveBeenCalledWith('davi@ex.com'));
+    expect(await screen.findByText(/se este e-mail existir/i)).toBeTruthy();
+    // Na etapa de pedido não existe campo de senha.
+    expect(screen.queryByLabelText('Senha')).toBeNull();
+  });
+
+  it('envia código e nova senha para a API e volta ao login', async () => {
+    await openAccountTab();
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'davi@ex.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Esqueci minha senha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar link de redefinição' }));
+    await screen.findByLabelText(/código recebido/i);
+
+    const codigo = 'a'.repeat(64);
+    fireEvent.change(screen.getByLabelText(/código recebido/i), { target: { value: codigo } });
+    fireEvent.change(screen.getByLabelText(/nova senha/i), {
+      target: { value: 'senha-forte-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Definir nova senha' }));
+
+    await waitFor(() =>
+      expect(apiMock.resetPassword).toHaveBeenCalledWith(codigo, 'senha-forte-1')
+    );
+    expect(await screen.findByText(/senha redefinida/i)).toBeTruthy();
+  });
+
+  it('mostra a mensagem da API quando o código é inválido', async () => {
+    apiMock.resetPassword.mockRejectedValue(new Error('Token inválido ou expirado.'));
+    await openAccountTab();
+    fireEvent.change(screen.getByLabelText(/e-mail/i), { target: { value: 'davi@ex.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Esqueci minha senha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar link de redefinição' }));
+    await screen.findByLabelText(/código recebido/i);
+
+    fireEvent.change(screen.getByLabelText(/código recebido/i), {
+      target: { value: 'b'.repeat(64) },
+    });
+    fireEvent.change(screen.getByLabelText(/nova senha/i), { target: { value: 'senha-forte-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Definir nova senha' }));
+
+    expect(await screen.findByText(/token inválido ou expirado/i)).toBeTruthy();
+  });
 });
 
-test('exibe mensagem de erro quando o login falha e não redireciona', async () => {
-  mockApiLogin.mockRejectedValue(new Error('Senha inválida.'));
+describe('Entrada — layout centrado', () => {
+  it('mostra só o painel no meio, com o fundo animado decorativo', () => {
+    const { container } = render(<LoginPage />);
 
-  render(
-    <AuthProvider>
-      <LoginPage />
-    </AuthProvider>
-  );
+    // A vitrine de duas colunas saiu; sobrou o cartão.
+    expect(container.querySelector('.auth-showcase')).toBeNull();
+    expect(container.querySelector('.auth-card')).toBeTruthy();
 
-  fireEvent.change(screen.getByLabelText(/e-mail/i), {
-    target: { value: 'ana@email.com' },
+    // O fundo é decorativo: nada dentro dele deve ser lido ou focável.
+    const bg = container.querySelector('.auth-bg');
+    expect(bg?.getAttribute('aria-hidden')).toBe('true');
+    expect(bg?.querySelectorAll('button, input, a').length).toBe(0);
   });
-  fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: 'senha123' } });
-  fireEvent.click(screen.getByRole('button', { name: /entrar/i }));
-
-  await waitFor(() => screen.getByText('Senha inválida.'));
-  const { push } = lastRouter();
-  expect(push).not.toHaveBeenCalled();
-});
-
-test('cadastro chama o registro e depois o login automático', async () => {
-  render(
-    <AuthProvider>
-      <LoginPage />
-    </AuthProvider>
-  );
-
-  fireEvent.change(screen.getByLabelText(/e-mail/i), {
-    target: { value: 'nova@email.com' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: /cadastre-se/i }));
-  fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: 'Ana Nova' } });
-  fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: 'senha123' } });
-  fireEvent.click(screen.getByRole('button', { name: /criar conta/i }));
-
-  await waitFor(() =>
-    expect(mockApiRegister).toHaveBeenCalledWith({
-      email: 'nova@email.com',
-      name: 'Ana Nova',
-      password: 'senha123',
-    })
-  );
-  await waitFor(() =>
-    expect(mockApiLogin).toHaveBeenCalledWith({ email: 'nova@email.com', password: 'senha123' })
-  );
-  const { push } = lastRouter();
-  await waitFor(() => expect(push).toHaveBeenCalledWith('/'));
 });

@@ -1,12 +1,60 @@
 # Meu Financeiro
 
-Aplicativo financeiro para duas pessoas, com versões web e Android e uma API única. A especificação
-funcional está em [`docs/especificacao_final.md`](docs/especificacao_final.md).
+Painel financeiro para um casal: contas, lançamentos, orçamentos e metas em um só lugar, com
+privacidade por conta. Aplicativo web completo (modo demonstração + integração com a API), API
+NestJS, app móvel Expo e pacotes compartilhados. A especificação funcional está em
+[`docs/especificacao_final.md`](docs/especificacao_final.md).
+
+## Interface web
+
+O app web (`apps/web`) tem dez áreas: **Visão geral**, **Lançamentos**, **Vencimentos**, **Contas**,
+**Orçamentos**, **Patrimônio**, **Metas**, **Categorias**, **Casal** e **Configurações**.
+
+- **Modo demonstração**: entre em `/login` → “Entrar no modo demonstração”. Dados fictícios do casal
+  (5 contas, 6 meses de lançamentos, orçamentos e metas) gerados de forma determinística e salvos
+  apenas no `localStorage` do navegador. Tudo pode ser criado, editado e excluído; “Restaurar dados
+  de exemplo” volta ao estado inicial.
+- **Modo API**: em “Tenho uma conta”, o login usa `NEXT_PUBLIC_API_BASE`. Cadastro, login, MFA
+  (TOTP) e os endpoints de contas, lançamentos, categorias, orçamentos, metas, vencimentos, rateio,
+  recorrências, patrimônio e compartilhamento são consumidos de verdade. A sessão usa **cookie
+  `HttpOnly`** (`mf_session`) mais `X-CSRF-Token` nas escritas — o JWT não fica no `localStorage`.
+- **Vencimentos:** lista de contas a pagar/receber ordenada por urgência (atrasado → hoje → próximos
+  dias), com “Paguei/Recebi” em um toque. O painel mostra um lembrete quando há algo atrasado ou
+  vencendo, porque pendente não entra no saldo e passaria despercebido.
+- **Patrimônio:** saldo das contas **mais** bens declarados **menos** dívidas, com o percentual de
+  endividamento. Carro e financiamento não são conta corrente; mostrar só o ativo faria o número
+  mentir.
+- **Metas com histórico:** cada “Guardar” vira um aporte datado (com observação opcional); o saldo
+  da meta é a soma deles, e é possível remover um aporte lançado errado.
+- **Caixa × competência:** o painel compara o mês pelo regime de caixa (quando o dinheiro passou) e
+  pelo de competência (a que mês o lançamento pertence) e mostra a diferença.
+- **Exportação:** CSV com `sep=;` e BOM UTF-8 (abre certo no Excel em português) e JSON versionado
+  (`meufinanceiro.transactions.v1`).
+- **Compartilhamento a dois:** a parceria nasce de um convite por e-mail (fica `pending` até o outro
+  aceitar) e cada conta tem seu próprio nível — `private` (padrão), `BALANCE_ONLY` (só saldo) ou
+  `FULL` (saldo e histórico). O dono muda o nível em **Casal** e pode desfazer a parceria, o que
+  revoga tudo dos dois lados.
+- **Regras de privacidade** aplicadas na interface: uma conta mostra o histórico completo quando é
+  sua ou quando foi compartilhada como `FULL`; no nível `BALANCE_ONLY` o parceiro vê apenas o saldo
+  (esses lançamentos ficam fora dos relatórios). Contas privadas nunca aparecem na visão conjunta.
+  Conta compartilhada é sempre **somente leitura**: a web esconde as ações de escrita e a API recusa
+  com `403` se algo escapar.
+- **Dinheiro em centavos**: toda soma é feita com `BigInt` e só é formatada em reais na tela, o que
+  evita erro de arredondamento. Transferências não contam como despesa nem consomem orçamento.
+- Tema escuro/claro, “ocultar valores”, gráficos em SVG sem dependências e layout responsivo com
+  navegação inferior no celular.
+
+```sh
+pnpm install
+pnpm --filter @meufinanceiro/shared-types build   # pacotes consumidos pela web
+pnpm --filter @meufinanceiro/web dev              # http://localhost:3000
+```
 
 ## Estrutura
 
 - `apps/web`: interface web em Next.js, React e TypeScript.
-- `apps/mobile`: aplicativo Android em React Native e Expo.
+- `apps/mobile`: aplicativo Android em React Native e Expo. Funciona em modo demonstração e, com
+  `EXPO_PUBLIC_API_URL` definida, autentica na API (Bearer) e mostra dados reais.
 - `apps/api`: API em NestJS.
 - `packages/shared-types`: contratos compartilhados entre as aplicações.
 - `packages/validation`: tipos para resultados de validação de entrada.
@@ -67,7 +115,7 @@ Configure pelo menos estas variáveis (valores de exemplo impedem o deploy):
 | `DATABASE_URL`         | `postgres://postgres:senha@localhost:5432/meufinanceiro` | URL de conexão do Prisma (aplicação)          |
 | `DATABASE_URL_DIRECT`  | `postgres://postgres:senha@localhost:5432/meufinanceiro` | URL direta (usada pelas migrations)           |
 | `JWT_SECRET`           | `openssl rand -base64 32`                                | Segredo para assinar tokens JWT               |
-| `ENCRYPTION_KEY`       | `openssl rand -hex 32`                                   | Chave AES-256-GCM para campos sensíveis       |
+| `ENCRYPTION_KEY`       | `openssl rand -base64 32` (base64 de 32 bytes)           | Chave AES-256-GCM para campos sensíveis       |
 | `TOTP_ISSUER`          | `Meu Financeiro`                                         | Emissor exibido nos apps autenticadores (MFA) |
 | `NODE_ENV`             | `development`                                            | `development` ou `production`                 |
 | `API_PORT`             | `3001`                                                   | Porta da API no container/host                |
@@ -78,7 +126,7 @@ Gere os segredos com:
 
 ```sh
 openssl rand -base64 32   # JWT_SECRET
-openssl rand -hex 32      # ENCRYPTION_KEY
+openssl rand -base64 32   # ENCRYPTION_KEY (a API exige exatamente 32 bytes em base64)
 ```
 
 ### Script de deploy
@@ -135,25 +183,11 @@ docker compose exec api pnpm prisma generate
 
 ### Sem Docker (execução local)
 
-O PostgreSQL 18 está instalado localmente na máquina. Crie o banco `meufinanceiro`, copie
-`.env.example` para `.env`, então:
+Crie um banco PostgreSQL, copie `.env.example` para `.env` com a `DATABASE_URL` do banco, então:
 
 ```sh
 pnpm install
-npx prisma migrate dev
-pnpm dev
-```
-
-A web fica em http://localhost:3000 e a API em http://localhost:3001.
-
-### Sem Docker (execução local)
-
-O PostgreSQL 18 está instalado localmente na máquina. Crie o banco `meufinanceiro`, copie
-`.env.example` para `.env`, então:
-
-```sh
-pnpm install
-npx prisma migrate dev
+pnpm --filter @meufinanceiro/api exec prisma migrate deploy   # aplica as migrations
 pnpm dev
 ```
 
@@ -221,7 +255,8 @@ desenvolvimento; a especificação exige dados fictícios e sandbox.
 - **Compartilhamento revogável:** toda conta é privada até o dono compartilhar; o acesso pode ser
   revogado a qualquer momento, com efeito imediato, e cada parte mantém apenas os próprios dados.
 
-Detalhes completos: [`docs/security.md`](docs/security.md).
+Detalhes completos: [`docs/security.md`](docs/security.md). O que ainda depende de
+verificação humana em produção está em [`docs/validacao-manual.md`](docs/validacao-manual.md).
 
 ## Segurança (Fase 5)
 
@@ -237,13 +272,92 @@ Resumo dos principais itens:
 - **MFA (TOTP):** emissor configurado por `TOTP_ISSUER`.
 - **Rate limit de sincronização:** `POST /open-finance/sync` limitado por frequência
   (`SYNC_RATE_LIMIT_MINUTES`, padrão 5 minutos; `429` com `Retry-After`).
+- **Sessão revogável:** o JWT carrega o `sid` da sessão; `POST /auth/logout` revoga a sessão atual,
+  `POST /auth/logout-all` todas, e trocar a senha encerra tudo. `GET /auth/status` permite à web
+  confirmar, ao abrir, que a sessão guardada ainda vale.
+- **Cookie `HttpOnly` + CSRF:** a web usa `mf_session` (`HttpOnly`, `Secure`, `SameSite=Lax`) e
+  manda `X-CSRF-Token` em toda escrita. Bearer continua válido para o mobile.
+- **Autorização centralizada:** `AccountAccessService` decide visibilidade e escrita para contas
+  próprias e compartilhadas; compartilhada é sempre somente leitura (`403`).
+- **Rate limit global e de autenticação:** 120 req/min/IP e limites por endpoint sensível
+  (login 10, register 5, forgot-password 3…), com `429` e `Retry-After`.
+- **Soft delete (requisito 23):** excluir conta ou lançamento marca `deletedAt` em vez de apagar; o
+  histórico nunca some sem rastro e todas as leituras ignoram linhas excluídas.
+- **Observabilidade:** `SENTRY_DSN` opcional + filtro global de exceções (5xx com stack, 4xx em uma
+  linha), sem cookies/headers de autorização no relatório.
 - **Secret scanning:** Gitleaks (`.gitleaks.toml`) no CI.
 - **Dependabot:** atualização de dependências (npm/pnpm) via GitHub.
 - **Nenhum segredo no Git:** `.env`, `.env.local` e demais `.env.*` (exceto `.env.example`) são
   ignorados pelo `.gitignore`.
 
+## Implantação (Vercel + Supabase)
+
+- **Web na Vercel**: projeto `meufinanceiro` com _Root Directory_ `apps/web`, build
+  `pnpm turbo run build --filter=@meufinanceiro/web...` (o `...` compila antes as dependências
+  internas), saída `.next` e install `pnpm install --frozen-lockfile`. Não há `vercel.json`: as
+  configurações ficam nas definições do projeto e os cabeçalhos de segurança em
+  `apps/web/next.config.ts`. O app sobe mesmo sem a API — a tela de login oferece o modo
+  demonstração. Se o projeto estiver com _Deployment Protection → Vercel Authentication_ ligado,
+  toda visita cai no login da Vercel; desligue em **Settings → Deployment Protection** para o painel
+  ficar público (ou use um domínio próprio, que a proteção não cobre).
+- **Banco no Supabase** (PostgreSQL 17, região `sa-east-1`): use a URL direta para migrations
+  (`DATABASE_URL_DIRECT`) e a URL do pooler para a aplicação (`DATABASE_URL`), com
+  `?pgbouncer=true&connection_limit=1`. O host do pooler é `aws-0-<região>.pooler.supabase.com` com
+  usuário `<papel>.<project_ref>` — trocar só o número (`aws-1-…`) devolve `ENOTFOUND` para o
+  tenant; a URL direta `db.<ref>.supabase.co` não é alcançável a partir das funções da Vercel. O
+  Supabase é usado **apenas** como Postgres: autenticação e autorização continuam no NestJS. O
+  schema `public` já está no formato esperado pelo Prisma (camelCase + `hide_values`), com as duas
+  migrations aplicadas e registradas em `_prisma_migrations`, além das 8 categorias de sistema do
+  `prisma/seed.ts`. Para conferir: `psql "$DATABASE_URL_DIRECT" -c '\dt'`.
+- **API na Vercel** (projeto `meufinanceiro-api`, _Root Directory_ `apps/api`): o entrypoint é a
+  função Zero Config `apps/api/api/index.ts`, que reusa o bootstrap do Nest. Ajustes necessários na
+  Vercel — sem eles o deploy quebra com `STATIC_BUILD_NO_OUT_DIR`:
+  - **Build Command vazio** (nem no projeto, nem em `apps/api/vercel.json`). Qualquer buildCommand
+    faz a Vercel tratar o diretório como site estático.
+  - **Install Command**
+    `cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @meufinanceiro/api exec prisma generate`
+    — o `prisma generate` roda no install porque o typecheck do pacote depende do client gerado. Não
+    use `--no-engine`: a função precisa do engine.
+  - `apps/api/vercel.json`: `outputDirectory: "public"` (com `apps/api/public/index.html`, exigência
+    do preset _Other_), o rewrite `/api/(.*) → /api` e `functions["api/index.ts"].includeFiles`
+    (`{node_modules,../../node_modules}/**/.prisma/client/**`) para o engine ir junto no bundle —
+    com pnpm o client gerado fica fora de `apps/api`, e a função falharia sem ele.
+  - `generator client` declara `binaryTargets = ["native", "rhel-openssl-3.0.x"]`, o alvo do runtime
+    Amazon Linux da Vercel.
+  - `NODE_ENV=production` **não** deve existir como variável de build (derruba o `tsc`); se
+    precisar, configure só para runtime.
+  - **Pacotes `@nestjs/*` em CommonJS**: o bundle da Vercel faz `require()` do build CommonJS, e as
+    versões ESM-only quebram em runtime com `ERR_REQUIRE_ESM` (nunca no build nem no typecheck). O
+    projeto fixa `@nestjs/config@4`, `@nestjs/jwt@11` e `@nestjs/passport@11`; antes de subir
+    qualquer um deles, confira se o `package.json` do pacote continua sem `"type": "module"`.
+  - **Cifragem de campos sensíveis é explícita**: o Prisma 6 removeu o middleware `$use`, então
+    `Consent.externalId` e `BankConnection.providerAccountId` passam por
+    `PrismaService.encryptSensitive`/`decryptSensitive` nos controllers que os tocam. Um middleware
+    removido falharia silencioso e gravaria esses campos em texto plano.
+  - O projeto está com _Deployment Protection → Vercel Authentication_ ligado, então o domínio
+    responde com o login da Vercel até a proteção ser desligada ou um domínio próprio ser usado.
+  - `GET https://meufinanceiro-api-davi-lima2.vercel.app/api/health` responde
+    `{"status":"ok","db":"ok"}`; 503 significa que a função subiu mas não alcançou o Postgres.
+- **API em outro host Node** (Render, Azure): variáveis de `.env.example`,
+  `pnpm --filter @meufinanceiro/api build`, `prisma generate` + `prisma migrate deploy` no deploy e
+  `node dist/main.js` para iniciar (imagens em `apps/api/Dockerfile*`). No plano gratuito do Render
+  o serviço hiberna por inatividade — a reconciliação diária cobre isso.
+
+### Componentes de interface
+
+Os controles do painel são próprios, não os do navegador: `apps/web/src/components/dialog.tsx` traz
+o `Select` (listbox com teclado) e o `useDialog()` com `confirm`/`notice` — no lugar de `<select>` e
+`window.confirm` —, e `apps/web/src/components/date-field.tsx` traz o `DateField` (calendário em
+português) no lugar de `<input type="date">`. As confirmações de exclusão de lançamento, conta,
+categoria, orçamento e meta e o aviso de limite salvo usam essa camada.
+
 ## Escopo atual
 
-A Fase 0 estabelece o monorepo, builds, lint, typecheck, testes de exemplo, CI e documentação.
-Cadastro, movimentações, compartilhamento, banco de dados e integração Open Finance ainda não estão
-disponíveis.
+Implementado: monorepo, web (demo + API), API com autenticação JWT em cookie `HttpOnly` + CSRF,
+sessões revogáveis, MFA TOTP, contas, transações com status/liquidação, categorias, orçamentos,
+metas com histórico de aportes, rateio entre o casal (igualitário e proporcional, fechando
+exatamente o valor), lançamentos recorrentes, patrimônio (bens × dívidas), vencimentos com
+lembretes, compartilhamento entre o casal (parceria e nível por conta), soft delete, auditoria,
+criptografia de campos sensíveis, Open Finance em sandbox, Swagger e Sentry opcionais. O app mobile
+consome a API. Ainda fora do escopo: transferências/pagamentos reais, Open Finance com instituições
+de verdade e cadastro de lançamento pelo mobile (hoje feito pela web).
