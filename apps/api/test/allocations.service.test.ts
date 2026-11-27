@@ -127,8 +127,44 @@ describe('AllocationsService', () => {
         mode: 'equal',
         percentBasis: null,
         settledAt: null,
+        // A parte é do próprio dono do lançamento: ele não "acerta" a si mesmo.
+        canSettle: false,
       },
     ]);
+  });
+
+  it('só o dono (credor) pode acertar a parte do parceiro', async () => {
+    prismaMock.allocation.findMany.mockResolvedValue([
+      {
+        id: 'al-2',
+        userId: 'user-2',
+        shareCents: { toString: () => '5000' },
+        mode: 'equal',
+        percentBasis: null,
+        settledAt: null,
+        user: { name: 'Ana' },
+      },
+    ]);
+
+    // Dono vendo o rateio: pode acertar a parte de quem deve.
+    const asOwner = await service().list('user-1', 'tx-1');
+    expect(asOwner[0].canSettle).toBe(true);
+
+    // O próprio devedor vendo o rateio (conta compartilhada em FULL): o botão
+    // não existe para ele.
+    prismaMock.transaction.findFirst.mockResolvedValue({
+      ...transaction,
+      account: { shares: [{ sharedWithId: 'user-2', level: 'FULL', revokedAt: null }] },
+    });
+    const asDebtor = await service().list('user-2', 'tx-1');
+    expect(asDebtor[0].canSettle).toBe(false);
+  });
+
+  it('recusa acertar a própria parte', async () => {
+    await expect(service().settle('user-1', 'tx-1', 'user-1')).rejects.toBeInstanceOf(
+      BadRequestException
+    );
+    expect(prismaMock.allocation.updateMany).not.toHaveBeenCalled();
   });
 
   it('resume quanto cada pessoa deve no período', async () => {

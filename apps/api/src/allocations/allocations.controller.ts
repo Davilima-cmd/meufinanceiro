@@ -42,6 +42,47 @@ function sanitizeWeights(weights?: Record<string, unknown>): Record<string, numb
   return result;
 }
 
+/**
+ * Intervalo de competência a partir de `?from`/`?to` (data pura AAAA-MM-DD).
+ *
+ * Antes, `new Date(...)` direto nos dois campos aceitava qualquer coisa: texto
+ * inválido virava `Invalid Date` e a consulta ao banco estourava com 500 em vez
+ * de 400. E `?to=2026-11-30T10:00:00Z`, ou simplesmente o dia com hora, deixava
+ * o lançamento do próprio dia 30 de fora quando era comparado com `lte`.
+ * Agora: formato validado, e `to` sempre fecha no **fim** do dia informado.
+ */
+export function parsePeriod(query: { from?: string; to?: string }, now = new Date()) {
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  // Campo ausente ou vazio = padrão (mês corrente). Qualquer outro valor
+  // precisa ser uma data válida.
+  const from = query.from?.trim() ? parseDay(query.from, 'from', false) : startOfMonth;
+  const to = query.to?.trim() ? parseDay(query.to, 'to', true) : endOfMonth;
+
+  if (from.getTime() > to.getTime()) {
+    throw new BadRequestException('O início do período não pode ser depois do fim.');
+  }
+  return { from, to };
+}
+
+function parseDay(value: string, field: string, endOfDay: boolean): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) {
+    throw new BadRequestException(`Data inválida em "${field}". Use AAAA-MM-DD.`);
+  }
+  const [, year, month, day] = match;
+  const date = endOfDay
+    ? new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999)
+    : new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0);
+  // `new Date(2026, 1, 31)` vira 3 de março: aqui isso é recusado. Getters
+  // locais, porque a data foi montada no fuso local do servidor.
+  if (date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day)) {
+    throw new BadRequestException(`Data inexistente em "${field}": ${value}.`);
+  }
+  return date;
+}
+
 @Controller('allocations')
 @UseGuards(AuthGuard('jwt'))
 export class AllocationsController {
@@ -86,15 +127,10 @@ export class AllocationsController {
   @Get('summary')
   async summary(
     @Req() req: AuthenticatedRequest,
-    @Query('from') from: string,
-    @Query('to') to: string
+    @Query('from') from?: string,
+    @Query('to') to?: string
   ) {
-    const fromDate = from
-      ? new Date(from)
-      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const toDate = to
-      ? new Date(to)
-      : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
-    return this.allocations.summary(req.user.userId, fromDate, toDate);
+    const period = parsePeriod({ from, to });
+    return this.allocations.summary(req.user.userId, period.from, period.to);
   }
 }

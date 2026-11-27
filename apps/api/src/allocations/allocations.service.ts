@@ -66,7 +66,7 @@ export class AllocationsService {
 
   /** Partes do rateio, com o nome de cada participante. */
   async list(userId: string, transactionId: string) {
-    await this.assertVisible(userId, transactionId);
+    const visibility = await this.assertVisible(userId, transactionId);
     const rows = await this.prisma.allocation.findMany({
       where: { transactionId },
       select: {
@@ -98,6 +98,16 @@ export class AllocationsService {
         mode: row.mode,
         percentBasis: row.percentBasis,
         settledAt: row.settledAt,
+        /**
+         * Quem pode marcar esta parte como acertada.
+         *
+         * Antes a tela liberava o botão para todo mundo e o servidor aceitava:
+         * o **devedor** marcava a própria dívida como paga e um lado via a
+         * conta zerada enquanto o outro continuava esperando o dinheiro.
+         * Acertar é ato de quem recebe: só o dono do lançamento, e nunca a
+         * própria parte dele.
+         */
+        canSettle: visibility.ownerId === userId && row.userId !== visibility.ownerId,
       })
     );
   }
@@ -151,13 +161,25 @@ export class AllocationsService {
     };
   }
 
-  /** Marca a parte de alguém como acertada (pagamento parcial ou total). */
+  /**
+   * Marca a parte de alguém como acertada (pagamento parcial ou total).
+   *
+   * Só o dono do lançamento (o credor) acerta — e nunca a própria parte: quem
+   * deve é quem paga, e a confirmação é de quem recebeu. `participantId` tem de
+   * ser de fato participante do rateio, senão o `updateMany` virava um "acertar
+   * qualquer coisa" silencioso (ou 404 confuso).
+   */
   async settle(userId: string, transactionId: string, participantId: string) {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id: transactionId, userId, deletedAt: null },
       select: { id: true },
     });
     if (!transaction) throw new NotFoundException('Lançamento não encontrado');
+    if (participantId === userId) {
+      throw new BadRequestException(
+        'A própria parte não pode ser marcada como acertada — quem confirma o acerto é quem recebe.'
+      );
+    }
 
     const result = await this.prisma.allocation.updateMany({
       where: { transactionId, userId: participantId, settledAt: null },
@@ -181,8 +203,13 @@ export class AllocationsService {
     return rows.map((row: { id: string }) => row.id);
   }
 
-  /** O lançamento precisa ser visível para quem consulta o rateio. */
-  private async assertVisible(userId: string, transactionId: string): Promise<void> {
+  /**
+   * O lançamento precisa ser visível para quem consulta o rateio.
+   *
+   * Devolve o dono do lançamento — a tela usa isso para não oferecer um botão
+   * de acerto que o servidor vai recusar.
+   */
+  private async assertVisible(userId: string, transactionId: string): Promise<{ ownerId: string }> {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id: transactionId, deletedAt: null },
       select: {
@@ -193,12 +220,14 @@ export class AllocationsService {
       },
     });
     if (!transaction) throw new NotFoundException('Lançamento não encontrado');
-    if (transaction.userId === userId) return;
+    if (transaction.userId === userId) return { ownerId: transaction.userId };
+
     const shared = transaction.account.shares.some(
       (share: { sharedWithId: string; level: string; revokedAt: Date | null }) =>
         share.sharedWithId === userId && !share.revokedAt && share.level === 'FULL'
     );
     if (!shared) throw new NotFoundException('Lançamento não encontrado');
+    return { ownerId: transaction.userId };
   }
 
   /** Só o dono e o parceiro dele podem ser participantes do rateio. */
