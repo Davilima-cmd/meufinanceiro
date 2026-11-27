@@ -8,6 +8,7 @@ import { Badge, Card, EmptyState, Money, PageHeader } from '@/components/ui';
 import { api } from '@/lib/api';
 import { centsFromInput, formatDay, toCents } from '@/lib/format';
 import { useFinance } from '@/lib/store';
+import { MoneyInput } from '@/components/money-input';
 
 /**
  * Recorrências (aluguel, salário, assinatura).
@@ -184,15 +185,13 @@ export default function RecurrencesPage() {
                 value={description}
               />
             </label>
-            <label className="field">
-              <span>Valor (R$)</span>
-              <input
-                inputMode="decimal"
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="1.500,00"
-                value={amount}
-              />
-            </label>
+            <MoneyInput
+              hint="despesa sai do saldo; receita entra"
+              label="Valor"
+              onChange={setAmount}
+              placeholder="1.500,00"
+              value={amount}
+            />
             <Select
               label="Tipo"
               onChange={(value) => {

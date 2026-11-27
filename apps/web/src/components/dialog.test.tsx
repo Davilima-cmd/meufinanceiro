@@ -229,3 +229,54 @@ describe('dialog.prompt', () => {
     await waitFor(() => expect(results).toEqual(['99,90']));
   });
 });
+
+describe('Popovers não esticam a página', () => {
+  it('abre o calendário para cima quando não há espaço embaixo', async () => {
+    // Simula um campo colado no rodapé da janela: 900px de altura, campo em 700.
+    const original = window.innerHeight;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 900 });
+    const triggerRect = {
+      top: 700,
+      bottom: 730,
+      left: 0,
+      right: 200,
+      width: 200,
+      height: 30,
+      x: 0,
+      y: 700,
+    } as DOMRect;
+    const spy = vi
+      .spyOn(HTMLButtonElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue(triggerRect);
+
+    render(<DateHarness initial="2026-11-20" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Data do lançamento' }));
+
+    const panel = screen.getByRole('dialog', { name: 'Data do lançamento' });
+    expect(panel.className).toContain('is-up');
+
+    spy.mockRestore();
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: original });
+  });
+
+  it('abre o menu de categorias para cima quando o campo está no rodapé', async () => {
+    const spy = vi.spyOn(HTMLButtonElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 760,
+      bottom: 800,
+      left: 0,
+      right: 220,
+      width: 220,
+      height: 40,
+      x: 0,
+      y: 760,
+    } as DOMRect);
+
+    render(<SelectHarness />);
+    await userEvent.click(screen.getByRole('button', { name: 'Categoria do orçamento' }));
+
+    expect(screen.getByRole('listbox', { name: 'Categoria do orçamento' }).className).toContain(
+      'is-up'
+    );
+    spy.mockRestore();
+  });
+});

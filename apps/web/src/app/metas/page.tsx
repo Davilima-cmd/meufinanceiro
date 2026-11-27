@@ -8,6 +8,7 @@ import { useDialog } from '@/components/dialog';
 import { Badge, Card, EmptyState, Money, PageHeader, ProgressBar } from '@/components/ui';
 import { centsFromInput, daysUntil, formatBRL, formatDay, toCents, todayISO } from '@/lib/format';
 import { useFinance } from '@/lib/store';
+import { MoneyInput } from '@/components/money-input';
 
 export default function GoalsPage() {
   const { snapshot, addGoal, contributeGoal, deleteGoal, goalHistory } = useFinance();
@@ -300,16 +301,13 @@ export default function GoalsPage() {
                 value={name}
               />
             </label>
-            <label className="field">
-              <span>Valor alvo</span>
-              <input
-                className="input"
-                inputMode="decimal"
-                onChange={(event) => setTarget(event.target.value)}
-                placeholder="9.000,00"
-                value={target}
-              />
-            </label>
+            <MoneyInput
+              hint="quanto falta para chegar lá"
+              label="Valor alvo"
+              onChange={setTarget}
+              placeholder="9.000,00"
+              value={target}
+            />
             <div className="field">
               <span>Prazo (opcional)</span>
               <DateField

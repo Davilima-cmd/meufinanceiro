@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
 import { formatMonth, todayISO } from '@/lib/format';
 
 /* -------------------------------------------------------------------------
@@ -83,6 +91,9 @@ export function DateField({
   clearLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // 'down' | 'up': escolhido pela posição na tela ao abrir. Um calendário que
+  // sempre abre para baixo, perto do rodapé, empurra a página e obriga a rolar.
+  const [placement, setPlacement] = useState<'down' | 'up'>('down');
   const [viewDate, setViewDate] = useState(() => parseISO(value || todayISO()));
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -102,10 +113,30 @@ export function DateField({
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [open]);
 
-  useEffect(() => {
+  /** Altura aproximada do painel: cabeça + 6 semanas + rodapé. */
+  const CALENDAR_HEIGHT = 356;
+
+  useLayoutEffect(() => {
     if (!open) return;
+    const trigger = triggerRef.current;
+    if (trigger) {
+      const rect = trigger.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom;
+      // Abre para cima só quando não cabe embaixo **e** há mais espaço em cima.
+      setPlacement(below < CALENDAR_HEIGHT && rect.top > below ? 'up' : 'down');
+    }
     // O foco vai para o menu assim que ele monta, para as setas navegarem as opções.
     gridRef.current?.focus();
+  }, [open]);
+
+  // Rolar a página com o calendário aberto pode deixá-lo fora da tela: fecha.
+  useEffect(() => {
+    if (!open) return;
+    function onScroll() {
+      setOpen(false);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, [open]);
 
   function isDisabled(iso: string): boolean {
@@ -222,7 +253,7 @@ export function DateField({
         <div
           aria-label={label}
           aria-modal="false"
-          className="calendar"
+          className={`calendar is-${placement}`}
           id={panelId}
           onKeyDown={handleKeyDown}
           ref={gridRef}
@@ -304,7 +335,9 @@ export function DateField({
                 {clearLabel}
               </button>
             ) : null}
-            <span className="calendar-hint">
+            {/* O mês já está no cabeçalho do calendário: repetir aqui só
+                empurrava "Hoje"/"Sem prazo" para a linha de baixo. */}
+            <span className="calendar-hint sr-only">
               {formatMonth(value ? value.slice(0, 7) : today.slice(0, 7))}
             </span>
           </div>

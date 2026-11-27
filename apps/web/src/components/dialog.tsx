@@ -9,7 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
 
@@ -283,6 +283,8 @@ export function Select({
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  /** Lado em que o menu abre; decidido pela posição do campo na tela. */
+  const [placement, setPlacement] = useState<'down' | 'up'>('down');
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -313,7 +315,17 @@ export function Select({
     option?.scrollIntoView?.({ block: 'nearest' });
   }, [open, activeIndex]);
 
+  /**
+   * Abre escolhendo o lado: menu perto do rodapé, abrindo para baixo, sai da
+   * tela e estica a página. Mesma regra do calendário.
+   */
   function openMenu() {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom;
+      const menuHeight = Math.min(248, Math.max(options.length, 1) * 40 + 12);
+      setPlacement(below < menuHeight && rect.top > below ? 'up' : 'down');
+    }
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
     setOpen(true);
   }
@@ -335,7 +347,7 @@ export function Select({
     setActiveIndex(next);
   }
 
-  function handleListKeyDown(event: KeyboardEvent<HTMLUListElement>) {
+  function handleListKeyDown(event: ReactKeyboardEvent<HTMLUListElement>) {
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
@@ -418,7 +430,7 @@ export function Select({
         <ul
           aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
           aria-label={label}
-          className="select-menu"
+          className={`select-menu is-${placement}`}
           id={listId}
           onKeyDown={handleListKeyDown}
           ref={listRef}

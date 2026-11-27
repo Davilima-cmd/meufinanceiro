@@ -15,6 +15,7 @@ import {
 import { useFinance } from '@/lib/store';
 import { api, type ApiAvailableAccountsResponse } from '@/lib/api';
 import type { AccountType } from '@/lib/types';
+import { MoneyInput } from '@/components/money-input';
 
 const ACCOUNT_TYPES: Array<{ value: AccountType; label: string }> = [
   { value: 'checking', label: 'Conta corrente' },
@@ -402,17 +403,13 @@ export default function AccountsPage() {
                   value={type}
                 />
               </div>
-              <label className="field">
-                <span>Saldo atual (opcional)</span>
-                <input
-                  aria-describedby="initial-balance-hint"
-                  className="input"
-                  inputMode="decimal"
-                  onChange={(event) => setInitialBalance(event.target.value)}
-                  placeholder="0,00"
-                  value={initialBalance}
-                />
-              </label>
+              <MoneyInput
+                hint="em branco, começa em R$ 0,00"
+                label="Saldo atual (opcional)"
+                onChange={setInitialBalance}
+                placeholder="0,00"
+                value={initialBalance}
+              />
             </div>
             <p className="text-muted" id="initial-balance-hint" style={{ fontSize: 12 }}>
               Quanto já existe nesta conta hoje.

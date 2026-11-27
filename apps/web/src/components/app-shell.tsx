@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useFinance } from '@/lib/store';
 import { initialOf } from '@/lib/format';
 import { greetingFor, hourOfDay, sessionLabel } from '@/lib/narrative';
@@ -120,6 +120,37 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
 
 const MOBILE_NAV = NAV.slice(0, 5);
 
+/** Chave da preferência de barra recolhida. */
+const COLLAPSE_KEY = 'mf.sidebar.collapsed';
+/** Evento interno para a sidebar reagir ao próprio clique no botão. */
+const COLLAPSE_EVENT = 'mf:sidebar-collapsed';
+
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function subscribeCollapsed(onChange: () => void): () => void {
+  window.addEventListener(COLLAPSE_EVENT, onChange);
+  window.addEventListener('storage', onChange);
+  return () => {
+    window.removeEventListener(COLLAPSE_EVENT, onChange);
+    window.removeEventListener('storage', onChange);
+  };
+}
+
+function writeCollapsed(next: boolean): void {
+  try {
+    window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+  } catch {
+    // sem armazenamento: o estado vale só para esta aba
+  }
+  window.dispatchEvent(new Event(COLLAPSE_EVENT));
+}
+
 /** Rótulo do caminho atual, inclusive nas telas que não estão no menu. */
 function currentTitle(pathname: string): string {
   return NAV.find((item) => item.href === pathname)?.label ?? 'Painel';
@@ -131,6 +162,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Barra lateral recolhível. A preferência mora no localStorage (é conforto de
+  // leitura, não dado da conta) e chega por useSyncExternalStore: no servidor a
+  // barra sai expandida, no navegador assume o que o usuário escolheu.
+  const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
+
+  function toggleCollapsed() {
+    writeCollapsed(!collapsed);
+  }
 
   useEffect(() => {
     if (hydrated && !session) {
@@ -157,12 +196,27 @@ export function AppShell({ children }: { children: ReactNode }) {
   const initialName = user.name.trim().split(/\s+/)[0] || 'por aqui';
 
   return (
-    <div className="shell" data-theme={theme}>
+    <div className={`shell ${collapsed ? 'is-collapsed' : ''}`} data-theme={theme}>
       <aside className={`sidebar ${menuOpen ? 'is-open' : ''}`}>
-        <Link className="brand" href="/" onClick={() => setMenuOpen(false)}>
-          <BrandMark />
-          <BrandLockup />
-        </Link>
+        <div className="sidebar-head">
+          <Link
+            aria-label="CAJU Finance — visão geral"
+            className="brand"
+            href="/"
+            onClick={() => setMenuOpen(false)}
+          >
+            <BrandMark />
+            <BrandLockup />
+          </Link>
+          <button
+            aria-label="Fechar menu"
+            className="sidebar-close icon-button"
+            onClick={() => setMenuOpen(false)}
+            type="button"
+          >
+            <Icon path="M6 6l12 12M18 6 6 18" />
+          </button>
+        </div>
 
         <nav aria-label="Navegação principal" className="nav">
           {NAV_GROUPS.map((group) => (
@@ -177,9 +231,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                     href={item.href}
                     key={item.href}
                     onClick={() => setMenuOpen(false)}
+                    title={collapsed ? item.label : undefined}
                   >
                     <span className="nav-icon">{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span className="nav-text">{item.label}</span>
                     {active ? <span aria-hidden="true" className="nav-pip" /> : null}
                   </Link>
                 );
@@ -196,7 +251,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             return (
               <div className={`demo-chip ${status.live ? 'is-live' : ''}`}>
                 <span className="dot" aria-hidden="true" />
-                {status.text}
+                <span className="demo-chip-text">{status.text}</span>
               </div>
             );
           })()}
@@ -209,15 +264,26 @@ export function AppShell({ children }: { children: ReactNode }) {
               <small>{user.email}</small>
             </span>
             <button
-              className="icon-button"
+              aria-label="Sair"
+              className="icon-button user-signout"
               onClick={() => void signOut()}
               title="Sair"
               type="button"
-              aria-label="Sair"
             >
               <Icon path="M15 18l-6-6 6-6M9 12h12" />
             </button>
           </div>
+          <button
+            aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+            aria-pressed={collapsed}
+            className="sidebar-collapse"
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+            type="button"
+          >
+            <Icon path={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} />
+            <span className="sidebar-collapse-label">Recolher menu</span>
+          </button>
         </div>
       </aside>
 

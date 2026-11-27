@@ -418,10 +418,10 @@ button {
 .eyebrow {
   margin-bottom: 6px;
   color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-transform: none;
 }
 
 .page-actions {
@@ -1261,9 +1261,9 @@ button {
 
 .donut-center small {
   color: var(--muted);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .donut-center strong {
@@ -1522,11 +1522,11 @@ button {
 .table th {
   padding: 0 10px 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 650;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   text-align: left;
-  text-transform: uppercase;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -2204,10 +2204,10 @@ a.notice:hover {
   margin: 0 0 4px;
   padding: 0 11px;
   color: var(--muted-soft);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .nav-item {
@@ -2257,10 +2257,10 @@ a.notice:hover {
 
 .topbar-crumb {
   color: var(--muted-soft);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .topbar-hello {
@@ -2471,5 +2471,460 @@ a.notice:hover {
   }
   .demo-banner .link-button {
     margin-left: 0;
+  }
+}
+
+/* =========================================================================
+   Correções de layout — 2026-11-27 (segunda passada)
+   O que a tela mostrou e o CSS não previa: barra lateral estourando o rodapé,
+   calendário abrindo para fora da janela, chips em formato de caixa e
+   tipografia sem padrão.
+   ========================================================================= */
+
+/* -------- marca em duas linhas, sem colar no nome -------- */
+
+.brand {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.brand .brand-copy {
+  min-width: 0;
+}
+
+.brand .brand-copy strong {
+  display: block;
+  font-size: 15px;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.brand .brand-copy small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* -------- rodapé contido: nada de estourar a barra -------- */
+
+.sidebar {
+  padding-bottom: 14px;
+}
+
+.sidebar-footer {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.demo-chip {
+  max-width: 100%;
+  min-width: 0;
+  padding: 5px 10px;
+}
+
+.demo-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-box {
+  min-width: 0;
+  padding: 8px 9px;
+}
+
+.user-copy {
+  flex: 1 1 auto;
+}
+
+.user-copy small {
+  max-width: 100%;
+}
+
+.user-box .icon-button,
+.user-signout {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 9px;
+}
+
+/* -------- botão de recolher -------- */
+
+.sidebar-collapse {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    color var(--transicao, 160ms ease),
+    border-color var(--transicao, 160ms ease),
+    background var(--transicao, 160ms ease);
+}
+
+.sidebar-collapse:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sidebar-collapse svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  transition: transform 160ms ease;
+}
+
+/* -------- barra recolhida -------- */
+
+.shell.is-collapsed {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.shell.is-collapsed .sidebar {
+  padding-inline: 10px;
+  gap: 18px;
+}
+
+.shell.is-collapsed .brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.shell.is-collapsed .brand .brand-copy,
+.shell.is-collapsed .nav-group-label,
+.shell.is-collapsed .nav-text,
+.shell.is-collapsed .demo-chip-text,
+.shell.is-collapsed .user-copy,
+.shell.is-collapsed .sidebar-collapse-label {
+  display: none;
+}
+
+.shell.is-collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.shell.is-collapsed .nav-item.is-active .nav-pip {
+  position: absolute;
+  right: 6px;
+  margin-left: 0;
+}
+
+.shell.is-collapsed .nav-group {
+  gap: 4px;
+}
+
+.shell.is-collapsed .demo-chip {
+  align-self: center;
+  padding: 6px;
+}
+
+.shell.is-collapsed .user-box {
+  justify-content: center;
+  padding: 6px;
+}
+
+.shell.is-collapsed .user-signout {
+  display: none;
+}
+
+.shell.is-collapsed .sidebar-collapse {
+  justify-content: center;
+  padding: 0;
+}
+
+.shell.is-collapsed .sidebar-collapse svg {
+  transform: rotate(180deg);
+}
+
+/* -------- popovers que não saem da janela -------- */
+
+.calendar.is-up,
+.select-menu.is-up {
+  top: auto;
+  bottom: calc(100% + 6px);
+  animation: menu-in-up 130ms ease;
+}
+
+@keyframes menu-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.calendar.is-up {
+  /* calendário ancorado ao campo: nunca maior que a janela */
+  max-height: min(72vh, 380px);
+  overflow-y: auto;
+}
+
+.select-menu.is-up {
+  max-height: min(46vh, 248px);
+}
+
+/* -------- filtros: chip de verdade, não caixa de texto -------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--text);
+}
+
+.chip.is-selected,
+.chip[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--accent);
+  color: #f0fff7;
+  box-shadow: 0 8px 18px -12px rgba(18, 61, 43, 0.8);
+}
+
+.chip.is-selected:hover,
+.chip[aria-pressed='true']:hover {
+  color: #f0fff7;
+}
+
+/* -------- seletor de filtro do histórico -------- */
+
+.filter-select {
+  min-width: 160px;
+}
+
+/* -------- campo de dinheiro com prefixo e prévia -------- */
+
+.money-field {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 40px;
+  padding: 0 12px 0 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.money-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.money-field.has-value {
+  background: var(--surface);
+}
+
+.money-prefix {
+  padding: 0 8px 0 12px;
+  color: var(--muted-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.money-input {
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.money-input:focus {
+  box-shadow: none;
+}
+
+.money-preview {
+  color: var(--muted-soft);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.money-preview strong {
+  color: var(--positive);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+/* -------- botões de formulário na mesma linha do campo -------- */
+
+.form-row .button {
+  min-height: 40px;
+}
+
+@media (max-width: 620px) {
+  .form-row .button {
+    flex: 1 1 100%;
+  }
+
+  .money-preview {
+    font-size: 11px;
+  }
+}
+
+/* -------- cabeçalho da barra lateral -------- */
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-head .brand {
+  flex: 1 1 auto;
+}
+
+.sidebar-close {
+  display: none;
+  flex: none;
+}
+
+/* O rodapé nunca encolhe; quem rola é a navegação do meio. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow: hidden;
+}
+
+.sidebar .nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* a barra de rolagem aparece só quando precisa, discreta */
+  scrollbar-width: thin;
+  scrollbar-gutter: auto;
+  padding-right: 2px;
+}
+
+.sidebar .nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar .nav::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.sidebar-footer {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .sidebar-close {
+    display: inline-flex;
+  }
+
+  /* No celular a barra vira gaveta: recolher não faz sentido. */
+  .sidebar-collapse {
+    display: none;
+  }
+
+  .shell.is-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Rodapé do calendário: dois atalhos lado a lado, sem quebrar linha. */
+.calendar-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.calendar-foot .button {
+  flex: 1 1 0;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Utilitário de acessibilidade (texto só para leitor de tela). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Campos de formulário e botões na mesma linha de base. */
+.form-row {
+  align-items: flex-start;
+}
+
+.form-row > .button {
+  align-self: flex-start;
+  margin-top: 22px;
+}
+
+.form-row .field > span {
+  line-height: 1.3;
+}
+
+@media (max-width: 620px) {
+  .form-row > .button {
+    margin-top: 0;
+  }
+}
+
+/* A terceira coluna "gruda" no topo: com muito item de menu, só a navegação
+   rola e o rodapé (conexão + usuário + recolher) continua visível. */
+.shell {
+  grid-template-columns: 258px minmax(0, 1fr);
+  transition: grid-template-columns 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell {
+    transition: none;
   }
 }

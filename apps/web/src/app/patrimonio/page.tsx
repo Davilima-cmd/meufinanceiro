@@ -9,6 +9,7 @@ import { centsFromInput, formatBRL, toCents } from '@/lib/format';
 import { debtRatio, summarizeNetWorth } from '@/lib/net-worth';
 import { useFinance } from '@/lib/store';
 import type { NetWorthItemKind } from '@/lib/types';
+import { MoneyInput } from '@/components/money-input';
 
 /**
  * Patrimônio: o que você tem (contas + bens) menos o que deve (dívidas).
@@ -281,16 +282,7 @@ export default function PatrimonioPage() {
                 value={kind}
               />
             </div>
-            <label className="field">
-              <span>Valor</span>
-              <input
-                className="input"
-                inputMode="decimal"
-                onChange={(event) => setValue(event.target.value)}
-                placeholder="50.000,00"
-                value={value}
-              />
-            </label>
+            <MoneyInput label="Valor" onChange={setValue} placeholder="50.000,00" value={value} />
             <button className="button button-primary" disabled={busy} type="submit">
               {busy ? 'Salvando…' : 'Adicionar'}
             </button>

@@ -58,3 +58,60 @@ describe('AppShell', () => {
     await waitFor(() => expect(screen.queryByText('R$ 1.234,56')).toBeNull());
   });
 });
+
+describe('Barra lateral recolhível', () => {
+  it('recolhe ao clicar, marca o shell e guarda a preferência', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <FinanceProvider>
+        <LoginOnMount />
+        <AppShell>
+          <p>conteúdo</p>
+        </AppShell>
+      </FinanceProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Recolher menu lateral' })).toBeTruthy()
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Recolher menu lateral' }));
+
+    const shell = container.querySelector('.shell');
+    expect(shell?.className).toContain('is-collapsed');
+    expect(window.localStorage.getItem('mf.sidebar.collapsed')).toBe('1');
+    // O rótulo vira "expandir" para a ação seguinte ser óbvia.
+    expect(screen.getByRole('button', { name: 'Expandir menu lateral' })).toBeTruthy();
+  });
+
+  it('abre já recolhida quando a preferência foi salva antes', async () => {
+    window.localStorage.setItem('mf.sidebar.collapsed', '1');
+    const { container } = render(
+      <FinanceProvider>
+        <LoginOnMount />
+        <AppShell>
+          <p>conteúdo</p>
+        </AppShell>
+      </FinanceProvider>
+    );
+
+    await waitFor(() =>
+      expect(container.querySelector('.shell')?.className).toContain('is-collapsed')
+    );
+  });
+
+  it('nome e subtítulo da marca ficam em elementos separados', async () => {
+    render(
+      <FinanceProvider>
+        <LoginOnMount />
+        <AppShell>
+          <p>conteúdo</p>
+        </AppShell>
+      </FinanceProvider>
+    );
+
+    const brand = await screen.findByLabelText('CAJU Finance — visão geral');
+    // Antes o texto saía grudado: "CAJU FinanceEspaço financeiro do casal".
+    expect(brand.querySelectorAll('strong, small').length).toBe(2);
+  });
+});

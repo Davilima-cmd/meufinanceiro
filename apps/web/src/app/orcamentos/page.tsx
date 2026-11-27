@@ -14,6 +14,7 @@ import {
   toCents,
 } from '@/lib/format';
 import { useFinance } from '@/lib/store';
+import { MoneyInput } from '@/components/money-input';
 
 export default function BudgetsPage() {
   const { snapshot, session, setBudget, deleteBudget } = useFinance();
@@ -56,11 +57,6 @@ export default function BudgetsPage() {
     () => new Map(budgets.map((budget) => [budget.categoryId, budget])),
     [budgets]
   );
-
-  const amountPreview = useMemo(() => {
-    const cents = centsFromInput(amount);
-    return cents > 0n ? cents : 0n;
-  }, [amount]);
 
   const totals = useMemo(() => {
     const limit = budgets.reduce((sum, budget) => sum + budget.limit, 0n);
@@ -255,20 +251,14 @@ export default function BudgetsPage() {
                 value={categoryId}
               />
             </div>
-            <label className="field">
-              <span>Limite mensal</span>
-              <input
-                aria-label="Limite mensal"
-                className="input"
-                inputMode="decimal"
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="600,00"
-                value={amount}
-              />
-              <span className="field-hint">
-                {amountPreview === 0n ? 'Digite o valor do limite' : formatBRL(amountPreview)}
-              </span>
-            </label>
+            <MoneyInput
+              ariaLabel="Limite mensal"
+              hint="limite do mês inteiro"
+              label="Limite mensal"
+              onChange={setAmount}
+              placeholder="600,00"
+              value={amount}
+            />
             <button className="button button-primary" type="submit">
               Salvar limite
             </button>
