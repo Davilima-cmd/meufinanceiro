@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { createHmac } from 'crypto';
-import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { OpenFinanceController } from '../src/open-finance/open-finance.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -23,8 +23,6 @@ function makeController() {
   return new OpenFinanceController(prismaMock as unknown as PrismaService, syncMock);
 }
 
-const req = (userId = 'user-1') => ({ user: { userId } }) as any;
-
 function signRequest(body: string, secret: string) {
   return {
     headers: { 'x-webhook-signature': createHmac('sha256', secret).update(body).digest('hex') },
@@ -42,39 +40,11 @@ describe('OpenFinanceController', () => {
     delete process.env.OPEN_FINANCE_WEBHOOK_SECRET;
   });
 
-  it('rejeita conectar a uma conta que não pertence ao usuário', async () => {
-    (prismaMock.financialAccount.findFirst as any).mockResolvedValue(null);
-
-    await expect(
-      makeController().connect(req('user-1'), {
-        provider: 'bank',
-        providerAccountId: 'acc-1',
-        accountId: 'conta-de-outro',
-      })
-    ).rejects.toBeInstanceOf(NotFoundException);
-
-    expect(prismaMock.bankConnection.create).not.toHaveBeenCalled();
-  });
-
-  it('conecta quando a conta pertence ao usuário', async () => {
-    (prismaMock.financialAccount.findFirst as any).mockResolvedValue({ id: 'conta-1' });
-    (prismaMock.bankConnection.create as any).mockResolvedValue({ id: 'bc-1' });
-
-    await makeController().connect(req('user-1'), {
-      provider: 'bank',
-      providerAccountId: 'acc-1',
-      accountId: 'conta-1',
-    });
-
-    expect(prismaMock.bankConnection.create).toHaveBeenCalledWith({
-      data: {
-        userId: 'user-1',
-        provider: 'bank',
-        providerAccountId: 'acc-1',
-        accountId: 'conta-1',
-        status: 'active',
-      },
-    });
+  it('vínculo manual direto não existe mais (evita conexão sem consentimento)', () => {
+    // A rota criava `BankConnection` "active" a partir do corpo, sem nada no
+    // provedor: a sincronização do usuário passava a falhar inteira.
+    const controller = makeController() as unknown as Record<string, unknown>;
+    expect(controller.connect).toBeUndefined();
   });
 
   it('rejeita webhook sem assinatura quando há segredo configurado', async () => {

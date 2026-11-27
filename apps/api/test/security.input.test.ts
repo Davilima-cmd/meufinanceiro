@@ -7,7 +7,6 @@ import { CreateTransactionDto } from '../src/transactions/dto/transaction.dto';
 import { UpsertAllocationDto } from '../src/allocations/dto/allocation.dto';
 import { EnableMfaDto } from '../src/mfa/dto/mfa.dto';
 import { splitAmount } from '../src/allocations/split';
-import { ConnectConnectionDto } from '../src/open-finance/dto/connect-connection.dto';
 
 /**
  * Blindagem de **entrada** de dados.
@@ -79,33 +78,6 @@ describe('validação de entrada (DTOs)', () => {
     });
     expect(Object.prototype.hasOwnProperty.call(new EnableMfaDto(), 'secret')).toBe(false);
     const errors = await errorsOf(dto, { token: '123456' });
-    expect(errors).toHaveLength(0);
-  });
-  it('recusa ids fora do formato no vínculo manual de conexão', async () => {
-    const errors = await errorsOf(new ConnectConnectionDto(), {
-      provider: 'pluggy',
-      providerAccountId: '<script>alert(1)</script>',
-      accountId: 'acc-1',
-    });
-    expect(errors.length).toBeGreaterThan(0);
-  });
-
-  it('recusa provedor desconhecido e campos longos em connect-connection', async () => {
-    const errors = await errorsOf(new ConnectConnectionDto(), {
-      provider: 'outro',
-      providerAccountId: 'a'.repeat(200),
-      accountId: 'acc-1',
-    });
-    // provider inválido + providerAccountId acima de 128
-    expect(errors.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('aceita um vínculo manual bem formado', async () => {
-    const errors = await errorsOf(new ConnectConnectionDto(), {
-      provider: 'manual',
-      providerAccountId: 'acc_123-abc',
-      accountId: 'acc-1',
-    });
     expect(errors).toHaveLength(0);
   });
 });

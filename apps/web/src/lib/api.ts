@@ -16,7 +16,6 @@ import {
   type ApiUser,
   type AuthResponse,
   type AuthStatus,
-  type ConnectConnectionDto,
   type CreateAccountDto,
   type CreateTransactionDto,
   type LinkAccountDto,
@@ -54,7 +53,6 @@ export type {
   LoginDto,
   CreateAccountDto,
   CreateTransactionDto,
-  ConnectConnectionDto,
   MfaDisableResponse,
   MfaEnableRequest,
   MfaEnableResponse,
@@ -522,13 +520,6 @@ class ApiClient {
 
   async getConnections(): Promise<ApiBankConnection[]> {
     return this.request<ApiBankConnection[]>('/open-finance/connections');
-  }
-
-  async connectConnection(dto: ConnectConnectionDto): Promise<ApiBankConnection> {
-    return this.request<ApiBankConnection>('/open-finance/connections', {
-      method: 'POST',
-      body: dto,
-    });
   }
 
   /** Contas da instituição disponíveis para vincular (Open Finance). */

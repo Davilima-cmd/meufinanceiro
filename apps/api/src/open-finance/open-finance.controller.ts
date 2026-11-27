@@ -19,7 +19,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SyncService } from '../sync/sync.service';
 import { AuditLog, AuditAction } from '../audit/audit-log.decorator';
 import { asJson } from '../common/json';
-import { ConnectConnectionDto } from './dto/connect-connection.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string };
@@ -64,40 +63,41 @@ export class OpenFinanceController {
     });
   }
 
-  @Post('connections')
-  @UseGuards(AuthGuard('jwt'))
-  @AuditLog(AuditAction.ACCOUNT_CONNECT)
-  async connect(@Req() req: AuthenticatedRequest, @Body() dto: ConnectConnectionDto) {
-    // A conta vinculada precisa pertencer ao usuário autenticado: sem esta
-    // checagem, um usuário poderia apontar a conexão para a conta de outro.
-    const account = await this.prisma.financialAccount.findFirst({
-      // Conta excluída logicamente não aceita conexão nova.
-      where: { id: dto.accountId, userId: req.user.userId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!account) {
-      throw new NotFoundException('Conta não encontrada');
-    }
-
-    return this.prisma.bankConnection.create({
-      data: {
-        userId: req.user.userId,
-        provider: dto.provider,
-        providerAccountId: dto.providerAccountId,
-        accountId: account.id,
-        status: 'active',
-      },
-    });
-  }
+  /**
+   * Vínculo manual de conta (rota legada) — **removida**.
+   *
+   * Ela criava `BankConnection` com `status: 'active'` a partir do corpo da
+   * requisição: sem consentimento, sem `providerItemId` e sem nada no provedor.
+   * O efeito aparecia depois, na conciliação: `fetchTransactions` recebia um
+   * `providerAccountId` que não existe e a sincronização inteira do usuário
+   * falhava — inclusive a das conexões que eram reais. O caminho correto é
+   * `POST /open-finance/connect-item`, que confirma o item no provedor, checa o
+   * consentimento e cria a conta com o saldo vindo da instituição.
+   *
+   * Para conta manual, o caminho é `POST /accounts` (com `balanceCents`); para
+   * conta de instituição, o widget do provedor + `POST /open-finance/connect-item`.
+   */
 
   @Patch('connections/:id/revoke')
   @UseGuards(AuthGuard('jwt'))
   @AuditLog(AuditAction.ACCOUNT_REVOKE)
   async revoke(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.prisma.bankConnection.update({
+    /**
+     * `updateMany` com `userId` no filtro em vez de `update({ where: { id } })`.
+     *
+     * `update` com chave composta inexistente no Prisma devolve erro genérico
+     * (500) e, quando o id é de outra pessoa, o `where` composto **não** é
+     * garantia de nada: o certo é filtrar e checar a contagem. Revogar duas
+     * vezes (duplo toque) deixa de ser erro.
+     */
+    const result = await this.prisma.bankConnection.updateMany({
       where: { id, userId: req.user.userId },
       data: { status: 'disconnected' },
     });
+    if (result.count === 0) {
+      throw new NotFoundException('Conexão não encontrada');
+    }
+    return { id, status: 'disconnected' };
   }
 
   @Get('consents')

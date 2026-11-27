@@ -283,13 +283,6 @@ export type ApiBankConnection = {
   account: { id: string; name: string };
 };
 
-/** DTO de entrada para conectar uma instituição via sandbox. */
-export type ConnectConnectionDto = {
-  provider: string;
-  providerAccountId: string;
-  accountId: string;
-};
-
 /** Conta disponível na instituição para vincular (Open Finance). */
 export type ApiAvailableAccount = {
   providerAccountId: string;
