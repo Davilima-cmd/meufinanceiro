@@ -63,7 +63,7 @@ export class NetWorthService {
 
   async create(
     userId: string,
-    input: { name: string; kind: string; valueCents: string; note?: string }
+    input: { name: string; kind: string; valueCents: string; note?: string | null }
   ) {
     this.assertPositive(input.valueCents);
     return this.prisma.netWorthItem.create({
@@ -80,7 +80,7 @@ export class NetWorthService {
   async update(
     userId: string,
     id: string,
-    input: { name?: string; kind?: string; valueCents?: string; note?: string }
+    input: { name?: string; kind?: string; valueCents?: string; note?: string | null }
   ) {
     if (input.valueCents !== undefined) this.assertPositive(input.valueCents);
     const result = await this.prisma.netWorthItem.updateMany({
@@ -89,7 +89,8 @@ export class NetWorthService {
         ...(input.name !== undefined && { name: input.name.trim() }),
         ...(input.kind !== undefined && { kind: input.kind }),
         ...(input.valueCents !== undefined && { valueCents: input.valueCents }),
-        ...(input.note !== undefined && { note: input.note }),
+        // `null` apaga a observação; `undefined` não mexe.
+        ...(input.note !== undefined && { note: input.note === null ? null : input.note }),
       },
     });
     if (result.count === 0) throw new NotFoundException('Item de patrimônio não encontrado');

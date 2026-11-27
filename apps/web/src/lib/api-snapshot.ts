@@ -235,25 +235,43 @@ export function mapSharedAccounts(rows: ApiSharedAccount[], offset = 0): Finance
 }
 
 export async function fetchApiSnapshot(): Promise<FinanceSnapshot> {
-  const [accounts, transactions, categories, budgets, goals, sharing, sharedAccounts, netWorth] =
-    await Promise.all([
-      api.getAccounts(),
-      api.getTransactions(),
-      api.getCategories(),
-      api.getBudgets().catch(() => [] as ApiBudget[]),
-      api.getGoals().catch(() => [] as ApiGoal[]),
-      // Compartilhamento é complementar: falhar aqui não pode derrubar a tela.
-      api.getSharing().catch(() => null),
-      // Fonte própria das contas recebidas: garante que elas aparecem mesmo se
-      // `GET /accounts` falhar ou vier de um cache antigo.
-      api.getSharedAccounts().catch(() => [] as ApiSharedAccount[]),
-      // Patrimônio é complementar: sem ele a tela mostra só o saldo das contas.
-      api.getNetWorth().catch(() => null as ApiNetWorthSummary | null),
-    ]);
-  // O usuário vem do `GET /auth/status` (dono da verdade): a cópia no
-  // `localStorage` pode estar velha ou ausente, e o id errado faria o app tratar
-  // as próprias contas como compartilhadas (somente leitura).
-  const status = await api.authStatus().catch(() => null);
+  /**
+   * Tudo numa rodada única de requisições.
+   *
+   * `/auth/status` era pedido **depois** do `Promise.all`, em série: abrir o
+   * app pagava duas vezes o tempo de ida e volta até a API (mobile e web em
+   * rede móvel, ~600 ms extras para não trazer nada além do nome do usuário).
+   * Ele também devolve o `csrfToken`, que o cliente guarda ao receber — por
+   * isso continua sendo uma chamada do cliente, não um `fetch` cru.
+   */
+  const [
+    accounts,
+    transactions,
+    categories,
+    budgets,
+    goals,
+    sharing,
+    sharedAccounts,
+    netWorth,
+    status,
+  ] = await Promise.all([
+    api.getAccounts(),
+    api.getTransactions(),
+    api.getCategories(),
+    api.getBudgets().catch(() => [] as ApiBudget[]),
+    api.getGoals().catch(() => [] as ApiGoal[]),
+    // Compartilhamento é complementar: falhar aqui não pode derrubar a tela.
+    api.getSharing().catch(() => null),
+    // Fonte própria das contas recebidas: garante que elas aparecem mesmo se
+    // `GET /accounts` falhar ou vier de um cache antigo.
+    api.getSharedAccounts().catch(() => [] as ApiSharedAccount[]),
+    // Patrimônio é complementar: sem ele a tela mostra só o saldo das contas.
+    api.getNetWorth().catch(() => null as ApiNetWorthSummary | null),
+    // O usuário vem do `GET /auth/status` (dono da verdade): a cópia no
+    // `localStorage` pode estar velha ou ausente, e o id errado faria o app
+    // tratar as próprias contas como compartilhadas (somente leitura).
+    api.authStatus().catch(() => null),
+  ]);
   const stored = localStorage.getItem('mf.session.api');
   const parsed = stored ? (JSON.parse(stored) as { user?: { id: string; name: string } }) : null;
   const user: FinanceUser = {

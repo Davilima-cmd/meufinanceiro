@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
 
 export const NET_WORTH_KINDS = ['asset', 'liability'] as const;
 
@@ -14,12 +14,23 @@ export class CreateNetWorthItemDto {
   @Matches(/^\d{1,19}$/, { message: 'valueCents deve ser um inteiro positivo em centavos' })
   valueCents: string;
 
+  /**
+   * Observação livre. No `create`, `null` e ausente são a mesma coisa (sem nota).
+   */
   @IsOptional()
   @IsString()
   @Length(1, 255)
-  note?: string;
+  note?: string | null;
 }
 
+/**
+ * `null` explícito = **apagar** a observação.
+ *
+ * Antes o campo era só `@IsOptional() @IsString() @Length(1,255)`: mandar
+ * `null` dava 422, mandar `''` dava 422, e o serviço só gravava quando a chave
+ * vinha definida. Resultado: uma observação escrita por engano não podia ser
+ * removida — a única saída era excluir o item e cadastrá-lo de novo.
+ */
 export class UpdateNetWorthItemDto {
   @IsOptional()
   @IsString()
@@ -35,7 +46,8 @@ export class UpdateNetWorthItemDto {
   valueCents?: string;
 
   @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
   @IsString()
   @Length(1, 255)
-  note?: string;
+  note?: string | null;
 }

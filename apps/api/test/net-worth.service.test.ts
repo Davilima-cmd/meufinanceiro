@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { NetWorthService } from '../src/net-worth/net-worth.service';
+import { UpdateNetWorthItemDto } from '../src/net-worth/dto/net-worth.dto';
 import type { PrismaService } from '../src/prisma/prisma.service';
 
 /**
@@ -108,5 +111,44 @@ describe('NetWorthService.update/remove', () => {
       NotFoundException
     );
     await expect(service().remove('user-1', 'i-x')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+/**
+ * Observação do item de patrimônio.
+ *
+ * Antes, `note` num DTO de update era `@IsOptional() @IsString() @Length(1,255)`:
+ * `null` e `''` davam 422 e o serviço só gravava quando a chave vinha definida.
+ * Uma observação escrita por engano não tinha como ser removida — só excluindo
+ * o item e cadastrando de novo.
+ */
+describe('NetWorthService — observação (note)', () => {
+  it('`null` apaga a observação; `undefined` não mexe nela', async () => {
+    prismaMock.netWorthItem.updateMany.mockResolvedValue({ count: 1 });
+
+    await service().update('u-1', 'item-1', { note: null });
+    expect(prismaMock.netWorthItem.updateMany).toHaveBeenCalledWith({
+      where: { id: 'item-1', userId: 'u-1' },
+      data: { note: null },
+    });
+
+    vi.clearAllMocks();
+    prismaMock.netWorthItem.updateMany.mockResolvedValue({ count: 1 });
+
+    await service().update('u-1', 'item-1', { valueCents: '1000' });
+    const data = (prismaMock.netWorthItem.updateMany.mock.calls[0] as unknown[])[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(data.data).not.toHaveProperty('note');
+  });
+
+  it('aceita null no DTO de update (antes era 422)', async () => {
+    const dto = plainToInstance(UpdateNetWorthItemDto, { note: null });
+    const errors = await validate(dto, { whitelist: true });
+    expect(errors).toEqual([]);
+
+    // String vazia continua inválida: use null para apagar.
+    const empty = await validate(plainToInstance(UpdateNetWorthItemDto, { note: '' }));
+    expect(empty.map((error) => error.property)).toContain('note');
   });
 });
