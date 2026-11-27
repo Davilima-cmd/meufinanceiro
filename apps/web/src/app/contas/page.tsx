@@ -203,6 +203,8 @@ export default function AccountsPage() {
                 account.type;
               return (
                 <article className="account-card" key={account.id}>
+                  {/* Cabeçalho: identidade da conta. Os selos ficam aqui e não
+                      disputam espaço com o saldo. */}
                   <div className="account-top">
                     <span
                       aria-hidden="true"
@@ -211,36 +213,45 @@ export default function AccountsPage() {
                     >
                       {account.name.slice(0, 1).toUpperCase()}
                     </span>
-                    <div>
+                    <div className="account-id">
                       <div className="account-name">{account.name}</div>
                       <div className="account-sub">
                         {account.institution ?? typeLabel}
                         {account.institution ? ` · ${typeLabel}` : ''}
                       </div>
                     </div>
-                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                      {own ? null : <Badge tone="warning">somente leitura</Badge>}
-                      {account.shareLevel === 'private' ? (
-                        <Badge tone="neutral">privada</Badge>
-                      ) : account.shareLevel === 'FULL' ? (
-                        <Badge tone="accent">histórico</Badge>
-                      ) : (
-                        <Badge tone="accent">só saldo</Badge>
-                      )}
-                    </div>
                   </div>
-                  <div>
+
+                  <div className="account-tags">
+                    {own ? null : <Badge tone="warning">somente leitura</Badge>}
+                    {account.shareLevel === 'private' ? (
+                      <Badge tone="neutral">privada</Badge>
+                    ) : account.shareLevel === 'FULL' ? (
+                      <Badge tone="accent">histórico</Badge>
+                    ) : (
+                      <Badge tone="accent">só saldo</Badge>
+                    )}
+                  </div>
+
+                  {/* Número em destaque; a legenda diz de quem é a conta. */}
+                  <div className="account-amount">
                     <div className="account-balance">
                       <Money value={account.balanceCents} />
                     </div>
                     <div className="account-sub">
-                      {own ? 'Sua conta' : `De ${account.ownerName}`} · movimento do mês{' '}
-                      <Money value={monthTotal} signed />
+                      {account.type === 'credit' ? 'Fatura em aberto' : 'Saldo atual'} ·{' '}
+                      {own ? 'sua conta' : `de ${account.ownerName}`}
                     </div>
                   </div>
+
+                  {/* Rodapé com o movimento do mês e a ação, separados por linha
+                      própria — era isso que deixava o texto colando no botão. */}
                   <div className="account-foot">
                     <span className="account-sub">
-                      {account.type === 'credit' ? 'Fatura em aberto' : 'Saldo atual'}
+                      Movimento do mês{' '}
+                      <strong className={monthTotal < 0n ? 'text-negative' : 'text-positive'}>
+                        <Money value={monthTotal} signed />
+                      </strong>
                     </span>
                     {own ? (
                       <button

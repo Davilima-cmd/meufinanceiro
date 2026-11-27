@@ -3820,3 +3820,577 @@ h3,
     var(--canvas-soft);
   border-right-color: var(--border-soft);
 }
+
+/* =========================================================================
+   Tela de entrada: só o painel, no meio, com fundo animado
+   A vitrine de duas colunas saiu. O cartão fica centrado e o fundo ganha
+   moedas e notas flutuando devagar, que é o que dá vida sem competir com o
+   formulário.
+   ========================================================================= */
+
+.auth-page {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: clamp(20px, 4vw, 48px);
+  background:
+    radial-gradient(90% 70% at 12% 8%, rgba(53, 166, 111, 0.18), transparent 62%),
+    radial-gradient(80% 70% at 88% 92%, rgba(227, 247, 154, 0.22), transparent 62%),
+    var(--canvas);
+}
+
+.auth-showcase {
+  display: none;
+}
+
+/* -------- fundo animado -------- */
+
+.auth-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.auth-orb {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--illu-mint), transparent 70%);
+  opacity: 0.55;
+  filter: blur(6px);
+  animation: orb-drift 22s ease-in-out infinite alternate;
+}
+
+.auth-orb-a {
+  top: -12%;
+  left: -8%;
+  width: 42vw;
+  height: 42vw;
+}
+
+.auth-orb-b {
+  right: -10%;
+  bottom: -16%;
+  width: 48vw;
+  height: 48vw;
+  animation-delay: -8s;
+  background: radial-gradient(circle at 60% 40%, var(--illu-lime), transparent 70%);
+}
+
+.auth-float {
+  position: absolute;
+  display: block;
+  animation: float-drift 14s ease-in-out infinite alternate;
+}
+
+.auth-float svg {
+  display: block;
+}
+
+.float-1 {
+  top: 12%;
+  left: 9%;
+  animation-duration: 16s;
+}
+
+.float-2 {
+  top: 22%;
+  right: 11%;
+  animation-duration: 19s;
+  animation-delay: -4s;
+  transform: rotate(-8deg);
+}
+
+.float-3 {
+  bottom: 16%;
+  left: 16%;
+  animation-duration: 13s;
+  animation-delay: -6s;
+}
+
+.float-4 {
+  top: 34%;
+  left: 26%;
+  color: var(--illu-lime);
+  animation-duration: 9s;
+  animation-delay: -2s;
+}
+
+.float-5 {
+  right: 24%;
+  bottom: 26%;
+  color: var(--illu-lime);
+  animation-duration: 11s;
+  animation-delay: -5s;
+}
+
+.float-6 {
+  right: 30%;
+  top: 8%;
+  animation-duration: 17s;
+  animation-delay: -9s;
+  opacity: 0.85;
+}
+
+@keyframes float-drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(var(--spin, -6deg));
+  }
+  50% {
+    transform: translate3d(14px, -22px, 0) rotate(calc(var(--spin, -6deg) * -1));
+  }
+  100% {
+    transform: translate3d(-10px, 16px, 0) rotate(var(--spin, -6deg));
+  }
+}
+
+@keyframes orb-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, 6%, 0) scale(1.08);
+  }
+}
+
+/* -------- cartão central -------- */
+
+.auth-form-wrap {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 18px;
+  width: min(460px, 100%);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-card {
+  width: 100%;
+  padding: clamp(22px, 3vw, 30px);
+  border: 2px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sticker);
+  animation: page-in 320ms var(--ease-out) both;
+}
+
+.auth-card h1 {
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 1.9rem);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.auth-tabs button {
+  flex: 1 1 0;
+  min-height: 34px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.auth-tabs button.is-active {
+  border-color: var(--ink);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 2px 2px 0 var(--ink-shadow);
+}
+
+.auth-card .button {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-float,
+  .auth-orb {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .auth-float {
+    opacity: 0.5;
+  }
+
+  .float-2,
+  .float-6 {
+    display: none;
+  }
+}
+
+[data-theme='dark'] .auth-page {
+  background:
+    radial-gradient(90% 70% at 12% 8%, rgba(53, 166, 111, 0.22), transparent 62%),
+    radial-gradient(80% 70% at 88% 92%, rgba(53, 166, 111, 0.12), transparent 62%),
+    var(--canvas);
+}
+
+[data-theme='dark'] .auth-orb {
+  opacity: 0.3;
+}
+
+/* =========================================================================
+   Padronização — botões, cartões e a "linha dupla"
+   O painel tinha botão de 28, 32, 36 e 40px de altura, cartão com três
+   raios diferentes e contornos duplicados (a camada de CSS nova somava com a
+   antiga, deixando borda de 2px + sombra de 2px + borda interna).
+   ========================================================================= */
+
+/* -------- botões: uma altura só, sem exceção de contexto -------- */
+
+.button,
+.auth-tabs button,
+.chip,
+.chip-toggle,
+.segmented button,
+.link-button {
+  --control-h: 38px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--control-h);
+  padding: 0 18px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.button-sm,
+.page-actions .button,
+.form-row .button,
+.calendar-foot .button {
+  min-height: var(--control-h);
+  padding: 0 18px;
+  font-size: 13px;
+}
+
+/* Botão que ocupa a linha inteira (login, diálogo) mantém a altura padrão. */
+.button.block {
+  width: 100%;
+}
+
+/* Link-botão (Excluir, ações de lista) tem alvo de clique confortável. */
+.link-button {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.link-button:hover {
+  background: var(--negative-soft);
+}
+
+/* Ícones-botão quadrados e iguais. */
+.icon-button {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  place-items: center;
+}
+
+/* -------- cartões: mesmo raio, mesma borda, mesma sombra -------- */
+
+.card,
+.account-card,
+.stat,
+.mini-stat,
+.auth-card,
+.sticker {
+  border-radius: 18px;
+}
+
+.card,
+.account-card,
+.stat-card {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--border);
+  box-shadow: var(--shadow-sticker-sm);
+}
+
+/* `stat` é o cartãozinho de número usado em Contas e no painel: antes era só
+   um bloco sem borda e destoava dos vizinhos. */
+.stat {
+  border: 2px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sticker-sm);
+}
+
+/* -------- fim da linha dupla -------- */
+
+/* Dentro de um cartão, os blocos internos não repetem borda nem sombra: quem
+   desenha o contorno é o cartão, não cada pedaço. */
+.card .stat,
+.card .mini-stat,
+.stat-card .stat {
+  border: 1.5px solid var(--border-soft);
+  box-shadow: none;
+  background: var(--surface-2);
+}
+
+.hero-side .mini-stat {
+  border-width: 2px;
+}
+
+/* Nada de sombra em cima de sombra. */
+.card .card,
+.card .account-card {
+  box-shadow: none;
+}
+
+/* Divisórias: uma linha só. O tracejado antigo convivia com a borda do
+   cartão e virava duas linhas visíveis. */
+.list > li + li,
+.list-item + .list-item {
+  border-top: 1px solid var(--border-soft);
+}
+
+/* -------- cartões de conta: grade em vez de blocos soltos -------- */
+
+.account-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 14px;
+  align-content: start;
+}
+
+.account-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  align-items: stretch;
+}
+
+.account-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.account-id {
+  min-width: 0;
+}
+
+.account-name {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-sub {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+}
+
+/* Selos van para uma linha própria: no cabeçalho eles espremiam o nome. */
+.account-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.account-tags .badge {
+  padding: 1px 8px;
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.account-amount {
+  display: grid;
+  gap: 2px;
+}
+
+.account-balance {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.account-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.account-foot .account-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: normal;
+}
+
+.account-foot .link-button {
+  margin-left: auto;
+}
+
+/* -------- campo de dinheiro: o prefixo não encosta no número -------- */
+
+.money-field {
+  gap: 2px;
+  padding-right: 12px;
+  overflow: hidden;
+}
+
+.money-prefix {
+  flex: none;
+  padding: 0 6px 0 12px;
+}
+
+.money-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.money-preview {
+  margin-top: 2px;
+}
+
+/* No formulário de limite, o campo ocupa a coluna e o botão fica ao lado. */
+.form-row > .button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 620px) {
+  .account-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+
+  .account-balance {
+    font-size: 1.32rem;
+  }
+}
+
+/* =========================================================================
+   Acabamento — foco, título e o texto que sai em maiúscula
+   ========================================================================= */
+
+/* O foco do navegador (outline) somava com o anel que a gente desenha nos
+   campos e botões, virando duas linhas. Aqui ele fica só no teclado e no
+   elemento certo. */
+.input:focus-visible,
+.select-trigger:focus-visible,
+.button:focus-visible,
+.chip:focus-visible,
+.icon-button:focus-visible {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* O brilho ficava atrás do texto do título (o "novembro de 2026" tinha uma
+   seta por cima da última linha). Agora ele fica ao lado, na mesma linha de
+   base, e não cobre letra nenhuma. */
+.page-header h1::after {
+  right: -26px;
+  bottom: 0.06em;
+  width: 14px;
+  height: 14px;
+}
+
+.page-header h1 {
+  padding-right: 26px;
+}
+
+/* Rótulos de campo e de estatística em caixa normal, com o mesmo peso. */
+.field > span,
+.field > label,
+.stat-label,
+.mini-stat span,
+.hero-balance .label,
+.legend-row span,
+.table th {
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Primeira letra maiúscula em rótulos que vinham do dado bruto. */
+.stat-label::first-letter,
+.account-name::first-letter {
+  text-transform: uppercase;
+}
+
+@media (max-width: 620px) {
+  .page-header h1 {
+    padding-right: 0;
+  }
+
+  .page-header h1::after {
+    display: none;
+  }
+}
+
+/* Bolha quadrada com borda grossa em volta do item do menu. */
+.shell .nav-item {
+  border-width: 0;
+  box-shadow: none;
+}
+
+.shell .nav-item.is-active {
+  border-width: 2px;
+  box-shadow: 3px 3px 0 var(--ink-shadow);
+}
+
+[data-theme='dark'] .nav-item.is-active {
+  border-width: 1.5px;
+  box-shadow: none;
+}
+
+/* Cartão dentro de cartão não leva segunda borda nem segunda sombra. */
+.card .stat-grid .stat {
+  border-width: 0;
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+/* Contêiner de seção dentro de um cartão: só um fio no topo. */
+.card > .stat-grid + .stat-grid {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* Cada `stat` já tem seu próprio espaçamento; o grid cuida do resto. */
+.stat-grid {
+  gap: 12px;
+}

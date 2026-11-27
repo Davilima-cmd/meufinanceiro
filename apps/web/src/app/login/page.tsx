@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useFinance } from '@/lib/store';
 import { withTimeout } from '@/lib/api';
 import { BrandLockup, BrandMark } from '@/components/brand';
+import { Banknote, Coin, Spark } from '@/components/illustrations';
 import type { AuthResponse } from '@meufinanceiro/shared-types';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
@@ -118,46 +119,37 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <aside className="auth-showcase">
-        <div className="brand">
-          <BrandMark />
-          <BrandLockup />
-        </div>
-        <div className="stack">
-          <p className="eyebrow">Um painel para o casal</p>
-          <h2>Tudo o que vocês gastam, juntam e planejam em um só lugar.</h2>
-          <p>
-            Contas compartilhadas com privacidade por padrão, orçamentos por categoria e metas
-            acompanhadas mês a mês.
-          </p>
-          <ul className="auth-bullets">
-            <li>
-              <span className="tick" aria-hidden="true">
-                ✓
-              </span>
-              Cada conta é privada até você compartilhar — só o saldo ou o histórico completo.
-            </li>
-            <li>
-              <span className="tick" aria-hidden="true">
-                ✓
-              </span>
-              Orçamentos e metas com progresso calculado automaticamente.
-            </li>
-            <li>
-              <span className="tick" aria-hidden="true">
-                ✓
-              </span>
-              Valores em centavos, sem erro de arredondamento, exibidos em reais.
-            </li>
-          </ul>
-        </div>
-        <p className="auth-note">
-          Entre com uma conta real para conectar seus bancos — ou abra a demonstração e conheça o
-          painel com dados fictícios, sem cadastro.
-        </p>
-      </aside>
+      {/* Fundo animado: moedas, notas e brilhos flutuando devagar, como nos
+          slides da referência. É puramente decorativo (aria-hidden) e some com
+          prefers-reduced-motion. */}
+      <div aria-hidden="true" className="auth-bg">
+        <span className="auth-orb auth-orb-a" />
+        <span className="auth-orb auth-orb-b" />
+        <span className="auth-float float-1">
+          <Coin size={92} />
+        </span>
+        <span className="auth-float float-2">
+          <Banknote size={120} />
+        </span>
+        <span className="auth-float float-3">
+          <Coin size={58} />
+        </span>
+        <span className="auth-float float-4">
+          <Spark />
+        </span>
+        <span className="auth-float float-5">
+          <Spark />
+        </span>
+        <span className="auth-float float-6">
+          <Banknote size={84} />
+        </span>
+      </div>
 
       <div className="auth-form-wrap">
+        <div className="auth-brand">
+          <BrandMark size={44} />
+          <BrandLockup />
+        </div>
         <div className="auth-card">
           <div>
             <h1>Entrar no painel</h1>

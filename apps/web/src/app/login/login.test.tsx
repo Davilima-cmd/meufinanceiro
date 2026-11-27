@@ -98,3 +98,18 @@ describe('Login — recuperação de senha', () => {
     expect(await screen.findByText(/token inválido ou expirado/i)).toBeTruthy();
   });
 });
+
+describe('Entrada — layout centrado', () => {
+  it('mostra só o painel no meio, com o fundo animado decorativo', () => {
+    const { container } = render(<LoginPage />);
+
+    // A vitrine de duas colunas saiu; sobrou o cartão.
+    expect(container.querySelector('.auth-showcase')).toBeNull();
+    expect(container.querySelector('.auth-card')).toBeTruthy();
+
+    // O fundo é decorativo: nada dentro dele deve ser lido ou focável.
+    const bg = container.querySelector('.auth-bg');
+    expect(bg?.getAttribute('aria-hidden')).toBe('true');
+    expect(bg?.querySelectorAll('button, input, a').length).toBe(0);
+  });
+});
