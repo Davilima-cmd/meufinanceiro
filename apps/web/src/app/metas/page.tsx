@@ -22,18 +22,37 @@ export default function GoalsPage() {
   // requisição por meta em cada visita.
   const [openHistory, setOpenHistory] = useState<string | null>(null);
   const [history, setHistory] = useState<Record<string, ApiGoalContribution[]>>({});
-  const [historyLoading, setHistoryLoading] = useState(false);
+  /**
+   * Histórico por meta, em vez de um booleano global.
+   *
+   * Com um `historyLoading` só, abrir a meta B enquanto a A carregava mostrava
+   * "Carregando histórico…" na B; e um erro na busca deixava a tela presa em
+   * "Carregando" para sempre. Agora cada meta tem o próprio estado e a falha
+   * aparece na linha da meta.
+   */
+  const [historyState, setHistoryState] = useState<Record<string, 'loading' | 'done' | 'error'>>(
+    {}
+  );
 
-  async function toggleHistory(goalId: string) {
+  async function loadHistory(goalId: string, force = false) {
+    if (!force && (historyState[goalId] === 'done' || historyState[goalId] === 'loading')) return;
+    setHistoryState((current) => ({ ...current, [goalId]: 'loading' }));
+    try {
+      const rows = await goalHistory(goalId);
+      setHistory((current) => ({ ...current, [goalId]: rows }));
+      setHistoryState((current) => ({ ...current, [goalId]: 'done' }));
+    } catch {
+      setHistoryState((current) => ({ ...current, [goalId]: 'error' }));
+    }
+  }
+
+  function toggleHistory(goalId: string) {
     if (openHistory === goalId) {
       setOpenHistory(null);
       return;
     }
     setOpenHistory(goalId);
-    setHistoryLoading(true);
-    const rows = await goalHistory(goalId);
-    setHistory((current) => ({ ...current, [goalId]: rows }));
-    setHistoryLoading(false);
+    void loadHistory(goalId);
   }
 
   function noteFor(goalId: string): string {
@@ -217,7 +236,21 @@ export default function GoalsPage() {
                   </div>
                   {openHistory === goal.id ? (
                     <div className="goal-history">
-                      {historyLoading && !history[goal.id] ? (
+                      {historyState[goal.id] === 'error' ? (
+                        <span className="account-sub">
+                          Não foi possível carregar o histórico.{' '}
+                          <button
+                            className="link-button"
+                            onClick={() => {
+                              // Tenta de novo sem fechar o painel.
+                              void loadHistory(goal.id, true);
+                            }}
+                            type="button"
+                          >
+                            Tentar de novo
+                          </button>
+                        </span>
+                      ) : historyState[goal.id] === 'loading' ? (
                         <span className="account-sub">Carregando histórico…</span>
                       ) : (history[goal.id] ?? []).length === 0 ? (
                         <span className="account-sub">
