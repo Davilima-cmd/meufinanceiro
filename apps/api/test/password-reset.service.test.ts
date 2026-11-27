@@ -11,14 +11,14 @@ import { AuthService } from '../src/auth/auth.service';
 
 const prismaMock = {
   user: { findUnique: vi.fn(), update: vi.fn() },
-  passwordReset: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+  passwordReset: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
   session: { deleteMany: vi.fn() },
   $transaction: vi.fn(),
 } as unknown as PrismaService;
 
 const txMock = {
   user: { update: vi.fn() },
-  passwordReset: { update: vi.fn() },
+  passwordReset: { update: vi.fn(), deleteMany: vi.fn(), create: vi.fn() },
   session: { deleteMany: vi.fn() },
 };
 
@@ -32,29 +32,34 @@ function service() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Duas formas de $transaction: callback (redefinição) e array (pedido).
   (prismaMock.$transaction as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-    async (fn: (tx: typeof txMock) => unknown) => fn(txMock)
+    async (arg: unknown) =>
+      typeof arg === 'function' ? (arg as (tx: typeof txMock) => unknown)(txMock) : arg
   );
   (txMock.user.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
   (txMock.passwordReset.update as ReturnType<typeof vi.fn>).mockResolvedValue({});
+  (txMock.passwordReset.deleteMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+  (txMock.passwordReset.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
   (txMock.session.deleteMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 2 });
+  (prismaMock.passwordReset.deleteMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+  (prismaMock.passwordReset.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
 });
 
 describe('PasswordResetService — pedido', () => {
   it('responde igual quando o e-mail não existe (não revela cadastro)', async () => {
     (prismaMock.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     await expect(service().request('ninguem@ex.com')).resolves.toEqual({ requested: true });
-    expect(prismaMock.passwordReset.create).not.toHaveBeenCalled();
+    expect(txMock.passwordReset.create).not.toHaveBeenCalled();
   });
 
   it('cria token com hash (nunca em texto puro) e prazo de 30 minutos', async () => {
     (prismaMock.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'user-1' });
-    (prismaMock.passwordReset.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
 
     const before = Date.now();
     await service().request('davi@ex.com');
 
-    const arg = (prismaMock.passwordReset.create as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+    const arg = (txMock.passwordReset.create as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
       data: { tokenHash: string; expiresAt: Date; userId: string };
     };
     expect(arg.data.userId).toBe('user-1');
@@ -62,6 +67,21 @@ describe('PasswordResetService — pedido', () => {
     const ttl = arg.data.expiresAt.getTime() - before;
     expect(ttl).toBeGreaterThan(29 * 60 * 1000);
     expect(ttl).toBeLessThanOrEqual(31 * 60 * 1000);
+  });
+
+  it('descartar os links anteriores ao pedir um novo', async () => {
+    // Um link antigo (e-mail encaminhado, caixa compartilhada) não pode
+    // continuar valendo depois que a pessoa pede outro.
+    (prismaMock.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'user-1' });
+
+    await service().request('davi@ex.com');
+
+    expect(txMock.passwordReset.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', usedAt: null },
+    });
+    // Ambos dentro da mesma transação: nunca existe momento sem link válido
+    // por causa de uma falha no meio.
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -82,9 +102,11 @@ describe('PasswordResetService — redefinição', () => {
       where: { id: 'user-1' },
       data: { password: 'novo-hash' },
     });
-    expect(txMock.passwordReset.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'reset-1' } })
-    );
+    // Todos os tokens do usuário caem, não só o usado: um segundo link emitido
+    // antes ainda resetaria a senha depois da troca.
+    expect(txMock.passwordReset.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+    });
     expect(txMock.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
   });
 

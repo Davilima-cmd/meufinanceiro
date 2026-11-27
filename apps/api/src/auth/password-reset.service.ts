@@ -37,12 +37,18 @@ export class PasswordResetService {
     if (!user) return { requested: true };
 
     const token = randomBytes(32).toString('hex');
-    await this.prisma.passwordReset.create({
-      data: {
-        userId: user.id,
-        tokenHash: hashToken(token),
-        expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
-      },
+    // Pedir um link novo invalida os anteriores: só o último pedido vale, para
+    // que um e-mail antigo (caixa compartilhada, encaminhamento, backup) não
+    // continue servindo como porta de entrada.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.passwordReset.deleteMany({ where: { userId: user.id, usedAt: null } });
+      await tx.passwordReset.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashToken(token),
+          expiresAt: new Date(Date.now() + TOKEN_TTL_MS),
+        },
+      });
     });
 
     // Integração de e-mail fica a cargo do provedor configurado em produção.
@@ -70,8 +76,11 @@ export class PasswordResetService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: record.userId }, data: { password } });
-      await tx.passwordReset.update({ where: { id: record.id }, data: { usedAt: new Date() } });
-      // Todas as outras sessões abertas deixam de valer após a troca de senha.
+      // Invalida **todos** os tokens de redefinição do usuário, não só o usado:
+      // um segundo link emitido antes (e talvez vazado) ainda resetaria a senha
+      // outra vez, logo depois de a vítima ter trocado.
+      await tx.passwordReset.deleteMany({ where: { userId: record.userId } });
+      // Todas as sessões abertas deixam de valer após a troca de senha.
       await tx.session.deleteMany({ where: { userId: record.userId } });
     });
 
