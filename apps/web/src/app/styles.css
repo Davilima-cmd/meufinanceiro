@@ -3064,7 +3064,11 @@ a.notice:hover {
    ========================================================================= */
 
 :root {
+  /* `--ink` desenha contorno, ícone e texto; `--ink-shadow` só a sombra
+     deslocada. No escuro os dois precisam ser diferentes: contorno claro para
+     destacar do fundo, sombra preta para dar profundidade sem virar borrão. */
   --ink: #12352a;
+  --ink-shadow: #12352a;
   --illu-mint: #b9ecc9;
   --illu-lime: #e3f79a;
   --illu-peach: #ffcf8f;
@@ -3073,21 +3077,24 @@ a.notice:hover {
   --illu-line: rgba(18, 53, 42, 0.5);
   --outline: 2.5px solid var(--ink);
   --outline-soft: 2px solid var(--ink);
-  --shadow-sticker: 6px 6px 0 var(--ink);
-  --shadow-sticker-sm: 4px 4px 0 var(--ink);
+  --shadow-sticker: 6px 6px 0 var(--ink-shadow);
+  --shadow-sticker-sm: 4px 4px 0 var(--ink-shadow);
   --ease-out: cubic-bezier(0.22, 0.9, 0.24, 1);
 }
 
 [data-theme='dark'] {
-  --ink: #040f0b;
-  --illu-mint: #4fd39a;
-  --illu-lime: #cfeb86;
-  --illu-peach: #ffb877;
-  --illu-coin: #f4efc2;
-  --illu-note: #6fd8a4;
-  --illu-line: rgba(234, 245, 238, 0.24);
-  --shadow-sticker: 6px 6px 0 rgba(0, 0, 0, 0.6);
-  --shadow-sticker-sm: 4px 4px 0 rgba(0, 0, 0, 0.6);
+  /* Contorno claro e fino: preto sobre fundo escuro desaparecia e sobrava só
+     um card com borda invisível e sombra suja. */
+  --ink: #cdeadd;
+  --ink-shadow: #030b08;
+  --illu-mint: #1d3f31;
+  --illu-lime: #a8c96b;
+  --illu-peach: #d99a63;
+  --illu-coin: #eae4b4;
+  --illu-note: #3f8f68;
+  --illu-line: rgba(205, 234, 221, 0.16);
+  --shadow-sticker: 6px 6px 0 var(--ink-shadow);
+  --shadow-sticker-sm: 4px 4px 0 var(--ink-shadow);
 }
 
 /* -------- tipografia: títulos redondos e pesados -------- */
@@ -3163,7 +3170,7 @@ h3,
 .hero-mood {
   border: var(--outline-soft);
   background: var(--surface);
-  box-shadow: 2px 2px 0 var(--ink);
+  box-shadow: 2px 2px 0 var(--ink-shadow);
   color: var(--text);
   font-weight: 700;
 }
@@ -3189,12 +3196,12 @@ h3,
 
 .button:hover {
   transform: translate(-1px, -1px);
-  box-shadow: 6px 6px 0 var(--ink);
+  box-shadow: 6px 6px 0 var(--ink-shadow);
 }
 
 .button:active {
   transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0 var(--ink);
+  box-shadow: 1px 1px 0 var(--ink-shadow);
 }
 
 .button-primary {
@@ -3206,7 +3213,7 @@ h3,
 .button-ghost {
   border-color: var(--ink);
   background: var(--surface);
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: 3px 3px 0 var(--ink-shadow);
 }
 
 .icon-button {
@@ -3245,7 +3252,7 @@ h3,
 .nav-item.is-active {
   border-color: var(--ink);
   background: var(--illu-lime);
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: 3px 3px 0 var(--ink-shadow);
   color: var(--text);
 }
 
@@ -3271,7 +3278,7 @@ h3,
 .chip[aria-pressed='true'] {
   border-color: var(--ink);
   background: var(--illu-lime);
-  box-shadow: 2px 2px 0 var(--ink);
+  box-shadow: 2px 2px 0 var(--ink-shadow);
   color: var(--text);
 }
 
@@ -3282,7 +3289,7 @@ h3,
 
 .segmented {
   border-radius: 999px;
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: 3px 3px 0 var(--ink-shadow);
 }
 
 .segmented button {
@@ -3471,7 +3478,7 @@ h3,
   .card,
   .hero,
   .mini-stat {
-    box-shadow: 3px 3px 0 var(--ink);
+    box-shadow: 3px 3px 0 var(--ink-shadow);
   }
 
   .hero::after {
@@ -3536,7 +3543,7 @@ h3,
   border: var(--outline-soft);
   border-radius: 12px;
   background: var(--surface);
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: 3px 3px 0 var(--ink-shadow);
   font-weight: 600;
 }
 
@@ -3549,4 +3556,267 @@ h3,
     width: 52px;
     height: 52px;
   }
+}
+
+/* =========================================================================
+   Tema escuro — segunda passada
+   O escuro herdou a camada ilustrativa pensada para papel claro: contorno
+   preto (invisível), cartão menta saturado e adesivos pesados. Aqui ele vira
+   uma versão noturna do mesmo desenho: fundo verde-cararvão, cartões com
+   contorno claro e fino, e a cor de apoio só em detalhe (selo, ícone, número).
+   ========================================================================= */
+
+[data-theme='dark'] {
+  --canvas: #0b1512;
+  --canvas-soft: #0f1d18;
+  --surface: #14241d;
+  --surface-2: #182b23;
+  --surface-3: #1f372c;
+  --border: #2c4a3c;
+  --border-soft: #21382e;
+  --text: #e8f4ec;
+  --muted: #9db3a7;
+  --muted-soft: #7e938a;
+  --accent: #52d69c;
+  --accent-strong: #35a66f;
+  --accent-soft: rgba(82, 214, 156, 0.16);
+  --positive: #52d69c;
+  --negative: #ff928a;
+  --warning: #f0c173;
+  --shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+}
+
+/* Cartões: fundo próprio, contorno claro de 1,5 px e sombra preta curta.
+   O contorno grosso de 2–2,5 px era o que deixava a tela "quadriculada". */
+[data-theme='dark'] .card,
+[data-theme='dark'] .hero,
+[data-theme='dark'] .mini-stat,
+[data-theme='dark'] .account-card,
+[data-theme='dark'] .stat-card {
+  border-width: 1.5px;
+  border-color: var(--border);
+  box-shadow: 0 10px 24px -18px rgba(0, 0, 0, 0.9);
+}
+
+/* O bloco de saldo não é verde chapado no escuro: ele é o painel mais escuro
+   da tela, com um halo verde discreto no canto. */
+[data-theme='dark'] .hero {
+  border-color: var(--accent-strong);
+  background:
+    radial-gradient(120% 130% at 88% -10%, rgba(53, 166, 111, 0.28), transparent 62%),
+    var(--surface);
+}
+
+[data-theme='dark'] .hero::after {
+  opacity: 0.5;
+}
+
+[data-theme='dark'] .hero-mood {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--surface-2);
+  box-shadow: none;
+  color: var(--text);
+}
+
+[data-theme='dark'] .hero-side .mini-stat {
+  border-color: var(--border-soft);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+/* Botões: a sombra deslocada fica curta e discreta; no clique só afunda. */
+[data-theme='dark'] .button {
+  border-width: 1.5px;
+  border-color: color-mix(in srgb, var(--ink) 22%, var(--border));
+  box-shadow: 0 6px 16px -12px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme='dark'] .button:hover {
+  border-color: var(--accent);
+  box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.95);
+}
+
+[data-theme='dark'] .button:active {
+  box-shadow: 0 2px 6px -4px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme='dark'] .button-primary {
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  background: var(--accent);
+  color: #04241a;
+}
+
+[data-theme='dark'] .button-ghost {
+  border-color: var(--border);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .icon-button {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+[data-theme='dark'] .icon-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Menu: ativo em verde translúcido (o lima chapado estourava no escuro). */
+[data-theme='dark'] .nav-item.is-active {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--text);
+}
+
+[data-theme='dark'] .nav-item.is-active .nav-pip {
+  background: var(--accent);
+}
+
+[data-theme='dark'] .nav-item:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+/* Chips e segmentado: selecionado é verde translúcido com texto claro. */
+[data-theme='dark'] .chip,
+[data-theme='dark'] .chip-toggle,
+[data-theme='dark'] .segmented {
+  border-width: 1.5px;
+  box-shadow: none;
+}
+
+[data-theme='dark'] .chip.is-selected,
+[data-theme='dark'] .chip[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-soft);
+  box-shadow: none;
+  color: var(--text);
+}
+
+[data-theme='dark'] .segmented {
+  background: var(--surface-2);
+}
+
+[data-theme='dark'] .segmented button.is-selected {
+  border: 1.5px solid var(--border);
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+/* Campos: contorno claro no foco, sem o "degrau" branco. */
+[data-theme='dark'] .input,
+[data-theme='dark'] .select-trigger,
+[data-theme='dark'] .money-field,
+[data-theme='dark'] .day-field {
+  border-width: 1.5px;
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+[data-theme='dark'] .input:focus,
+[data-theme='dark'] .select-trigger[aria-expanded='true'],
+[data-theme='dark'] .money-field:focus-within,
+[data-theme='dark'] .day-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Calendário e menus flutuantes */
+[data-theme='dark'] .calendar,
+[data-theme='dark'] .select-menu,
+[data-theme='dark'] .dialog {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: 0 24px 48px -24px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme='dark'] .calendar-day.is-selected {
+  background: var(--accent);
+  color: #04241a;
+}
+
+/* Ilustrações: mais discretas, contorno claro e sem "brilho" de papel. */
+[data-theme='dark'] .hero-deco {
+  opacity: 0.55;
+}
+
+[data-theme='dark'] .illu-coin,
+[data-theme='dark'] .illu-note {
+  filter: none;
+}
+
+[data-theme='dark'] .illu-spark {
+  filter: none;
+  color: var(--accent);
+}
+
+[data-theme='dark'] .page-header h1::after {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+/* Tabelas e listas: divisor suave, sem tracejado gritante. */
+[data-theme='dark'] .list > li + li,
+[data-theme='dark'] .list-item + .list-item {
+  border-top-color: var(--border-soft);
+}
+
+[data-theme='dark'] .topbar {
+  border-bottom-color: var(--border-soft);
+  background: color-mix(in srgb, var(--canvas) 86%, transparent);
+}
+
+[data-theme='dark'] .sidebar {
+  border-right-color: var(--border-soft);
+  background: var(--canvas-soft);
+}
+
+[data-theme='dark'] .demo-banner {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+/* No escuro, contorno e sombra somem em telas pequenas: mantém só o contorno. */
+@media (max-width: 620px) {
+  [data-theme='dark'] .card,
+  [data-theme='dark'] .hero,
+  [data-theme='dark'] .mini-stat {
+    box-shadow: 0 8px 18px -16px rgba(0, 0, 0, 0.9);
+  }
+}
+
+/* =========================================================================
+   Tema: fora do shell também
+   O `data-theme` estava só no div do shell, então login e demais telas que não
+   usam a moldura ignoravam a escolha. Aqui o tema também chega ao <html>, e a
+   tela de entrada ganha a paleta verde no lugar dos brilhos antigos.
+   ========================================================================= */
+
+.auth-showcase {
+  background:
+    radial-gradient(120% 90% at 10% 0%, rgba(53, 166, 111, 0.22), transparent 60%),
+    radial-gradient(90% 80% at 90% 100%, rgba(227, 247, 154, 0.18), transparent 60%),
+    var(--canvas-soft);
+}
+
+.auth-card {
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sticker-sm);
+}
+
+[data-theme='dark'] .auth-card {
+  border-width: 1.5px;
+  border-color: var(--border);
+  box-shadow: 0 18px 36px -24px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme='dark'] .auth-showcase {
+  background:
+    radial-gradient(120% 90% at 10% 0%, rgba(53, 166, 111, 0.16), transparent 62%),
+    var(--canvas-soft);
+  border-right-color: var(--border-soft);
 }

@@ -179,6 +179,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const theme = snapshot.settings.theme;
 
+  // O tema também vai para o <html>: login, tela de boot e qualquer página fora
+  // do shell passam a acompanhar a escolha, e o navegador pinta a barra de
+  // rolagem com a cor certa em vez de branco no meio do escuro.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
+
   if (!hydrated) {
     return (
       <div className="boot" aria-busy="true">

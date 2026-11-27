@@ -115,3 +115,25 @@ describe('Barra lateral recolhível', () => {
     expect(brand.querySelectorAll('strong, small').length).toBe(2);
   });
 });
+
+describe('Tema', () => {
+  it('aplica a escolha também no <html>, para telas fora do shell', async () => {
+    const user = userEvent.setup();
+    render(
+      <FinanceProvider>
+        <LoginOnMount />
+        <AppShell>
+          <p>conteúdo</p>
+        </AppShell>
+      </FinanceProvider>
+    );
+
+    await screen.findByRole('button', { name: 'Alternar tema' });
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'));
+
+    await user.click(screen.getByRole('button', { name: 'Alternar tema' }));
+
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
+    expect(document.documentElement.style.colorScheme).toBe('dark');
+  });
+});
